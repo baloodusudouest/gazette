@@ -8,7 +8,7 @@
 - Aucun code d'appli. Jamais essayé sur la vraie installation.
 
 ## Prochaine étape
-- Banc d'essai : extraction sur 30 dates tirées au hasard (1940-2010), puis temps 1 (socle copié, port 8099).
+- Banc d'essai fait le 14/11/2026 (`docs/banc-2026-11-14.md`) : 28/30 unes trouvées, années 1950-1999 maigres, filtre des drames et choix du gros titre à refaire. Puis temps 1 (socle copié, port 8099).
 
 ## Pièges
 - Dépôt public : aucun nom réel, aucune date de naissance réelle, aucun lieu ni adresse. Titre, signature et lieu par variables.
