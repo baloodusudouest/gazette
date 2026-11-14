@@ -127,3 +127,23 @@ Cinq avis, relecture croisée anonyme, synthèse. Verdict, à valider :
 - **« Disparus le même jour » est gardé.**
 - **V1 avec HA** : le temps 1 comprend la fiche personne, le rendu (PDF imposé et lecture), la une, la chronologie, les nés et disparus, l'édition des blocs, le PDF téléchargeable, la mention des sources, **et la porte `/ha/sejour`** avec le package HA (signalement des livrets manquants ou à relire). Musique et cinéma saisis à la main au début ; impression IPP au temps suivant, après un essai du recto-verso à la main.
 - Retenus du conseil sans changement : Chromium ; mot des hôtes écrit dans Gazette, sans limite (la signature de la stack ne sert qu'en signature finale par défaut) ; relecture obligatoire et rapide ; exclusions sur tous les blocs avec drapeau « sensible » ; événements choisis selon le pays de naissance (France par défaut) ; banc d'essai sur 30 dates avant de figer les règles.
+
+## Ajout du 14/11/2026 — anniversaire proche du séjour
+
+**Demande** : comparer la date du séjour à l'anniversaire de la personne et, si l'anniversaire tombe **dans les 2 semaines avant ou après le séjour**, alerter dans Gazette et proposer, dans À traiter, des phrases pour le souhaiter en avance, le jour même ou en retard.
+
+**Règle** (temps 1, avec la porte `/ha/sejour`, qui apporte les dates du séjour) :
+- Pour chaque invité du séjour qui a une fiche personne avec une date de naissance, on calcule l'anniversaire le plus proche du séjour (l'année du séjour, la précédente ou la suivante : un anniversaire le 2 janvier compte pour un séjour du 28 au 30 décembre). Le 29 février compte le 28 février les années non bissextiles.
+- Cas :
+  - **pendant le séjour** (de l'arrivée au départ inclus) → « le jour même » ;
+  - **1 à 14 jours avant l'arrivée** → « en retard » (l'anniversaire est passé quand l'invité arrive) ;
+  - **1 à 14 jours après le départ** → « en avance » ;
+  - au-delà de 14 jours → rien.
+- **Alerte** : une tuile « Anniversaire proche du séjour » dans **À traiter** (compteur), un badge sur la fiche et sur l'édition, et un rappel dans la notification HA du livret.
+- **Propositions de phrases** (par règles, sans IA, 3 par cas, avec `{prenom}` et l'écart en jours ou le jour de la semaine) ; un geste « Ajouter au mot des hôtes » insère la phrase choisie à la fin du mot (modifiable ensuite), un autre « Ignorer » ferme la tuile pour ce séjour. Exemples :
+  - en avance : « Et puisque votre anniversaire arrive dans {n} jours : joyeux anniversaire, {prenom}, avec un peu d'avance ! » · « Un petit secret : on sait que vous soufflerez vos bougies {jour}. Joyeux anniversaire en avance ! » · « Bon anniversaire avant l'heure, {prenom} : ce journal en est le premier cadeau. »
+  - le jour même / pendant le séjour : « Joyeux anniversaire, {prenom} ! Le fêter ici avec vous est un vrai bonheur. » · « Le {date}, c'est votre jour : bon anniversaire, et merci de le passer avec nous. » · « Votre anniversaire tombe pendant votre séjour : préparez-vous à quelques bougies. »
+  - en retard : « Votre anniversaire, c'était il y a {n} jours : joyeux anniversaire en retard, {prenom}, mais de tout cœur ! » · « Mieux vaut tard que jamais : bon anniversaire, {prenom} ! » · « On n'a pas oublié votre anniversaire, on a juste attendu de vous avoir sous la main. »
+- L'âge en chiffres n'apparaît jamais dans les phrases.
+- Données : la date de naissance vient de la fiche personne (saisie en V1, carnet ensuite). Sans date de naissance, pas d'alerte, mais la fiche manquante est déjà signalée dans À traiter.
+- Tests : séjours encadrant l'anniversaire à J-15, J-14, J-1, le jour d'arrivée, pendant, le jour de départ, J+1, J+14, J+15 ; passage d'année ; 29 février.
