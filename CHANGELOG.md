@@ -1,5 +1,12 @@
 # Journal des versions
 
+## 0.5.0 — 14/11/2026 (page trop pleine : on voit quoi changer)
+- **Blocs en rouge** : quand une page déborde, ses blocs sont encadrés de rouge dans l'éditeur, avec un bandeau « Page 2 trop pleine : il manque environ 6 lignes ».
+- **Compteur qui suit la frappe** : sous chaque bloc, le nombre de signes et ce qu'il faudrait retirer (« en retirer environ 316 suffirait ») ; tout passe au vert dès que la page devrait tenir (« enregistre pour vérifier »). Masquer un bloc compte aussi.
+- **Remplacements en vert** : dans « Remplacer », les propositions qui feraient tenir la page sont en vert, en tête de liste, avec leur nombre de signes.
+- Mesure faite par Chromium sur le livret enregistré (`GET /api/livrets/{id}/mesure` : hauteur de chaque bloc et place qui manque, page par page) ; l'estimation pendant la frappe vient de `frontend/src/lib/place.js` et la nouvelle mesure après « Enregistrer » tranche. Sans Chromium, l'éditeur marche sans ce contrôle.
+- Zones de texte qui s'agrandissent avec leur contenu (navigateurs qui le permettent).
+
 ## 0.4.0 — 14/11/2026 (texte complet, plus de « … »)
 - **Plus aucun texte coupé** : la une, les brèves, la page 2 et la chronologie gardent la phrase de la source en entier. Un titre n'est pris que s'il se détache naturellement (phrase courte, « : », « ; », tiret) ou s'il vient de la rubrique de la source (« Serbie », « ONU ») ; sinon pas de titre, juste le paragraphe (« chapo seul » en une, texte seul en page 2).
 - **Taille du texte ajustée page par page** : si une page est trop pleine, le texte des articles baisse par petits pas (jusqu'à 84 %, corps ≥ 9 pt imprimé) au lieu d'être tronqué ; même calcul dans l'aperçu et le PDF. Le contrôle des débordements regarde maintenant chaque élément de la page.

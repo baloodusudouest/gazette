@@ -165,6 +165,7 @@ Choix du 14/11 : Larousse retenu avec **texte et mention** (« d'après Larousse
 | Anglais | Wikipédia EN lue quand la semaine a moins de 4 faits propres ; proposé « en anglais, à traduire », jamais choisi seul |
 | Porte HA | `POST /ha/sejour` `{chambre, noms[], du, jusqu_au}` → `{invites: [{nom, fiche, livret, lien, anniversaire}], manquants, a_relire, anniversaires}` ; `noms` vide = chambre libre (séjours en cours ou à venir oubliés). Un séjour de la même chambre qui chevauche est remplacé. Les noms sont rapprochés des fiches sans accents ni casse (nom, autres noms, prénom s'il est unique). `GET /ha/etat` → `{a_traiter, fiches_manquantes, a_relire, anniversaires, liste[], adresse}` |
 | Contrôle avant approbation | Chromium mesure chaque page : un bloc qui dépasse refuse l'approbation (« la page 1 déborde ») |
+| Aide quand une page déborde (0.5.0) | Blocs de la page en rouge, compteur de signes qui suit la frappe et dit combien retirer, propositions de remplacement qui font tenir la page en vert ; vert partout quand la page devrait tenir, nouvelle mesure après « Enregistrer » |
 | Pas encore | impression IPP (temps 3), carnet (dates de naissance), photo Immich en page 4, sommaire collé (temps 5), musique et cinéma automatiques |
 
 **Port** (14/11/2026) : 8099 était déjà publié sur le NAS par la vérification des dates. Gazette écoute sur 8099 dans son conteneur et est publiée sur **8089** (`PORT_GAZETTE`).

@@ -443,6 +443,17 @@ def telecharger(pid: int, mode: str = "impose"):
                     headers={"Content-Disposition": f'attachment; filename="{nom}"', "X-Debordements": ",".join(map(str, deborde))})
 
 
+@app.get("/api/livrets/{pid}/mesure")
+def mesure(pid: int):
+    """Place prise par chaque bloc et place qui manque, page par page (blocs en rouge, compteurs et
+    remplacements en vert dans l'éditeur). 503 sans Chromium : l'éditeur s'en passe."""
+    doc, _, _ = _rendre(pid, "lecture")
+    try:
+        return {"pages": rendu.mesurer(doc)}
+    except rendu.RenduImpossible as ex:
+        raise HTTPException(503, str(ex))
+
+
 @app.post("/api/livrets/{pid}/approuver")
 def approuver(pid: int):
     """Contrôle qu'aucune page ne déborde, puis approuve. Rien ne s'imprime sans cette étape."""
@@ -455,7 +466,7 @@ def approuver(pid: int):
         deborde = []                      # sans Chromium (tests), pas de contrôle
     if deborde:
         raise HTTPException(409, "Texte trop long : la page " + ", ".join(map(str, deborde))
-                            + " déborde. Raccourcis ou masque un bloc avant d'approuver.")
+                            + " déborde. Raccourcis un bloc en rouge, masque-le ou remplace-le par une proposition en vert.")
     ETAT["base"].maj_livret(pid, etat="approuve", approuve_le=maintenant())
     ETAT["base"].noter("approuver", pid)
     return {"ok": True}

@@ -161,14 +161,14 @@ def _paragraphes(t: str) -> list[str]:
 
 def page1(g: dict) -> str:
     c, une = g["contenu"], g["contenu"].get("une", {})
-    breves = "".join(f'<div class="breve">' + (f'<h3>{e(b["titre"])}</h3>' if b.get("titre") else "") + f'<p>{e(b.get("texte", ""))}</p></div>'
-                     for b in c.get("breves", []) if not b.get("masque"))
+    breves = "".join(f'<div class="breve" data-bloc="breve:{i}">' + (f'<h3>{e(b["titre"])}</h3>' if b.get("titre") else "") + f'<p>{e(b.get("texte", ""))}</p></div>'
+                     for i, b in enumerate(c.get("breves", [])) if not b.get("masque"))
     enc = une.get("encart") or {}
     portee = PORTEES.get(une.get("portee", ""), "")
     portee_html = f'<p class="portee">{e(portee)}</p>' if portee and une.get("portee") != "jour" else ""
-    gros = (f'<div class="txt">{portee_html}<h2 class="gros">{e(une.get("titre", ""))}</h2>'
+    gros = (f'<div class="txt" data-bloc="une">{portee_html}<h2 class="gros">{e(une.get("titre", ""))}</h2>'
             f'<p class="chapo">{e(une.get("chapo", ""))}</p></div>') if une.get("titre") else \
-           (f'<div class="txt">{portee_html}<p class="chapo seul">{e(une["chapo"])}</p></div>' if une.get("chapo") else
+           (f'<div class="txt" data-bloc="une">{portee_html}<p class="chapo seul">{e(une["chapo"])}</p></div>' if une.get("chapo") else
             '<div class="txt"><p class="chapo vide">Aucun événement retenu pour la une.</p></div>')
     encart = (f'<div class="encart"><span class="k">{e(enc.get("k", ""))}</span><span class="v">{e(enc.get("v", ""))}</span>'
               f'<span class="l">{e(enc.get("l", ""))}</span></div>') if enc.get("v") else ""
@@ -185,7 +185,7 @@ def page1(g: dict) -> str:
 def page2(g: dict) -> str:
     p2 = g["contenu"].get("p2", {"mode": "semaine", "items": []})
     items = []
-    for it in p2.get("items", []):
+    for i, it in enumerate(p2.get("items", [])):
         if it.get("masque"):
             continue
         try:
@@ -193,7 +193,7 @@ def page2(g: dict) -> str:
             j, m = ("1er" if dd.day == 1 else str(dd.day)), MOIS_COURT[dd.month - 1]
         except (KeyError, ValueError):
             j, m = "", ""
-        items.append(f'<div class="item"><div class="d"><b>{e(j)}</b><span>{e(m)}</span></div>'
+        items.append(f'<div class="item" data-bloc="p2:{i}"><div class="d"><b>{e(j)}</b><span>{e(m)}</span></div>'
                      f'<div>' + (f'<h3>{e(it["titre"])}</h3>' if it.get("titre") else "") + (f'<p>{e(it["texte"])}</p>' if it.get("texte") else "") + '</div></div>')
     d = g["naissance"]
     if p2.get("mode") == "mois":
@@ -214,7 +214,7 @@ def page2(g: dict) -> str:
 def page3(g: dict) -> str:
     c, d = g["contenu"], g["naissance"]
     evs, moi_pose = [], False
-    chrono = [x for x in c.get("chrono", []) if not x.get("masque")]
+    chrono = [dict(x, _i=i) for i, x in enumerate(c.get("chrono", [])) if not x.get("masque")]
     for x in sorted(chrono + [{"date": d.isoformat(), "moi": True}], key=lambda x: (x.get("date", ""), bool(x.get("moi")))):
         if x.get("moi"):
             if moi_pose:
@@ -225,11 +225,11 @@ def page3(g: dict) -> str:
                        f'<span class="x">Naissance de {e(g["prenom"])}</span></div>')
         else:
             qq = e(x.get("quand", "")).replace("1er", '1<span style="text-transform:none">er</span>')
-            evs.append(f'<div class="ev"><span class="pt"></span><span class="q">{qq}</span><span class="x">{e(x.get("texte", ""))}</span></div>')
+            evs.append(f'<div class="ev" data-bloc="chrono:{x["_i"]}"><span class="pt"></span><span class="q">{qq}</span><span class="x">{e(x.get("texte", ""))}</span></div>')
     culture = ""
     if (c.get("musique") or "").strip() or (c.get("cinema") or "").strip():
-        culture = (f'<div class="duo filet"><div><p class="lab">Musique</p><p>{e(c.get("musique", ""))}</p></div>'
-                   f'<div><p class="lab">Cinéma</p><p>{e(c.get("cinema", ""))}</p></div></div>')
+        culture = (f'<div class="duo filet"><div data-bloc="musique"><p class="lab">Musique</p><p>{e(c.get("musique", ""))}</p></div>'
+                   f'<div data-bloc="cinema"><p class="lab">Cinéma</p><p>{e(c.get("cinema", ""))}</p></div></div>')
     def gens(lst):
         return ", ".join(f"{p['nom']} ({p['annee']})" for p in lst if not p.get("masque"))
     return f"""<section class="page" data-page="3">
@@ -248,7 +248,7 @@ def page4(g: dict) -> str:
     return f"""<section class="page" data-page="4">
 <div class="ent"><span class="t">{e(g['titre'])}</span><span class="r">Le mot des hôtes</span></div>
 <div><p class="surtitre">Édition spéciale</p><h2 class="sec">Bienvenue, {e(g['prenom'])}</h2></div>
-<div class="mot filet">{paras}<p class="sig">{e(g['signature'])}</p></div>
+<div class="mot filet" data-bloc="mot">{paras}<p class="sig">{e(g['signature'])}</p></div>
 <p class="orn">✦ ✦ ✦</p>
 <div class="colophon"><span class="t">{e(g['lieu'])}</span>{f"<p>{e(g['lieu_detail'])}</p>" if g['lieu_detail'] else ""}
 <p>Exemplaire unique, imprimé pour {e(g['prenom'])} le {e(g['imprime_le'])}.</p></div>
@@ -300,11 +300,39 @@ window.ajuster=function(){const deborde=window.deborde;
   for(const p of document.querySelectorAll('.page')){let k=1;p.style.setProperty('--k',k);
     while(deborde(p)&&k>0.861){k=Math.round((k-0.04)*100)/100;p.style.setProperty('--k',k);}
     p.dataset.k=k}};
-(document.fonts?document.fonts.ready:Promise.resolve()).then(()=>window.ajuster());"""
+(document.fonts?document.fonts.ready:Promise.resolve()).then(()=>window.ajuster());
+window.mesure=function(){
+  /* Hauteur naturelle de chaque bloc (rien ne rétrécit) et place qui manque, page par page, pour l'éditeur. */
+  const pages=[...document.querySelectorAll('.page')],deb=pages.map(p=>window.deborde(p));
+  const st=document.createElement('style');st.textContent='.page>*{flex-shrink:0!important}';document.head.appendChild(st);
+  const r=pages.map((p,i)=>({page:+p.dataset.page,k:+(p.dataset.k||1),deborde:deb[i],
+    exces:deb[i]?Math.max(1,Math.round(p.scrollHeight-p.clientHeight)):0,
+    blocs:[...p.querySelectorAll('[data-bloc]')].map(b=>({bloc:b.dataset.bloc,h:Math.round(b.getBoundingClientRect().height)}))}));
+  st.remove();return r.sort((a,b)=>a.page-b.page)};"""
 
 
 class RenduImpossible(Exception):
     pass
+
+
+def mesurer(html_doc: str) -> list[dict]:
+    """Pour l'éditeur : par page, déborde-t-elle, de combien (px) et la hauteur de chaque bloc (data-bloc)."""
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError as ex:
+        raise RenduImpossible("Chromium (Playwright) n'est pas installé.") from ex
+    with sync_playwright() as pw:
+        try:
+            nav = pw.chromium.launch(args=["--no-sandbox"])
+        except Exception as ex:  # noqa: BLE001
+            raise RenduImpossible(f"Chromium ne démarre pas : {str(ex).splitlines()[0][:160]}") from ex
+        try:
+            pg = nav.new_page(viewport={"width": 600, "height": 900})
+            pg.set_content(html_doc, wait_until="load")
+            pg.evaluate("document.fonts.ready.then(() => window.ajuster && window.ajuster())")
+            return pg.evaluate("window.mesure()")
+        finally:
+            nav.close()
 
 
 def pdf(html_doc: str, mode: str = "impose") -> tuple[bytes, list[int]]:

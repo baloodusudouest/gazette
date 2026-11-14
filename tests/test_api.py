@@ -152,3 +152,24 @@ def test_reglages_du_journal(client):
               "Le 7 juillet 1988, Camille, on vous attend aux Essais."):
         assert t in html
     assert client.get("/api/livrets").status_code == 200
+
+
+def test_mesure_de_la_place(client):
+    """Les blocs portent leur clé (data-bloc) ; la mesure rend la place manquante page par page (503 sans Chromium)."""
+    connecter(client)
+    pid = client.post("/api/personnes", json={"nom": "Camille Fabre", "naissance": "1988-07-07"}).json()["id"]
+    lv = client.get(f"/api/livrets/{pid}").json()["livret"]
+    c = lv["contenu"]
+    c["p2"]["items"][0]["texte"] = "Le Testland signe un accord qui couvre l'agriculture, la pêche et les transports. " * 30
+    client.put(f"/api/livrets/{pid}", json={"contenu": c, "mot": lv["mot_defaut"]})
+    html = client.get(f"/api/livrets/{pid}/apercu").text
+    for cle in ('data-bloc="une"', 'data-bloc="p2:0"', 'data-bloc="breve:0"', 'data-bloc="chrono:0"', 'data-bloc="mot"'):
+        assert cle in html
+    r = client.get(f"/api/livrets/{pid}/mesure")
+    if r.status_code == 503:
+        pytest.skip("Chromium absent")
+    pages = {p["page"]: p for p in r.json()["pages"]}
+    assert pages[2]["deborde"] and pages[2]["exces"] > 0 and not pages[4]["deborde"]
+    assert any(b["bloc"] == "p2:0" and b["h"] > 300 for b in pages[2]["blocs"])
+    detail = client.post(f"/api/livrets/{pid}/approuver").json()["detail"]
+    assert "page 2" in detail and "rouge" in detail and "vert" in detail
