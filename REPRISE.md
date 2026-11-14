@@ -9,7 +9,7 @@
 - Package HA `chambres/gazette.yaml` v1.0 : pas dans ce dépôt (il nomme les chambres et le téléphone de la maison) ; sa copie de référence est décrite dans le master doc Home Assistant (§ 6.1 et § 10). Contrat de la porte : `docs/dossier.md`, section « Temps 1 tel que construit ».
 
 ## Prochaine étape
-1. Installer : service `gazette` dans `homelab.yml` (projet « Développement app »), variables (`.env.example`), dossier `/data` ; vérifier `/health` puis la tuile « Rendu PDF » de Connexion.
+1. Installer : service `gazette` ajouté à `homelab.yml` le 14/11 (port **8089** sur le NAS, 8099 dans le conteneur : 8099 est pris par la vérification des dates), variables `GAZETTE_*`, dossier `${DOCKER_ROOT}/gazette` ; vérifier `/health` puis la tuile « Rendu PDF » de Connexion.
 2. Créer les fiches des proches attendus, relire, approuver, imprimer un livret à la main (recto-verso bord court) : c'est l'essai demandé avant l'impression IPP.
 3. Installer le package HA, vérifier au premier séjour : noms reçus, dates (`sejour_fin` − 1 h = dernier jour), notification.
 4. Temps 3 : impression IPP (`GAZETTE_IMPRIMANTE`), seulement après l'essai du recto-verso.

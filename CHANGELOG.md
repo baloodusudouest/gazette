@@ -1,5 +1,8 @@
 # Journal des versions
 
+## 0.1.0 — complément du 14/11/2026
+- Port publié sur le NAS : 8089 (8099 est pris par la vérification des dates) ; l'appli écoute toujours sur 8099 dans le conteneur.
+
 ## 0.1.0 — 14/11/2026 (temps 1)
 - Copie du socle (FastAPI, Svelte 5, Tailwind 4), port 8099, couleur vert anis `#b5c94f`, mot de passe commun et cookie `maison_session`.
 - Fiche personne (nom, prénom, date de naissance, autres noms) et un livret par personne, gardés dans `gazette.db`.
