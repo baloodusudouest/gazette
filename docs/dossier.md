@@ -168,3 +168,7 @@ Choix du 14/11 : Larousse retenu avec **texte et mention** (« d'après Larousse
 | Pas encore | impression IPP (temps 3), carnet (dates de naissance), photo Immich en page 4, sommaire collé (temps 5), musique et cinéma automatiques |
 
 **Port** (14/11/2026) : 8099 était déjà publié sur le NAS par la vérification des dates. Gazette écoute sur 8099 dans son conteneur et est publiée sur **8089** (`PORT_GAZETTE`).
+
+## Top 5 culturel (14/11/2026)
+
+Un fichier `top5_culture_annuel.csv` (1900 à 2026 : films au box-office, séries en tête des audiences US, titres en tête des ventes / du Billboard), préparé avec Claude, et un prompt pour le tenir à jour chaque année. Gazette le livre (`app/donnees/`) et s'en sert pour la page 3 : Musique et Cinéma ne sont plus saisis à la main. Mise à jour : Réglages › Top 5 culturel (télécharger, copier le prompt, importer). Un fichier importé est contrôlé avant d'être gardé et remplace la version livrée ; « Revenir à la version livrée » le retire. La chronologie passe à 6 repères pour que la page tienne.

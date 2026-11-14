@@ -309,7 +309,7 @@ def preparer(src: Sources, naissance: date, pays: str = "France") -> dict:
         mode_p2 = "mois"
     semaine.sort(key=lambda f: f["date"])
 
-    # Chronologie de l'année : 4 repères du pays (« <année> en France »), 3 du monde, un par mois d'abord
+    # Chronologie de l'année : 3 repères du pays (« <année> en France »), 3 du monde, un par mois d'abord ; 6 en tout pour laisser la place à la culture
     fr_ids = {id(e) for e in annee_fr}
     annee, origine = [], {}
     for i, e in enumerate(dedoublonner(annee_fr + annee_monde)):
@@ -334,11 +334,11 @@ def preparer(src: Sources, naissance: date, pays: str = "France") -> dict:
                 pris_.append(f)
         return pris_
     vus_mois: set = set()
-    chrono = piocher([f for f in annee if not f["monde"]], 4, vus_mois)
-    chrono += piocher([f for f in annee if f["monde"]], 7 - len(chrono), vus_mois)
+    chrono = piocher([f for f in annee if not f["monde"]], 3, vus_mois)
+    chrono += piocher([f for f in annee if f["monde"]], 6 - len(chrono), vus_mois)
     chrono.sort(key=lambda f: f["date"])
     for f in annee:
-        f["court"] = couper(premiere_phrase(f["texte"]), 110)
+        f["court"] = couper(premiere_phrase(f["texte"]), 95)
 
     def gens(lst: list[dict], n: int) -> list[dict]:
         vus, sortie = set(), []

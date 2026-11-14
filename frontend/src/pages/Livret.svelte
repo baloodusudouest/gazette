@@ -80,6 +80,11 @@
     await lire()
     onchange?.()
   }
+  async function remplirCulture() {
+    if (modifie) await enregistrer()
+    try { await api.post(`/api/livrets/${id}/culture`); await lire(); message = 'Musique et cinéma remplis depuis le top 5.' }
+    catch (err) { message = err.message }
+  }
   async function modifierFiche(fiche) {
     await api.put(`/api/personnes/${id}`, fiche)
     ficheOuverte = false
@@ -226,7 +231,30 @@
             </li>
           {/each}
         </ul>
-        <div class="mt-4 grid gap-3 sm:grid-cols-2">
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
+          <span class="etiquette">Culture de l'année</span>
+          <Button variant="outline" size="sm" onclick={remplirCulture}>Remplir depuis le top 5</Button>
+        </div>
+        {#if d.livret.propositions.culture}
+          {@const top = d.livret.propositions.culture}
+          <details class="mt-1 text-xs text-muted-foreground"><summary class="cursor-pointer">Top 5 de l'année</summary>
+            <div class="mt-2 grid gap-2 sm:grid-cols-3">
+              {#each [['Film', 'Films'], ['Serie', 'Séries'], ['Musique', 'Musique']] as [cat, nom]}
+                <div>
+                  <p class="font-medium text-foreground">{nom}</p>
+                  <ol class="mt-1 grid gap-0.5">
+                    {#each top[cat] ?? [] as x}
+                      <li>{x.rang}. {x.titre}{x.createur ? ' — ' + x.createur : ''}
+                        {#if x.provisoire}<span class="text-primary"> (provisoire)</span>{/if}
+                        {#if x.metrique.includes('à vérifier')}<span class="text-destructive"> (à vérifier)</span>{/if}</li>
+                    {:else}<li>—</li>{/each}
+                  </ol>
+                </div>
+              {/each}
+            </div>
+          </details>
+        {/if}
+        <div class="mt-3 grid gap-3 sm:grid-cols-2">
           <label class="grid gap-1 text-sm"><span class="etiquette">Musique</span>
             <textarea rows="3" class="min-w-0 rounded-lg border bg-background px-2 py-1" bind:value={contenu.musique} oninput={toucher} placeholder="n°1 des ventes de la semaine (vide : rubrique absente)"></textarea></label>
           <label class="grid gap-1 text-sm"><span class="etiquette">Cinéma</span>

@@ -146,6 +146,8 @@ def _sources_txt(sources: list[str]) -> str:
         noms.append("Wikidata")
     if "larousse" in sources:
         noms.append("Larousse, Journaux de l'année (d'après)")
+    if "top5" in sources:
+        noms.append("box-office, Billboard et Nielsen (top 5 de la maison)")
     return " · ".join(noms) or "chronologies publiques"
 
 

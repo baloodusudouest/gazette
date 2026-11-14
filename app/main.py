@@ -16,7 +16,7 @@ from datetime import date, datetime, timedelta
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 
-from . import __version__, anniversaire, rendu
+from . import __version__, anniversaire, culture, rendu
 from .auth import COMMUN, DUREE, Sessions
 from .base import ETATS, Base, maintenant
 from .config import APPLI, Config, charger
@@ -56,10 +56,16 @@ def _preparer(pid: int) -> None:
     ancien = base.livret(pid) or {}
     contenu = r["contenu"]
     contenu["sources"], contenu["notes"] = r["sources"], r["notes"]
-    # Ce qui a été saisi à la main survit à une nouvelle préparation
+    # Page 3 : musique et cinéma depuis le top 5 culturel de l'année ; ce qui a été écrit à la main survit
+    top = ETAT["culture"].annee(int(p["naissance"][:4]))
+    r["propositions"]["culture"] = top
+    if any(top.values()):
+        contenu.update(culture.textes(top))
+        r["sources"].append("top5")
     for cle in ("musique", "cinema"):
-        if (ancien.get("contenu") or {}).get(cle):
+        if (ancien.get("contenu") or {}).get(cle) and (ancien.get("contenu") or {}).get(cle + "_main"):
             contenu[cle] = ancien["contenu"][cle]
+            contenu[cle + "_main"] = True
     vide = not contenu["une"].get("titre") and not contenu["chrono"]
     base.maj_livret(pid, etat="a_preparer" if vide else "a_relire", contenu=contenu, propositions=r["propositions"],
                     prepare_le=maintenant(), approuve_le="",
@@ -97,7 +103,7 @@ async def cycle(app: FastAPI):
     cfg.data.mkdir(parents=True, exist_ok=True)
     base = Base(cfg.data / "gazette.db")
     ETAT.update(cfg=cfg, sessions=Sessions(APPLI, cfg.password, _lire_generation(cfg)), base=base,
-                file=queue.Queue(), en_file=set())
+                file=queue.Queue(), en_file=set(), culture=culture.Culture(cfg.data))
     ETAT.setdefault("sources", Sources(base, actives=cfg.sources_actives, larousse=cfg.larousse))
     ouvrier = threading.Thread(target=_ouvrier, daemon=True, name="preparation")
     ouvrier.start()
@@ -320,8 +326,12 @@ def enregistrer_livret(pid: int, corps: dict = Body(...)):
     lv = base.livret(pid)
     champs = {}
     if "contenu" in corps and isinstance(corps["contenu"], dict):
-        contenu = {**lv["contenu"], **{k: v for k, v in corps["contenu"].items()
+        recu = corps["contenu"]
+        contenu = {**lv["contenu"], **{k: v for k, v in recu.items()
                                        if k in ("une", "breves", "p2", "chrono", "musique", "cinema", "nes", "morts")}}
+        for cle in ("musique", "cinema"):
+            if cle in recu and recu[cle] != lv["contenu"].get(cle):
+                contenu[cle + "_main"] = True            # écrit à la main : une nouvelle préparation le garde
         champs["contenu"] = contenu
     if "mot" in corps:
         champs["mot"] = str(corps["mot"] or "")[:4000]
@@ -443,6 +453,60 @@ def approuver(pid: int):
     ETAT["base"].maj_livret(pid, etat="approuve", approuve_le=maintenant())
     ETAT["base"].noter("approuver", pid)
     return {"ok": True}
+
+
+@app.post("/api/livrets/{pid}/culture")
+def remplir_culture(pid: int):
+    """Remplace musique et cinéma par le top 5 culturel de l'année de naissance."""
+    p = _personne_ou_404(pid)
+    base: Base = ETAT["base"]
+    lv = base.livret(pid)
+    top = ETAT["culture"].annee(int(p["naissance"][:4]))
+    if not any(top.values()):
+        raise HTTPException(404, f"Le top 5 culturel n'a rien pour {p['naissance'][:4]}.")
+    c = lv["contenu"]
+    c.update(culture.textes(top))
+    c["musique_main"] = c["cinema_main"] = False
+    c["sources"] = sorted(set(c.get("sources", [])) | {"top5"})
+    props = lv["propositions"]
+    props["culture"] = top
+    base.maj_livret(pid, contenu=c, propositions=props,
+                    **({"etat": "a_relire", "approuve_le": ""} if lv["etat"] == "approuve" else {}))
+    return {"ok": True, "musique": c["musique"], "cinema": c["cinema"]}
+
+
+# ================================================================ Top 5 culturel
+
+@app.get("/api/culture")
+def etat_culture():
+    return {**ETAT["culture"].etat(), "prompt": culture.PROMPT.read_text(encoding="utf-8")}
+
+
+@app.get("/api/culture/fichier")
+def fichier_culture():
+    return FileResponse(ETAT["culture"].fichier(), media_type="text/csv; charset=utf-8",
+                        filename="top5_culture_annuel.csv")
+
+
+@app.post("/api/culture/import")
+def importer_culture(corps: dict = Body(...)):
+    """Remplace le top 5 culturel par le fichier envoyé (contrôlé avant d'être gardé)."""
+    texte = str(corps.get("texte") or "")
+    if len(texte) > 5_000_000:
+        raise HTTPException(413, "Fichier trop gros.")
+    try:
+        e = ETAT["culture"].importer(texte)
+    except culture.FichierCultureInvalide as ex:
+        raise HTTPException(422, str(ex))
+    ETAT["base"].noter("culture", None, f"{e['lignes']} lignes, {e['annees'][0]}-{e['annees'][1]}")
+    return e
+
+
+@app.post("/api/culture/revenir")
+def revenir_culture():
+    e = ETAT["culture"].revenir()
+    ETAT["base"].noter("culture", None, "version livrée avec l'appli")
+    return e
 
 
 # ================================================================ À traiter

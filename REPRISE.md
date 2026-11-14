@@ -2,10 +2,11 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
-## État (14/11/2026) — 0.1.1, temps 1 livré, jamais essayé sur le NAS
+## État (14/11/2026) — 0.2.0, temps 1 livré + top 5 culturel, jamais essayé sur le NAS
 - Appli complète : fiches, livrets, relecture, aperçu, PDF à imprimer et lecture, À traiter, Connexion, Réglages, porte HA (`/ha/sejour`, `/ha/etat`).
 - Moteur essayé en vrai (réseau) sur trois dates maigres du banc (1964, 1983, 1997) : une, brèves, semaine, chronologie, nés et disparus remplis ; rendu PDF contrôlé à l'œil (aucun débordement).
-- 46 tests (`python -m pytest -q`), sans réseau : pages de sources inventées (`tests/fixtures.py`) ; écrans sur PC et iPhone par le serveur de démonstration (`python -m tools.demo`, mot de passe demo-demo-demo).
+- Top 5 culturel : fichier livré dans `app/donnees/`, remplaçable depuis Réglages (fichier importé gardé dans `/data/culture.csv`) ; prompt de mise à jour annuelle dans `app/donnees/prompt_culture.md` (il nomme les années 2026 et 2027 : à adapter chaque année).
+- 54 tests (`python -m pytest -q`), sans réseau : pages de sources inventées (`tests/fixtures.py`) ; écrans sur PC et iPhone par le serveur de démonstration (`python -m tools.demo`, mot de passe demo-demo-demo).
 - Tuile de l'Anneau : `/health` donne `livrets` et `a_traiter` ; la ligne à ajouter au `services.yaml` de l'Anneau est dans le projet « Développement app » (pas dans ce dépôt).
 - Package HA `chambres/gazette.yaml` v1.0 : pas dans ce dépôt (il nomme les chambres et le téléphone de la maison) ; sa copie de référence est décrite dans le master doc Home Assistant (§ 6.1 et § 10). Contrat de la porte : `docs/dossier.md`, section « Temps 1 tel que construit ».
 

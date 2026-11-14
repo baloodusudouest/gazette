@@ -107,5 +107,8 @@ def test_a_traiter(navigateur, adresse, taille):
 def test_connexion_et_reglages(navigateur, adresse, taille, chemin, titre):
     page, erreurs = ouvrir(navigateur, adresse, taille, chemin)
     page.get_by_role("heading", name=titre).wait_for()
+    if titre == "Réglages":
+        page.get_by_role("heading", name="Top 5 culturel").wait_for()
+        page.get_by_role("button", name="Copier le prompt").wait_for()
     sans_debordement(page)
     assert erreurs == []
