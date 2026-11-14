@@ -79,15 +79,15 @@ p,h1,h2,h3{margin:0}
 .filet{border-top:0.3mm solid #161616;padding-top:2.8mm}
 .ouv{display:flex;gap:4mm;align-items:stretch}
 .ouv .txt{flex:1 1 0;display:flex;flex-direction:column;gap:2mm}
-h2.gros{font-family:'Playfair',serif;font-weight:900;font-size:21pt;line-height:1.08;text-wrap:balance}
-.chapo{font-size:11pt;line-height:1.35;text-wrap:pretty}
+h2.gros{font-family:'Playfair',serif;font-weight:900;font-size:calc(21pt*var(--k,1));line-height:1.08;text-wrap:balance}
+.chapo{font-size:calc(11pt*var(--k,1));line-height:1.35;text-wrap:pretty}
 .encart{flex:0 0 33mm;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:1mm;border:0.3mm solid #161616;padding:2.5mm 1.5mm;text-align:center}
 .encart .k{font-size:8.5pt;text-transform:uppercase;letter-spacing:.08em}
 .encart .v{font-family:'Playfair',serif;font-weight:900;font-size:28pt;line-height:1;color:var(--a)}
 .encart .l{font-size:9pt;line-height:1.25}
 .breves{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:5mm;row-gap:3mm;flex:1 1 auto;align-content:start}
-.breve h3{font-family:'Playfair',serif;font-weight:700;font-size:12pt;line-height:1.15;margin-bottom:1mm}
-.breve p{font-size:10.5pt;line-height:1.38}
+.breve h3{font-family:'Playfair',serif;font-weight:700;font-size:calc(12pt*var(--k,1));line-height:1.15;margin-bottom:1mm}
+.breve p{font-size:calc(10.5pt*var(--k,1));line-height:1.38}
 .pied{display:flex;justify-content:space-between;font-size:8.5pt;border-top:0.3mm solid #161616;padding-top:1.5mm;margin-top:auto}
 h2.sec{font-family:'Playfair',serif;font-weight:900;font-size:20pt;line-height:1.08;text-wrap:balance}
 .liste{flex:1 1 auto;display:flex;flex-direction:column;border-top:0.9mm double #161616}
@@ -99,26 +99,26 @@ h2.sec{font-family:'Playfair',serif;font-weight:900;font-size:20pt;line-height:1
 .item .lieu{flex:0 0 22mm;display:flex;flex-direction:column;gap:.5mm}
 .item .lieu b{font-size:8.5pt;text-transform:uppercase;letter-spacing:.08em;color:var(--a);font-weight:600}
 .item .lieu span{font-size:8.5pt;color:#555}
-.item h3{font-family:'Playfair',serif;font-weight:700;font-size:12.5pt;line-height:1.15;margin-bottom:.8mm}
-.item p{font-size:11pt;line-height:1.38}
+.item h3{font-family:'Playfair',serif;font-weight:700;font-size:calc(12.5pt*var(--k,1));line-height:1.15;margin-bottom:.8mm}
+.item p{font-size:calc(11pt*var(--k,1));line-height:1.38}
 .note{font-size:8.5pt;font-style:italic;line-height:1.35}
 .chrono{display:flex;flex-direction:column;border-left:0.5mm solid #161616;margin-left:1.6mm}
 .ev{display:flex;align-items:baseline;gap:2.6mm;padding:1.45mm 0}
 .ev .pt{flex:0 0 auto;width:2.6mm;height:2.6mm;border-radius:50%;background:#161616;margin-left:-1.55mm;align-self:center}
 .ev .q{flex:0 0 15mm;font-size:8.5pt;font-weight:600;text-transform:uppercase}
-.ev .x{font-size:10.5pt;line-height:1.28}
+.ev .x{font-size:calc(10.5pt*var(--k,1));line-height:1.28}
 .ev.moi .pt{width:3.6mm;height:3.6mm;margin-left:-2.05mm;background:var(--a)}
 .ev.moi .q,.ev.moi .x{color:var(--a)}
-.ev.moi .x{font-family:'Playfair',serif;font-weight:700;font-size:11pt}
+.ev.moi .x{font-family:'Playfair',serif;font-weight:700;font-size:calc(11pt*var(--k,1))}
 .duo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:5mm}
 .duo .lab{font-size:9pt;letter-spacing:.18em;text-transform:uppercase;color:var(--a);margin-bottom:1mm}
-.duo p{font-size:10.5pt;line-height:1.4}
-.duo h3{font-family:'Playfair',serif;font-weight:700;font-size:12pt;margin-bottom:1.2mm}
-.duo .pers{font-size:10.5pt;line-height:1.45}
+.duo p{font-size:calc(10.5pt*var(--k,1));line-height:1.4}
+.duo h3{font-family:'Playfair',serif;font-weight:700;font-size:calc(12pt*var(--k,1));margin-bottom:1.2mm}
+.duo .pers{font-size:calc(10.5pt*var(--k,1));line-height:1.45}
 .mot{flex:1 1 auto;display:flex;flex-direction:column;gap:4mm;justify-content:flex-start}
-.mot p{font-size:13.5pt;line-height:1.55;text-wrap:pretty}
+.mot p{font-size:calc(13.5pt*var(--k,1));line-height:1.55;text-wrap:pretty}
 .mot p.lettrine::first-letter{font-family:'Playfair',serif;font-weight:900;font-size:46pt;line-height:.8;float:left;padding:1.4mm 1.8mm 0 0;color:var(--a)}
-.mot .sig{font-style:italic;text-align:right;font-size:13.5pt;margin-top:2mm}
+.mot .sig{font-style:italic;text-align:right;font-size:calc(13.5pt*var(--k,1));margin-top:2mm}
 .colophon{border:0.3mm solid #161616;padding:3mm;display:flex;flex-direction:column;align-items:center;gap:1mm;text-align:center}
 .colophon .t{font-family:'Fraktur',serif;font-size:15pt}
 .colophon p{font-size:9pt;line-height:1.35}
@@ -132,6 +132,8 @@ CSS += """
 .ecran .feuille{box-shadow:0 2mm 6mm rgba(0,0,0,.35)}
 .portee{font-size:8.5pt;letter-spacing:.14em;text-transform:uppercase;color:var(--a)}
 .vide{font-style:italic;color:#8a8273}
+.chapo.seul{font-size:calc(12.5pt*var(--k,1));line-height:1.38}
+.chapo.seul::first-line{font-weight:600}
 """
 
 
@@ -159,14 +161,15 @@ def _paragraphes(t: str) -> list[str]:
 
 def page1(g: dict) -> str:
     c, une = g["contenu"], g["contenu"].get("une", {})
-    breves = "".join(f'<div class="breve"><h3>{e(b.get("titre", ""))}</h3><p>{e(b.get("texte", ""))}</p></div>'
+    breves = "".join(f'<div class="breve">' + (f'<h3>{e(b["titre"])}</h3>' if b.get("titre") else "") + f'<p>{e(b.get("texte", ""))}</p></div>'
                      for b in c.get("breves", []) if not b.get("masque"))
     enc = une.get("encart") or {}
     portee = PORTEES.get(une.get("portee", ""), "")
     portee_html = f'<p class="portee">{e(portee)}</p>' if portee and une.get("portee") != "jour" else ""
     gros = (f'<div class="txt">{portee_html}<h2 class="gros">{e(une.get("titre", ""))}</h2>'
             f'<p class="chapo">{e(une.get("chapo", ""))}</p></div>') if une.get("titre") else \
-           '<div class="txt"><p class="chapo vide">Aucun événement retenu pour la une.</p></div>'
+           (f'<div class="txt">{portee_html}<p class="chapo seul">{e(une["chapo"])}</p></div>' if une.get("chapo") else
+            '<div class="txt"><p class="chapo vide">Aucun événement retenu pour la une.</p></div>')
     encart = (f'<div class="encart"><span class="k">{e(enc.get("k", ""))}</span><span class="v">{e(enc.get("v", ""))}</span>'
               f'<span class="l">{e(enc.get("l", ""))}</span></div>') if enc.get("v") else ""
     return f"""<section class="page" data-page="1">
@@ -191,7 +194,7 @@ def page2(g: dict) -> str:
         except (KeyError, ValueError):
             j, m = "", ""
         items.append(f'<div class="item"><div class="d"><b>{e(j)}</b><span>{e(m)}</span></div>'
-                     f'<div><h3>{e(it.get("titre", ""))}</h3>' + (f'<p>{e(it["texte"])}</p>' if it.get("texte") else "") + '</div></div>')
+                     f'<div>' + (f'<h3>{e(it["titre"])}</h3>' if it.get("titre") else "") + (f'<p>{e(it["texte"])}</p>' if it.get("texte") else "") + '</div></div>')
     d = g["naissance"]
     if p2.get("mode") == "mois":
         surtitre, titre, rub = f"{MOIS[d.month - 1].capitalize()} {d.year}", "Les grands titres du mois", "Le mois"
@@ -283,10 +286,22 @@ def document(personne: dict, livret: dict, j: dict, mode: str = "impose", aujour
         accent = "#9E1B1B"
     return (f'<!doctype html><html lang="fr" class="{"lecture" if mode != "impose" else "impose"} {"ecran" if mode == "ecran" else ""}">'
             f'<head><meta charset="utf-8"><title>{e(j["titre"])} — {e(personne["nom"])}</title>'
-            f'<style>{font_face()}{CSS}{page}:root{{--a:{accent}}}</style></head><body>{corps}</body></html>')
+            f'<style>{font_face()}{CSS}{page}:root{{--a:{accent}}}</style></head><body>{corps}<script>{AJUSTER}</script></body></html>')
 
 
 # ================================================================ PDF
+
+AJUSTER = """window.deborde=p=>{const r=p.getBoundingClientRect(),cs=getComputedStyle(p),bas=r.bottom-parseFloat(cs.paddingBottom)*r.height/p.offsetHeight+1;
+    if(p.scrollHeight>p.clientHeight+1)return true;
+    for(const c of p.children){if(c.scrollHeight>c.clientHeight+1&&getComputedStyle(c).overflow!=='visible')return true;}
+    for(const el of p.querySelectorAll('*')){if(el.getBoundingClientRect().bottom>bas)return true;}
+    return false};
+window.ajuster=function(){const deborde=window.deborde;
+  for(const p of document.querySelectorAll('.page')){let k=1;p.style.setProperty('--k',k);
+    while(deborde(p)&&k>0.861){k=Math.round((k-0.04)*100)/100;p.style.setProperty('--k',k);}
+    p.dataset.k=k}};
+(document.fonts?document.fonts.ready:Promise.resolve()).then(()=>window.ajuster());"""
+
 
 class RenduImpossible(Exception):
     pass
@@ -307,10 +322,8 @@ def pdf(html_doc: str, mode: str = "impose") -> tuple[bytes, list[int]]:
         try:
             pg = nav.new_page()
             pg.set_content(html_doc, wait_until="load")
-            pg.evaluate("document.fonts.ready")
-            deborde = pg.evaluate("""() => [...document.querySelectorAll('.page')].filter(p => {
-                return [...p.children].some(c => c.getBoundingClientRect().bottom > p.getBoundingClientRect().bottom + 1)
-                    || p.scrollHeight > p.clientHeight + 1 }).map(p => +p.dataset.page)""")
+            pg.evaluate("document.fonts.ready.then(() => window.ajuster && window.ajuster())")
+            deborde = pg.evaluate("""() => [...document.querySelectorAll('.page')].filter(p => window.deborde(p)).map(p => +p.dataset.page)""")
             contenu = pg.pdf(width=largeur, height="210mm", print_background=True, prefer_css_page_size=True)
         finally:
             nav.close()

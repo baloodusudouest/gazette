@@ -58,7 +58,7 @@ Ce que l'appli n'est pas : un générateur d'articles. Elle choisit, trie et met
 - **Chronologie** : 6 à 8 repères de l'année, France et monde, plus la naissance.
 - **Musique** : n°1 de la semaine de naissance, celui d'avant et celui d'après.
 - **Personnes** : nés et disparus le même jour, triés par notoriété, 5 et 4 au plus, sans âge.
-- **Reformulation** : la phrase vient de la source, raccourcie par règles (première proposition, longueur plafonnée) ; tout reste modifiable à la main avant approbation.
+- **Reformulation** : la phrase vient de la source, en entier (depuis 0.4.0, jamais coupée) ; un titre seulement s'il se détache naturellement ou vient de la rubrique, sinon un paragraphe seul ; tout reste modifiable à la main avant approbation.
 - **Sommaire collé** : le texte d'une page d'archives collée est découpé en titres ; les rubriques sans intérêt (nominations, programmes, agrégations…) sont écartées par une liste ; le haut du tri va en une, la suite en revue de presse.
 
 ## 3. Parcours des écrans
@@ -77,7 +77,7 @@ Notification HA (par le package) : « La Gazette d'<invité> est prête à relir
 
 - Habillage de l'appli : format commun, toujours sombre, Inter. Couleur proposée : **vert anis** `#b5c94f` (libre : ni or, ni lavande, ni rouges déjà pris).
 - Signature de l'appli : l'aperçu du journal lui-même, papier crème `#F7F3EA`, encre `#161616`, une couleur d'accent (rouge `#9E1B1B` par défaut, réglable).
-- Le livret : masthead gothique, titres Playfair Display, texte Source Serif 4, corps ≥ 10 pt une fois imprimé, marges ≥ 10 mm, rien qui déborde (contrôlé au rendu).
+- Le livret : masthead gothique, titres Playfair Display, texte Source Serif 4, corps ≥ 10 pt une fois imprimé (≥ 9 pt quand la page est pleine : la taille s'ajuste page par page plutôt que de couper), marges ≥ 10 mm, rien qui déborde (contrôlé au rendu).
 
 ## 5. Schéma de données
 

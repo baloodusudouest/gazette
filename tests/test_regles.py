@@ -35,8 +35,13 @@ def test_sensible_mots_entiers():
 def test_couper_frontiere():
     t = "Arrestation de Roger Exemple, ancien président du club de Testville, inculpé de faux dans l'affaire de la caisse"
     assert couper(t, 95) == "Arrestation de Roger Exemple, ancien président du club de Testville"
+    # Titre et chapeau : rien n'est perdu ; phrase trop longue sans frontière → pas de titre, tout en paragraphe
     titre, chapo = titre_et_chapo(t + ". Il sera libéré.")
-    assert chapo.startswith("Inculpé de faux") and "Arrestation" not in chapo
+    assert titre == "" and chapo == t + ". Il sera libéré."
+    titre, chapo = titre_et_chapo("Le Testland signe un traité : la frontière est ouverte aux voyageurs, et les douanes ferment dès le lendemain matin pour toujours. Fête.")
+    assert titre == "Le Testland signe un traité" and chapo.startswith("La frontière est ouverte") and chapo.endswith("Fête.")
+    titre, chapo = titre_et_chapo("Ouverture du pont. Il mesure 2 km.")
+    assert (titre, chapo) == ("Ouverture du pont", "Il mesure 2 km.")
 
 
 def test_encart():
@@ -67,3 +72,26 @@ def test_sans_source(tmp_path):
     b = Base(tmp_path / "v.db")
     r = preparer(Sources(b, actives=False), date(1950, 3, 3))
     assert r["contenu"]["une"]["portee"] == "vide" and r["notes"]
+
+
+def test_sans_renvoi_et_texte_complet():
+    from app.regles import sans_renvoi, _item_p2
+    assert sans_renvoi("La victoire est reconnue. (chrono. 4/02)") == "La victoire est reconnue."
+    long = "Une phrase d'ouverture bien trop longue pour servir de titre car elle dépasse nettement les quatre-vingts signes, sans coupure possible ici. Suite."
+    it = _item_p2({"id": "e1", "date": "2000-01-01", "rubrique": "", "texte": long})
+    assert it["titre"] == "" and it["texte"] == long and "…" not in it["texte"]
+    it = _item_p2({"id": "e2", "date": "2000-01-01", "rubrique": "Testland", "texte": long})
+    assert it["titre"] == "Testland" and it["texte"] == long
+
+
+def test_rendu_sans_titre_et_ajustement():
+    from app import rendu
+    j = {"titre": "La Gazette de Test", "sous_titre": "", "lieu": "La maison", "lieu_detail": "", "chez": "à la maison",
+         "signature": "Les hôtes", "mot_modele": "Bienvenue {prenom}.", "accent": "#9E1B1B"}
+    contenu = {"une": {"titre": "", "chapo": "Un paragraphe complet sans titre.", "portee": "jour"},
+               "breves": [{"titre": "", "texte": "Brève sans titre."}],
+               "p2": {"mode": "semaine", "items": [{"date": "2000-01-01", "titre": "", "texte": "Texte seul."}]}}
+    h = rendu.document({"nom": "Camille Test", "naissance": "2000-01-05"}, {"contenu": contenu}, j, "lecture")
+    assert '<p class="chapo seul">Un paragraphe complet sans titre.</p>' in h
+    assert "<h3></h3>" not in h and "Aucun événement" not in h
+    assert "window.ajuster" in h and "var(--k,1)" in h

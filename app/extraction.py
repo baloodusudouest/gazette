@@ -56,7 +56,8 @@ def texte(wikitexte: str) -> str:
     w = re.sub(r"<ref[^>]*>.*?</ref>", "", w, flags=re.S)
     w = re.sub(r"<!--.*?-->", "", w, flags=re.S)
     code = mwparserfromhell.parse(w)
-    for t in code.filter_templates(recursive=False):
+    # récursif : un modèle peut se cacher dans le texte d'un lien, [[Marcel Lefebvre|{{Mgr|Lefebvre}}]]
+    for t in reversed(code.filter_templates(recursive=True)):
         nom = str(t.name).strip()
         bas = nom.lower()
         params = [str(p.value).strip() for p in t.params]
@@ -88,6 +89,9 @@ def texte(wikitexte: str) -> str:
                 rendu = params[0] if bas not in ("souverain2", "souverain3", "souverain") else " ".join(params[:2])
             elif bas in ("ier", "iie", "iiie", "ive", "ve", "vie", "viie", "viiie", "ixe", "xe", "xie", "xiie"):
                 rendu = nom.upper()[:-1] + "e" if bas != "ier" else "Ier"
+            elif bas in ("mgr", "dr", "pr", "me", "mme", "mlle", "sr", "st", "ste") and params:
+                rendu = {"mgr": "Mgr", "dr": "Dr", "pr": "Pr", "me": "Me", "mme": "Mme", "mlle": "Mlle", "sr": "Sr",
+                         "st": "saint", "ste": "sainte"}[bas] + " " + params[0]
             elif bas in ("abréviation", "abr", "sigle") and len(params) >= 1:
                 rendu = params[0]
             elif re.fullmatch(r"[ivxlc]+e?", bas) and len(bas) <= 6:

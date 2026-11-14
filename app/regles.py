@@ -66,6 +66,15 @@ def quand_court(d: date) -> str:
     return f"{'1er' if d.day == 1 else d.day} {MOIS_COURT[d.month - 1]}"
 
 
+BUDGET_P2, LONG_P2, BUDGET_BREVES = 1250, 550, 850   # signes ; la taille du texte s'ajuste ensuite à la page (rendu.AJUSTER)
+_RENVOI = re.compile(r"\s*\((?:chrono?|cf|voir)\.?\s[^)]{0,24}\)", re.I)
+
+
+def sans_renvoi(t: str) -> str:
+    """Retire les renvois de chronique, « (chron. 4/02) », inutiles sur papier."""
+    return _RENVOI.sub("", t or "").strip()
+
+
 def premiere_phrase(t: str) -> str:
     return re.split(r"(?<=[a-zéèàûôîç0-9\)»%])\.\s+(?=[A-ZÉÈÀÂ«])", t.strip(), maxsplit=1)[0].rstrip(".")
 
@@ -91,21 +100,38 @@ def _majuscule(t: str) -> str:
     return t[0].upper() + t[1:] if t else t
 
 
-def titre_et_chapo(t: str, maxi_titre: int = 95, maxi_chapo: int = 280) -> tuple[str, str]:
-    """Le gros titre = la première phrase, coupée à une frontière ; le chapeau = la suite, sans redite."""
+FRONTIERES = (r"\s+:\s+", r"\s*;\s+", r"\s+[—–]\s+")
+
+
+def scinder(t: str, maxi: int, mini: int = 20) -> tuple[str, str] | None:
+    """Coupe en deux à une frontière naturelle (« : », « ; », tiret, « , qui »…) avant `maxi` caractères.
+    Rien n'est perdu : la tête et le reste, ou None s'il n'y a pas de frontière."""
+    for motif in FRONTIERES:
+        coupes = [m for m in re.finditer(motif, t) if mini <= m.start() <= maxi]
+        if coupes:
+            m = coupes[-1]
+            tete = t[:m.start()].rstrip(" ,;:")
+            return tete, _majuscule(t[m.end():].strip())
+    return None
+
+
+def titre_et_chapo(t: str, maxi_titre: int = 110) -> tuple[str, str]:
+    """Le gros titre et le chapeau, SANS RIEN PERDRE du texte de la source (14/11/2026) :
+    première phrase courte → titre, la suite en chapeau ; sinon coupure à une frontière naturelle, la suite en
+    chapeau ; sinon pas de titre, tout le texte en paragraphe."""
     t = t.strip()
     phrase = premiere_phrase(t)
-    titre = couper(phrase, maxi_titre).rstrip(".")
-    if titre.endswith("…"):
-        chapo = t
-    else:
-        chapo = t[len(titre):].lstrip(" .,;:(—–").strip()
-        if titre != phrase and chapo.endswith(")") is False and phrase[len(titre):].lstrip().startswith("("):
-            chapo = chapo.replace(")", "", 1).strip()
-    chapo = _majuscule(couper(chapo, maxi_chapo, mini=60)) if chapo else ""
-    if chapo and not chapo.endswith(("…", ".", "!", "?", "»")):
-        chapo += "."
-    return titre, chapo
+    if len(phrase) <= maxi_titre:
+        reste = t[len(phrase):].lstrip(" .").strip()
+        return phrase.rstrip("."), _majuscule(reste)
+    coupe = scinder(phrase, maxi_titre)
+    if coupe:
+        tete, suite = coupe
+        reste = (suite + t[len(phrase):]).strip()
+        if reste and not reste.endswith((".", "!", "?", "»", ")")):
+            reste += "."
+        return tete, reste
+    return "", t
 
 
 NOMBRE = re.compile(r"(?<![\d,])(\d{1,3}(?:[  .]\d{3})+|\d{2,}(?:,\d+)?)(?:\s*(%|km|kilomètres|mètres|tonnes|kg|millions?|milliards?))?"
@@ -241,12 +267,13 @@ def preparer(src: Sources, naissance: date, pays: str = "France") -> dict:
     def fiche(e: dict, i: int, prefixe: str) -> dict:
         de = date.fromisoformat(e["date"])
         titre, chapo = titre_et_chapo(e["texte"])
-        return {"id": f"{prefixe}{i}", "date": e["date"], "quand": quand_court(de), "texte": e["texte"],
+        return {"id": f"{prefixe}{i}", "date": e["date"], "quand": quand_court(de), "texte": sans_renvoi(e["texte"]),
                 "titre": titre, "chapo": chapo, "rubrique": e["rubrique"], "source": e["source"],
                 "langue": e.get("langue", "fr"), "sensible": sensible(e["rubrique"] + " " + e["texte"]),
                 "score": score(e, noto, pays)}
 
     tous = [fiche(e, i, "e") for i, e in enumerate(evts)]
+    tous = [f for f in tous if len(f["texte"].split()) >= 3]   # « Grande-Bretagne » seul n'est pas un fait
 
     def portee(f: dict) -> str:
         de = date.fromisoformat(f["date"])
@@ -281,6 +308,8 @@ def preparer(src: Sources, naissance: date, pays: str = "France") -> dict:
             continue
         if sum(1 for b in breves if b["date"] == f["date"]) >= 2:
             continue
+        if breves and sum(len(b["texte"]) for b in breves) + len(f["texte"]) > BUDGET_BREVES:
+            continue
         breves.append(f)
         if len(breves) == 4:
             break
@@ -288,24 +317,14 @@ def preparer(src: Sources, naissance: date, pays: str = "France") -> dict:
 
     semaine_cands = sorted([f for f in tous if d - timedelta(days=7) <= date.fromisoformat(f["date"]) < d],
                            key=lambda f: (bool(f["sensible"]), f["langue"] != "fr", -f["score"]))
-    semaine = []
-    for f in semaine_cands:
-        if f["sensible"] or f["langue"] != "fr" or f["id"] in pris:
-            continue
-        if sum(1 for x in semaine if x["date"] == f["date"]) >= 2:
-            continue
-        semaine.append(f)
-        if len(semaine) == 5:
-            break
-    if len(semaine) < 3:
-        semaine += [f for f in semaine_cands if not f["sensible"] and f["langue"] == "fr" and f["id"] in pris
-                    and f not in semaine][:5 - len(semaine)]
+    semaine = _choisir_p2([f for f in semaine_cands if not f["sensible"] and f["langue"] == "fr" and f["id"] not in pris])
     mode_p2 = "semaine"
     if len(semaine) < 3:
-        mois_c = [f for f in tous if f["portee"] in ("mois", "autour") and f["id"] not in pris
+        # Semaine trop maigre : on passe au mois plutôt que de répéter les brèves de la une
+        mois_c = [f for f in tous if f["portee"] in ("semaine", "mois", "autour") and f["id"] not in pris
                   and not f["sensible"] and f["langue"] == "fr"]
-        mois_c.sort(key=lambda f: -f["score"])
-        semaine = sorted((semaine + mois_c)[:5], key=lambda f: f["date"])
+        mois_c.sort(key=lambda f: (f["date"][:7] != d.isoformat()[:7], -f["score"]))   # le mois de la naissance d'abord
+        semaine = _choisir_p2(semaine + [f for f in mois_c if f not in semaine], par_jour=1)
         mode_p2 = "mois"
     semaine.sort(key=lambda f: f["date"])
 
@@ -338,7 +357,7 @@ def preparer(src: Sources, naissance: date, pays: str = "France") -> dict:
     chrono += piocher([f for f in annee if f["monde"]], 6 - len(chrono), vus_mois)
     chrono.sort(key=lambda f: f["date"])
     for f in annee:
-        f["court"] = couper(premiere_phrase(f["texte"]), 95)
+        f["court"] = premiere_phrase(f["texte"])
 
     def gens(lst: list[dict], n: int) -> list[dict]:
         vus, sortie = set(), []
@@ -359,8 +378,7 @@ def preparer(src: Sources, naissance: date, pays: str = "France") -> dict:
     contenu = {
         "une": _bloc_une(une, d),
         "breves": [_breve(b) for b in breves],
-        "p2": {"mode": mode_p2, "items": [{"id": f["id"], "date": f["date"], "titre": couper(f["titre"], 70, 20),
-                                            "texte": couper(f["chapo"], 150, 50) if f["chapo"] else ""} for f in semaine]},
+        "p2": {"mode": mode_p2, "items": [_item_p2(f) for f in semaine]},
         "chrono": [{"id": f["id"], "date": f["date"], "quand": f["quand"], "texte": f["court"]} for f in chrono],
         "musique": "", "cinema": "",
         "nes": [{"nom": p["nom"], "annee": p["annee"]} for p in nes_tri[:5]],
@@ -377,10 +395,51 @@ def _bloc_une(une: dict | None, d: date) -> dict:
             "rubrique": une["rubrique"], "encart": encart(une, d)}
 
 
+def _noms(f: dict) -> set[str]:
+    """Noms propres d'un texte (mot à majuscule de 5 lettres ou plus, hors début de phrase)."""
+    mots = re.findall(r"(?<![.!?]\s)(?<!^)\b([A-ZÀ-Ý][a-zà-ÿ]{4,})", f["texte"])
+    return set(mots) - {"France", "Paris", "Grande", "Union", "Église", "États"}
+
+
+def _choisir_p2(cands: list[dict], par_jour: int = 2) -> list[dict]:
+    """Jusqu'à 5 événements, au plus `par_jour` le même jour, qui tiennent ensemble sur la page (BUDGET_P2 signes) :
+    le texte reste complet, on écarte d'abord les très longs, repris seulement s'il en manque."""
+    pris: list[dict] = []
+    for long_ok in (False, True):
+        for f in cands:
+            if f in pris or sum(1 for x in pris if x["date"] == f["date"]) >= par_jour:
+                continue
+            if any(x["date"] == f["date"] and _noms(x) & _noms(f) for x in pris):   # même fait, deux sources
+                continue
+            n = len(f["texte"])
+            if n > LONG_P2 and not long_ok:
+                continue
+            if len(pris) >= 3 and sum(len(x["texte"]) for x in pris) + n > BUDGET_P2:
+                continue
+            pris.append(f)
+            if len(pris) == 5:
+                return pris
+        if len(pris) >= 3:
+            break
+    return pris
+
+
+def _item_p2(f: dict) -> dict:
+    """Un titre de la page 2 : la rubrique de la source en titre si elle existe ; sinon la première phrase
+    si elle est courte ; sinon pas de titre. Le texte complet est toujours gardé."""
+    if f["rubrique"]:
+        return {"id": f["id"], "date": f["date"], "titre": f["rubrique"], "texte": f["texte"]}
+    phrase = premiere_phrase(f["texte"])
+    if len(phrase) <= 80 and len(phrase) < len(f["texte"].rstrip(".")):
+        return {"id": f["id"], "date": f["date"], "titre": phrase.rstrip("."),
+                "texte": _majuscule(f["texte"][len(phrase):].lstrip(" .").strip())}
+    return {"id": f["id"], "date": f["date"], "titre": "", "texte": f["texte"]}
+
+
 def _breve(f: dict) -> dict:
     """Une brève : la rubrique de la source en titre, sinon la date (« Le 5 juillet ») ; le texte raccourci."""
     de = date.fromisoformat(f["date"])
-    return {"id": f["id"], "titre": f["rubrique"] or f"Le {jour_mois(de)}", "texte": couper(f["texte"], 160, 60),
+    return {"id": f["id"], "titre": f["rubrique"] or f"Le {jour_mois(de)}", "texte": f["texte"],
             "date": f["date"]}
 
 
@@ -391,10 +450,9 @@ def bloc_depuis(f: dict, sorte: str, d: date) -> dict:
     if sorte == "breve":
         return _breve(f)
     if sorte == "p2":
-        return {"id": f["id"], "date": f["date"], "titre": couper(f["titre"], 70, 20),
-                "texte": couper(f["chapo"], 150, 50) if f["chapo"] else ""}
+        return _item_p2(f)
     if sorte == "chrono":
-        return {"id": f["id"], "date": f["date"], "quand": f["quand"], "texte": f.get("court") or couper(premiere_phrase(f["texte"]), 110)}
+        return {"id": f["id"], "date": f["date"], "quand": f["quand"], "texte": f.get("court") or premiere_phrase(f["texte"])}
     raise ValueError(sorte)
 
 

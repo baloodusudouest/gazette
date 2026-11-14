@@ -427,7 +427,7 @@ def _rendre(pid: int, mode: str) -> tuple[str, dict, dict]:
 @app.get("/api/livrets/{pid}/apercu")
 def apercu(pid: int, mode: str = "ecran"):
     doc, _, _ = _rendre(pid, mode if mode in ("ecran", "impose", "lecture") else "ecran")
-    return HTMLResponse(doc, headers={"Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:"})
+    return HTMLResponse(doc, headers={"Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src data:; img-src data:"})
 
 
 @app.get("/api/livrets/{pid}/pdf")

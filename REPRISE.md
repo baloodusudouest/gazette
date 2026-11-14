@@ -2,11 +2,12 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
-## État (14/11/2026) — 0.3.0, temps 1 livré + top 5 culturel + journal réglé dans l'appli, jamais essayé sur le NAS
+## État (14/11/2026) — 0.4.0, temps 1 livré + top 5 culturel + journal réglé dans l'appli + texte complet, jamais essayé sur le NAS
 - Appli complète : fiches, livrets, relecture, aperçu, PDF à imprimer et lecture, À traiter, Connexion, Réglages, porte HA (`/ha/sejour`, `/ha/etat`).
 - Moteur essayé en vrai (réseau) sur trois dates maigres du banc (1964, 1983, 1997) : une, brèves, semaine, chronologie, nés et disparus remplis ; rendu PDF contrôlé à l'œil (aucun débordement).
 - Top 5 culturel : fichier livré dans `app/donnees/`, remplaçable depuis Réglages (fichier importé gardé dans `/data/culture.csv`) ; prompt de mise à jour annuelle dans `app/donnees/prompt_culture.md` (il nomme les années 2026 et 2027 : à adapter chaque année).
-- 54 tests (`python -m pytest -q`), sans réseau : pages de sources inventées (`tests/fixtures.py`) ; écrans sur PC et iPhone par le serveur de démonstration (`python -m tools.demo`, mot de passe demo-demo-demo).
+- Texte complet (0.4.0) : rien n'est coupé ; la taille du texte baisse page par page (variable CSS `--k`, script `AJUSTER` de `rendu.py`, plancher 0,84) ; la place est tenue en amont par `BUDGET_P2`, `LONG_P2`, `BUDGET_BREVES` (`regles.py`). Essayé sur six dates (1953, 1964, 1972, 1983, 1988, 1997) : aucun débordement.
+- 57 tests (`python -m pytest -q`), sans réseau : pages de sources inventées (`tests/fixtures.py`) ; écrans sur PC et iPhone par le serveur de démonstration (`python -m tools.demo`, mot de passe demo-demo-demo).
 - Tuile de l'Anneau : `/health` donne `livrets` et `a_traiter` ; la ligne à ajouter au `services.yaml` de l'Anneau est dans le projet « Développement app » (pas dans ce dépôt).
 - Package HA `chambres/gazette.yaml` v1.0 : pas dans ce dépôt (il nomme les chambres et le téléphone de la maison) ; sa copie de référence est décrite dans le master doc Home Assistant (§ 6.1 et § 10). Contrat de la porte : `docs/dossier.md`, section « Temps 1 tel que construit ».
 
@@ -20,5 +21,6 @@
 ## Pièges
 - Dépôt public : aucun nom réel, aucune date de naissance réelle, aucun lieu ni adresse. Titre, lieu, hôtes et mot par défaut se règlent dans l'appli (gardés dans `gazette.db`), jamais dans le code. Rien de Larousse dans le dépôt (ni texte ni page en cache).
 - Wikipédia : User-Agent descriptif obligatoire, pauses entre deux pages ; une première préparation prend une à deux minutes. Le cache (`sources` dans `gazette.db`) rend les suivantes instantanées.
+- L'aperçu exécute un petit script (ajustement de la taille) : le CSP de `/apercu` autorise `script-src 'unsafe-inline'`, rien d'autre.
 - Le PDF demande Chromium dans l'image (≈ 400 Mo) : sans lui, l'aperçu marche, le PDF répond 503 et l'approbation ne contrôle plus les débordements.
 - Impression recto-verso « bord court » pour l'imposition paysage.
