@@ -1,5 +1,13 @@
-node_modules/
-tools/prototype/sortie/
-tools/prototype/node_modules
+# Jamais de secret ni de donnée personnelle dans le dépôt
+.env
+data/
+
+# Construction
 __pycache__/
 *.pyc
+.pytest_cache/
+node_modules/
+frontend/node_modules/
+app/static/
+tools/prototype/sortie/
+tools/prototype/node_modules

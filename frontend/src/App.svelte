@@ -1,0 +1,116 @@
+<script>
+  // Navigation commune (format du socle) : rail à gauche sur PC, pilule d'icônes en bas sur iPhone.
+  // Entrées : Livrets (le geste répété), À traiter, Connexion, Réglages. Un livret s'ouvre à #/livret/<id>.
+  import { onMount } from 'svelte'
+  import { fly } from 'svelte/transition'
+  import Newspaper from '@lucide/svelte/icons/newspaper'
+  import Inbox from '@lucide/svelte/icons/inbox'
+  import Network from '@lucide/svelte/icons/network'
+  import SlidersHorizontal from '@lucide/svelte/icons/sliders-horizontal'
+  import { api } from '$lib/api.js'
+  import Connexion from './pages/Connexion.svelte'
+  import Livrets from './pages/Livrets.svelte'
+  import Livret from './pages/Livret.svelte'
+  import ATraiter from './pages/ATraiter.svelte'
+  import Services from './pages/Services.svelte'
+  import Reglages from './pages/Reglages.svelte'
+
+  const onglets = [
+    { page: 'livrets', nom: 'Livrets', icone: Newspaper },
+    { page: 'a-traiter', nom: 'À traiter', icone: Inbox },
+    { page: 'connexion', nom: 'Connexion', icone: Network },
+    { page: 'reglages', nom: 'Réglages', icone: SlidersHorizontal },
+  ]
+
+  let connecte = $state(null)
+  let session = $state({ version: '', lecture_seule: false })
+  let route = $state(lireRoute())
+  let compteur = $state(0)
+
+  function lireRoute() {
+    const h = location.hash.replace(/^#\//, '')
+    const m = h.match(/^livret\/(\d+)/)
+    if (m) return { page: 'livret', id: +m[1] }
+    return { page: onglets.some((o) => o.page === h) ? h : 'livrets' }
+  }
+
+  async function verifier() {
+    try {
+      const s = await api.get('/api/session')
+      session = s
+      connecte = s.connecte
+      if (connecte) compter()
+    } catch {
+      connecte = false
+    }
+  }
+  async function compter() {
+    try { compteur = (await api.get('/api/a-traiter')).total } catch { /* sans gravité */ }
+  }
+  async function deconnecter() {
+    try { await api.post('/api/deconnexion') } catch { /* déjà déconnecté */ }
+    connecte = false
+  }
+  const actif = (o) => route.page === o.page || (route.page === 'livret' && o.page === 'livrets')
+
+  onMount(verifier)
+</script>
+
+<svelte:window onhashchange={() => { route = lireRoute(); compter() }} />
+
+{#if connecte === false}
+  <Connexion onconnecte={verifier} />
+{:else if connecte}
+  <div class="md:pl-52">
+    <nav
+      aria-label="Sections"
+      class="fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border bg-card/80 p-1.5 shadow-lg backdrop-blur-md
+             md:inset-y-0 md:left-0 md:w-52 md:translate-x-0 md:flex-col md:items-stretch md:gap-1 md:rounded-none md:border-0 md:border-r md:bg-transparent md:p-4 md:shadow-none md:backdrop-blur-none"
+    >
+      <span class="mb-4 hidden px-2 text-xl font-light tracking-tight md:block">Gazette</span>
+      {#each onglets as o}
+        {@const Icone = o.icone}
+        <a
+          href={'#/' + o.page}
+          aria-label={o.nom}
+          aria-current={actif(o) ? 'page' : undefined}
+          class="relative flex h-11 items-center gap-2 rounded-full px-4 text-sm font-medium text-muted-foreground transition-colors
+                 hover:text-foreground aria-[current=page]:bg-foreground aria-[current=page]:text-background
+                 md:h-10 md:rounded-lg md:px-3 md:aria-[current=page]:bg-secondary md:aria-[current=page]:text-foreground"
+        >
+          <Icone class="size-[1.15rem]" aria-hidden="true" />
+          <span class="sr-only md:not-sr-only">{o.nom}</span>
+          {#if o.page === 'a-traiter' && compteur > 0}
+            <span class="absolute top-1 right-1 rounded-full bg-primary px-1.5 text-[0.65rem] leading-4 font-semibold text-primary-foreground md:static md:ml-auto md:text-xs"
+                  aria-label="{compteur} à traiter">{compteur}</span>
+          {/if}
+        </a>
+      {/each}
+    </nav>
+
+    <main
+      class="mx-auto max-w-6xl px-[max(1rem,env(safe-area-inset-left))] pt-[calc(1.25rem+env(safe-area-inset-top))] pb-[calc(6rem+env(safe-area-inset-bottom))] md:px-8 md:pt-8 md:pb-10"
+    >
+      {#if session.lecture_seule}
+        <p class="mb-4 rounded-xl border border-primary/50 px-4 py-2 text-sm" role="status">
+          Mode lecture seule : Gazette prépare et montre les livrets mais n'imprime rien (GAZETTE_LECTURE_SEULE).
+        </p>
+      {/if}
+      {#key route.page + (route.id ?? '')}
+        <div in:fly={{ y: 6, duration: 180 }}>
+          {#if route.page === 'livret'}
+            <Livret id={route.id} onchange={compter} ondeconnecte={() => (connecte = false)} />
+          {:else if route.page === 'a-traiter'}
+            <ATraiter onchange={compter} ondeconnecte={() => (connecte = false)} />
+          {:else if route.page === 'connexion'}
+            <Services ondeconnecte={() => (connecte = false)} />
+          {:else if route.page === 'reglages'}
+            <Reglages {session} {deconnecter} />
+          {:else}
+            <Livrets ondeconnecte={() => (connecte = false)} />
+          {/if}
+        </div>
+      {/key}
+    </main>
+  </div>
+{/if}

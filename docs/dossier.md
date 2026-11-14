@@ -1,4 +1,4 @@
-# Gazette — dossier v0.1
+# Gazette — dossier v0.2 (temps 1 construit, 0.1.0)
 
 Grill du 28/10/2026 et du 14/11/2026 (questions à choix), avec conseil du 28/10/2026 sur l'idée. Premier livret fait à la main le 14/11/2026 avec le prototype (`tools/prototype/`). Format commun : `socle/docs/format.md`. Leçons : `socle/docs/lecons.md`.
 
@@ -147,3 +147,22 @@ Cinq avis, relecture croisée anonyme, synthèse. Verdict, à valider :
 - L'âge en chiffres n'apparaît jamais dans les phrases.
 - Données : la date de naissance vient de la fiche personne (saisie en V1, carnet ensuite). Sans date de naissance, pas d'alerte, mais la fiche manquante est déjà signalée dans À traiter.
 - Tests : séjours encadrant l'anniversaire à J-15, J-14, J-1, le jour d'arrivée, pendant, le jour de départ, J+1, J+14, J+15 ; passage d'année ; 29 février.
+
+## Temps 1 tel que construit (0.1.0, 14/11/2026)
+
+Choix du 14/11 : Larousse retenu avec **texte et mention** (« d'après Larousse », cache sur le NAS, rien dans le dépôt) ; Wikipédia EN autorisé (repli) ; go pour le temps 1.
+
+| Sujet | Construit |
+|---|---|
+| Écrans | **Livrets** (séjours à venir, puis toutes les fiches ; « Nouvelle fiche »), **un livret** (`#/livret/<id>` : blocs à gauche, aperçu à droite, PDF à imprimer et lecture, Approuver), **À traiter** (invités sans fiche, anniversaires proches, livrets à relire, préparations en échec), **Connexion** (Wikipédia FR, EN, Wikidata, Larousse, Home Assistant, rendu PDF ; « Vérifier les sources »), **Réglages** (titre, signature, lieu, règles, journal) |
+| Données | `gazette.db` : `personnes`, `livrets` (un par personne : contenu choisi, propositions, mot, état), `sejours` + `invites` (venus de HA), `ignores`, `sources` (cache), `journal` |
+| États d'un livret | `a_preparer` → `en_preparation` (une file, un ouvrier) → `a_relire` → `approuve` ; toute modification d'un livret approuvé le remet `a_relire` ; une nouvelle date de naissance le refait |
+| Une | jour → veille → semaine → mois ; la portée est imprimée au-dessus du titre (« La veille », « Cette semaine-là », « Ce mois-là ») ; encart = un nombre du texte et ce qu'il compte, sinon la date |
+| Brèves | 4, de la semaine, 2 par jour au plus ; titre = rubrique de la source, sinon « Le 5 juillet » |
+| Page 2 | 5 titres des 7 jours d'avant (2 par jour au plus) ; moins de 3 → « les grands titres du mois » |
+| Page 3 | 4 repères de « <année> en France » + 3 de la page « <année> », un par mois d'abord ; nés et disparus du jour (humains seulement, nés avant l'année de naissance), 5 et 4 ; musique et cinéma à la main (rubrique absente si vide) |
+| Sensible | mots entiers (décès, attentat, guerre, accident, enlèvement…) : jamais choisi seul, sur aucun bloc ; visible à la relecture (« voir les sensibles ») avec ses mots |
+| Anglais | Wikipédia EN lue quand la semaine a moins de 4 faits propres ; proposé « en anglais, à traduire », jamais choisi seul |
+| Porte HA | `POST /ha/sejour` `{chambre, noms[], du, jusqu_au}` → `{invites: [{nom, fiche, livret, lien, anniversaire}], manquants, a_relire, anniversaires}` ; `noms` vide = chambre libre (séjours en cours ou à venir oubliés). Un séjour de la même chambre qui chevauche est remplacé. Les noms sont rapprochés des fiches sans accents ni casse (nom, autres noms, prénom s'il est unique). `GET /ha/etat` → `{a_traiter, fiches_manquantes, a_relire, anniversaires, liste[], adresse}` |
+| Contrôle avant approbation | Chromium mesure chaque page : un bloc qui dépasse refuse l'approbation (« la page 1 déborde ») |
+| Pas encore | impression IPP (temps 3), carnet (dates de naissance), photo Immich en page 4, sommaire collé (temps 5), musique et cinéma automatiques |

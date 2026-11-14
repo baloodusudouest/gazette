@@ -1,0 +1,24 @@
+# Service gazette à placer dans la stack homelab.yml (Portainer).
+# Les variables viennent des « Environment variables » de la stack (voir .env.example).
+# Watchtower désactivé : l'image change seulement quand on choisit la version.
+services:
+  gazette:
+    image: ghcr.io/baloodusudouest/gazette:${GAZETTE_VERSION:-latest}
+    container_name: gazette
+    restart: unless-stopped
+    ports:
+      - "${PORT_GAZETTE:-8099}:8099"                   # réseau local et Tailscale uniquement
+    labels:
+      - com.centurylinklabs.watchtower.enable=false
+    environment:
+      - TZ=Europe/Paris
+      - GAZETTE_PASSWORD=${APPS_PASSWORD}              # mot de passe commun à toutes les applis
+      - GAZETTE_JETON_HA=${GAZETTE_JETON_HA:-}         # jeton de Home Assistant pour /ha/… ; vide : porte fermée
+      - GAZETTE_TITRE=${GAZETTE_TITRE:-}               # nom du journal (masthead)
+      - GAZETTE_SIGNATURE=${GAZETTE_SIGNATURE:-}       # signature du mot des hôtes
+      - GAZETTE_LIEU=${GAZETTE_LIEU:-}                 # colophon de la page 4
+      - GAZETTE_ADRESSE=${GAZETTE_ADRESSE:-}           # adresse de Gazette dans le navigateur (liens des notifications)
+      - GAZETTE_LAROUSSE=${GAZETTE_LAROUSSE:-}         # « non » : n'utilise pas les Journaux de l'année
+      - GAZETTE_LECTURE_SEULE=${GAZETTE_LECTURE_SEULE:-}   # « oui » : n'imprime rien (temps 3)
+    volumes:
+      - ${GAZETTE_DATA_DIR}:/data                      # gazette.db (fiches, livrets, cache des sources)
