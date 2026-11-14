@@ -149,7 +149,12 @@ async def _lecture_seule(_: Request, exc: LectureSeule):
 
 @app.get("/health")
 def sante():
-    return {"ok": True, "version": __version__}
+    """Public. Pour la tuile de l'Anneau : nombres seulement, aucun nom."""
+    try:
+        t = a_traiter()
+        return {"ok": True, "version": __version__, "livrets": len(ETAT["base"].personnes()), "a_traiter": t["total"]}
+    except Exception:  # noqa: BLE001 — la santé répond même si la base est occupée
+        return {"ok": True, "version": __version__}
 
 
 # ================================================================ connexion

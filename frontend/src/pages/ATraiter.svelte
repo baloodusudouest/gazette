@@ -84,7 +84,7 @@
             <div class="flex flex-wrap items-center justify-between gap-2">
               <span><b>{f.nom}</b> <span class="text-sm text-muted-foreground">· chambre {f.chambre}, {dateCourte(f.du)} → {dateCourte(f.jusqu_au)}</span></span>
               <span class="flex gap-2">
-                <Button size="sm" onclick={() => (ficheDe = ficheDe === f.nom ? null : f.nom)}>Créer la fiche</Button>
+                <Button size="sm" variant="outline" onclick={() => (ficheDe = ficheDe === f.nom ? null : f.nom)}>Créer la fiche</Button>
                 <Button size="sm" variant="outline" onclick={() => ignorer('fiche', f.nom)}>Pas de livret</Button>
               </span>
             </div>

@@ -1,5 +1,11 @@
 # Journal des versions
 
+## 0.1.1 — 14/11/2026 (alignement sur le socle et l'Anneau)
+- `/health` donne aussi le nombre de livrets et de cas à traiter (aucun nom), comme Comptoir, pour la tuile de l'Anneau.
+- Tests d'écran sur PC et iPhone (`tests/test_ecran.py`) avec un serveur de démonstration inventé (`python -m tools.demo`) : aucune erreur de page, aucun débordement horizontal.
+- Preuve de la lecture seule des sources (leçons du socle, § 6) : seules des lectures partent, le cache évite toute nouvelle demande, le client ne contient aucune écriture.
+- À traiter : un seul bouton plein par bloc (« Créer la fiche » en contour).
+
 ## 0.1.0 — complément du 14/11/2026
 - Port publié sur le NAS : 8089 (8099 est pris par la vérification des dates) ; l'appli écoute toujours sur 8099 dans le conteneur.
 
