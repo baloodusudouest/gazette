@@ -1,0 +1,5 @@
+node_modules/
+tools/prototype/sortie/
+tools/prototype/node_modules
+__pycache__/
+*.pyc
