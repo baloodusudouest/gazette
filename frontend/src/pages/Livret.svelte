@@ -288,7 +288,7 @@
       <section class="min-w-0 rounded-2xl border bg-card p-4" aria-label="Le mot des hôtes">
         <h2 class="etiquette mb-2">Page 4 · le mot des hôtes</h2>
         <textarea class="w-full rounded-lg border bg-background px-3 py-2 font-serif" rows="8" bind:value={mot} oninput={toucher} aria-label="Mot des hôtes"></textarea>
-        <p class="mt-1 text-xs text-muted-foreground">Une ligne vide sépare les paragraphes. Signature : « {d.signature} » (GAZETTE_SIGNATURE).</p>
+        <p class="mt-1 text-xs text-muted-foreground">Une ligne vide sépare les paragraphes. Signature : « {d.signature} » (Réglages › Le journal).</p>
       </section>
 
       <!-- Fiche et gestes -->

@@ -11,6 +11,7 @@ import html
 from datetime import date
 from pathlib import Path
 
+from . import journal
 from .regles import MOIS, MOIS_COURT, PORTEES, jour_long, jour_mois
 
 POLICES = Path(__file__).parent / "polices"
@@ -170,11 +171,11 @@ def page1(g: dict) -> str:
               f'<span class="l">{e(enc.get("l", ""))}</span></div>') if enc.get("v") else ""
     return f"""<section class="page" data-page="1">
 <div class="manchette"><span>{e(g['date_longue'])}</span><span>Édition unique</span><span>Exemplaire de {e(g['prenom'])}</span></div>
-<div class="titre"><h1>{e(g['titre'])}</h1><p>Le monde tel qu'il était le jour de votre naissance</p></div>
+<div class="titre"><h1>{e(g['titre'])}</h1>{f"<p>{e(g['sous_titre'])}</p>" if g['sous_titre'] else ""}</div>
 <div class="nom"><p class="surtitre">Ce jour-là naissait</p><p class="n">{e(g['nom'])}</p></div>
 <div class="ouv filet">{gros}{encart}</div>
 <div class="breves filet">{breves}</div>
-<div class="pied"><span>Imprimé à la maison · {e(g['renvoi_p2'])}, page 2</span><span>1</span></div>
+<div class="pied"><span>Imprimé {e(g['chez'])} · {e(g['renvoi_p2'])}, page 2</span><span>1</span></div>
 </section>"""
 
 
@@ -246,30 +247,27 @@ def page4(g: dict) -> str:
 <div><p class="surtitre">Édition spéciale</p><h2 class="sec">Bienvenue, {e(g['prenom'])}</h2></div>
 <div class="mot filet">{paras}<p class="sig">{e(g['signature'])}</p></div>
 <p class="orn">✦ ✦ ✦</p>
-<div class="colophon"><span class="t">{e(g['lieu'])}</span>
+<div class="colophon"><span class="t">{e(g['lieu'])}</span>{f"<p>{e(g['lieu_detail'])}</p>" if g['lieu_detail'] else ""}
 <p>Exemplaire unique, imprimé pour {e(g['prenom'])} le {e(g['imprime_le'])}.</p></div>
-<div class="pied"><span>Imprimé à la maison</span><span>4</span></div>
+<div class="pied"><span>Imprimé {e(g['chez'])}</span><span>4</span></div>
 </section>"""
 
 
-def mot_par_defaut(personne: dict, naissance: date) -> str:
-    p = _prenom(personne)
-    return (f"Le {jour_mois(naissance)} {naissance.year}, le monde tournait comme le racontent ces pages. "
-            f"Ce soir, c'est ici que l'on vous attend.\n\n"
-            f"Ce petit journal est à vous, {p} : il raconte le monde tel qu'il était le jour de votre naissance.\n\n"
-            "Installez-vous, reposez-vous, et surtout faites comme chez vous.")
+def mot_par_defaut(personne: dict, naissance: date, j: dict | None = None) -> str:
+    return journal.mot(j or {"mot_modele": journal.MOT, "chez": "à la maison"}, _prenom(personne), naissance)
 
 
-def document(personne: dict, livret: dict, cfg, mode: str = "impose", aujourd_hui: date | None = None) -> str:
-    """mode : « impose » (A4 paysage, 2 feuilles), « lecture » (4 pages A5), « ecran » (aperçu, lecture sur fond sombre)."""
+def document(personne: dict, livret: dict, j: dict, mode: str = "impose", aujourd_hui: date | None = None) -> str:
+    """mode : « impose » (A4 paysage, 2 feuilles), « lecture » (4 pages A5), « ecran » (aperçu, lecture sur fond sombre).
+    `j` : les éléments communs du journal (Réglages › Le journal, voir journal.py)."""
     naissance = date.fromisoformat(personne["naissance"])
     aujourd_hui = aujourd_hui or date.today()
     c = livret.get("contenu") or {}
     g = {
-        "contenu": c, "naissance": naissance, "titre": cfg.titre, "lieu": cfg.lieu,
-        "signature": livret.get("signature") or cfg.signature,
+        "contenu": c, "naissance": naissance, "titre": j["titre"], "sous_titre": j.get("sous_titre", ""),
+        "lieu": j["lieu"], "lieu_detail": j.get("lieu_detail", ""), "chez": j["chez"], "signature": j["signature"],
         "nom": personne["nom"], "prenom": _prenom(personne), "date_longue": jour_long(naissance),
-        "mot": livret.get("mot") or mot_par_defaut(personne, naissance),
+        "mot": livret.get("mot") or mot_par_defaut(personne, naissance, j),
         "sources": c.get("sources", []),
         "renvoi_p2": "Le mois" if c.get("p2", {}).get("mode") == "mois" else "La semaine",
         "imprime_le": f"{'1er' if aujourd_hui.day == 1 else aujourd_hui.day} {MOIS[aujourd_hui.month - 1]} {aujourd_hui.year}",
@@ -280,11 +278,11 @@ def document(personne: dict, livret: dict, cfg, mode: str = "impose", aujourd_hu
     else:
         corps = "".join(f'<div class="feuille">{p(g)}</div>' for p in (page1, page2, page3, page4))
         page = "@page{size:148.5mm 210mm;margin:0}"
-    accent = livret.get("accent") or "#9E1B1B"
+    accent = j.get("accent") or "#9E1B1B"
     if not (accent.startswith("#") and len(accent) in (4, 7) and all(ch in "0123456789abcdefABCDEF" for ch in accent[1:])):
         accent = "#9E1B1B"
     return (f'<!doctype html><html lang="fr" class="{"lecture" if mode != "impose" else "impose"} {"ecran" if mode == "ecran" else ""}">'
-            f'<head><meta charset="utf-8"><title>{e(cfg.titre)} — {e(personne["nom"])}</title>'
+            f'<head><meta charset="utf-8"><title>{e(j["titre"])} — {e(personne["nom"])}</title>'
             f'<style>{font_face()}{CSS}{page}:root{{--a:{accent}}}</style></head><body>{corps}</body></html>')
 
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import hmac
+import json
 import queue
 import threading
 from contextlib import asynccontextmanager
@@ -16,7 +17,7 @@ from datetime import date, datetime, timedelta
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 
-from . import __version__, anniversaire, culture, rendu
+from . import __version__, anniversaire, culture, journal, rendu
 from .auth import COMMUN, DUREE, Sessions
 from .base import ETATS, Base, maintenant
 from .config import APPLI, Config, charger
@@ -105,6 +106,7 @@ async def cycle(app: FastAPI):
     ETAT.update(cfg=cfg, sessions=Sessions(APPLI, cfg.password, _lire_generation(cfg)), base=base,
                 file=queue.Queue(), en_file=set(), culture=culture.Culture(cfg.data))
     ETAT.setdefault("sources", Sources(base, actives=cfg.sources_actives, larousse=cfg.larousse))
+    ETAT["sources"].larousse_actif = journal.charger(base, cfg)["larousse"]
     ouvrier = threading.Thread(target=_ouvrier, daemon=True, name="preparation")
     ouvrier.start()
     # Livrets restés « en préparation » (redémarrage pendant une lecture) : on reprend
@@ -247,6 +249,10 @@ def _resume(p: dict) -> dict:
             "anniversaire": next((a for a in _anniversaires_de(p) if not a["ignore"]), None)}
 
 
+def _journal() -> dict:
+    return journal.charger(ETAT["base"], ETAT["cfg"])
+
+
 def _lien(pid: int) -> str:
     return f"{ETAT['cfg'].adresse}/#/livret/{pid}" if ETAT["cfg"].adresse else f"/#/livret/{pid}"
 
@@ -314,8 +320,9 @@ def livret(pid: int):
     p = _personne_ou_404(pid)
     lv = ETAT["base"].livret(pid)
     naissance = date.fromisoformat(p["naissance"])
-    return {"personne": p, "livret": {**lv, "mot_defaut": rendu.mot_par_defaut(p, naissance)},
-            "sejours": _sejours_de(pid), "anniversaires": _anniversaires_de(p), "signature": ETAT["cfg"].signature}
+    j = _journal()
+    return {"personne": p, "livret": {**lv, "mot_defaut": rendu.mot_par_defaut(p, naissance, j)},
+            "sejours": _sejours_de(pid), "anniversaires": _anniversaires_de(p), "signature": j["signature"]}
 
 
 @app.put("/api/livrets/{pid}")
@@ -403,7 +410,7 @@ def ajouter_au_mot(pid: int, corps: dict = Body(...)):
         raise HTTPException(422, "Phrase vide.")
     base: Base = ETAT["base"]
     lv = base.livret(pid)
-    mot = lv["mot"] or rendu.mot_par_defaut(p, date.fromisoformat(p["naissance"]))
+    mot = lv["mot"] or rendu.mot_par_defaut(p, date.fromisoformat(p["naissance"]), _journal())
     base.maj_livret(pid, mot=mot.rstrip() + "\n\n" + phrase,
                     **({"etat": "a_relire", "approuve_le": ""} if lv["etat"] == "approuve" else {}))
     if corps.get("cle"):
@@ -414,8 +421,7 @@ def ajouter_au_mot(pid: int, corps: dict = Body(...)):
 def _rendre(pid: int, mode: str) -> tuple[str, dict, dict]:
     p = _personne_ou_404(pid)
     lv = ETAT["base"].livret(pid)
-    lv = {**lv, "signature": ETAT["cfg"].signature}
-    return rendu.document(p, lv, ETAT["cfg"], mode=mode), p, lv
+    return rendu.document(p, lv, _journal(), mode=mode), p, lv
 
 
 @app.get("/api/livrets/{pid}/apercu")
@@ -560,7 +566,7 @@ def etat_connexions():
             "ha": {"porte": bool(cfg.jeton_ha), "dernier_appel": base.reglage("ha_dernier_appel"),
                    "dernier_corps": base.reglage("ha_dernier_resume")},
             "rendu": {"polices": rendu.polices_presentes()},
-            "imprimante": {"reglee": bool(cfg.imprimante)}, "larousse": cfg.larousse}
+            "imprimante": {"reglee": bool(cfg.imprimante)}, "larousse": _journal()["larousse"]}
 
 
 @app.post("/api/connexion/verifier")
@@ -571,8 +577,22 @@ def verifier_sources():
 @app.get("/api/reglages")
 def reglages():
     cfg: Config = ETAT["cfg"]
-    return {"titre": cfg.titre, "signature": cfg.signature, "lieu": cfg.lieu, "larousse": cfg.larousse,
-            "lecture_seule": cfg.lecture_seule, "version": __version__, "journal": ETAT["base"].journal(40)}
+    return {"journal": _journal(), "champs": {k: {"libelle": v[0], "aide": v[1], "maxi": v[2]} for k, v in journal.CHAMPS.items()},
+            "lecture_seule": cfg.lecture_seule, "version": __version__, "historique": ETAT["base"].journal(40)}
+
+
+@app.put("/api/reglages/journal")
+def enregistrer_journal(corps: dict = Body(...)):
+    """Les éléments communs à tous les livrets. Ils valent aussitôt pour les aperçus et les PDF ; un mot des
+    hôtes déjà écrit dans un livret est gardé."""
+    try:
+        j = journal.valider(corps, _journal())
+    except ValueError as ex:
+        raise HTTPException(422, str(ex))
+    ETAT["base"].poser_reglage("journal", json.dumps(j, ensure_ascii=False))
+    ETAT["sources"].larousse_actif = j["larousse"]
+    ETAT["base"].noter("reglages", None, "le journal")
+    return j
 
 
 # ================================================================ Home Assistant

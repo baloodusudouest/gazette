@@ -133,3 +133,22 @@ def test_porte_ha_et_a_traiter(client):
 def test_ha_dates_impossibles(client):
     r = ha(client, {"chambre": "ami", "noms": ["A"], "du": "2020-01-01", "jusqu_au": "2019-01-01"})
     assert r.status_code == 422
+
+
+def test_reglages_du_journal(client):
+    connecter(client)
+    r = client.get("/api/reglages").json()
+    assert r["journal"]["titre"] == "Le Journal de Test" and "mot_modele" in r["champs"]
+    assert client.put("/api/reglages/journal", json={"accent": "rouge"}).status_code == 422
+    assert client.put("/api/reglages/journal", json={"titre": ""}).status_code == 422
+    j = client.put("/api/reglages/journal", json={
+        "titre": "La Gazette des Essais", "lieu": "Les Essais", "lieu_detail": "Testville · Testland",
+        "chez": "aux Essais", "signature": "Alex et Sam", "accent": "#123456", "larousse": False,
+        "mot_modele": "Le {date}, {prenom}, on vous attend {chez}."}).json()
+    assert j["larousse"] is False and main.ETAT["sources"].larousse_actif is False
+    pid = client.post("/api/personnes", json={"nom": "Camille Fabre", "naissance": "1988-07-07"}).json()["id"]
+    html = client.get(f"/api/livrets/{pid}/apercu").text
+    for t in ("La Gazette des Essais", "Testville · Testland", "Imprimé aux Essais", "Alex et Sam", "#123456",
+              "Le 7 juillet 1988, Camille, on vous attend aux Essais."):
+        assert t in html
+    assert client.get("/api/livrets").status_code == 200

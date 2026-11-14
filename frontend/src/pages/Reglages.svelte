@@ -9,10 +9,24 @@
   let message = $state('')
   let copie = $state(false)
   let voirPrompt = $state(false)
-  const GESTES = { preparation: 'livret préparé', approuver: 'livret approuvé', fiche: 'fiche', erreur: 'échec de préparation', culture: 'top 5 culturel' }
+  const GESTES = { preparation: 'livret préparé', approuver: 'livret approuvé', fiche: 'fiche', erreur: 'échec de préparation', culture: 'top 5 culturel', reglages: 'réglages' }
 
+  let j = $state(null)
+  let modifie = $state(false)
+  let messageJ = $state('')
+  let envoiJ = $state(false)
   async function lire() {
-    try { r = await api.get('/api/reglages'); c = await api.get('/api/culture') } catch { /* déconnecté */ }
+    try {
+      r = await api.get('/api/reglages'); c = await api.get('/api/culture')
+      j = { ...r.journal }; modifie = false
+    } catch { /* déconnecté */ }
+  }
+  async function enregistrerJournal(e) {
+    e.preventDefault()
+    envoiJ = true; messageJ = ''
+    try { await api.put('/api/reglages/journal', $state.snapshot(j)); await lire(); messageJ = 'Enregistré : vaut aussitôt pour tous les aperçus et les PDF.' }
+    catch (err) { messageJ = err.message }
+    envoiJ = false
   }
   async function importer(e) {
     const f = e.currentTarget.files?.[0]
@@ -44,17 +58,41 @@
 </header>
 
 {#if r}
-  <section class="rounded-2xl border bg-card p-5">
-    <h2 class="text-lg font-semibold">Le journal</h2>
-    <p class="mt-1 text-sm text-muted-foreground">Réglés dans la stack (variables GAZETTE_TITRE, GAZETTE_SIGNATURE, GAZETTE_LIEU).</p>
-    <dl class="mt-3 grid grid-cols-[8rem_1fr] gap-y-1 text-sm">
-      <dt class="text-muted-foreground">Titre</dt><dd class="font-serif">{r.titre}</dd>
-      <dt class="text-muted-foreground">Signature</dt><dd class="font-serif italic">{r.signature}</dd>
-      <dt class="text-muted-foreground">Lieu</dt><dd>{r.lieu}</dd>
-      <dt class="text-muted-foreground">Larousse</dt><dd>{r.larousse ? 'utilisé (1966-2003)' : 'coupé (GAZETTE_LAROUSSE=non)'}</dd>
-      <dt class="text-muted-foreground">Impression</dt><dd>{r.lecture_seule ? 'lecture seule : rien ne part à l\'imprimante' : 'à venir (temps 3) : PDF à imprimer pour l\'instant'}</dd>
-    </dl>
-  </section>
+  {#if j}
+    <form class="rounded-2xl border bg-card p-5" aria-label="Le journal" onsubmit={enregistrerJournal}>
+      <h2 class="text-lg font-semibold">Le journal</h2>
+      <p class="mt-1 text-sm text-muted-foreground">Ce qui est commun à tous les livrets. Un mot des hôtes déjà écrit dans un livret est gardé ; les autres prennent le mot par défaut.</p>
+      <div class="mt-4 grid gap-3 sm:grid-cols-2">
+        {#each ['titre', 'sous_titre', 'lieu', 'lieu_detail', 'chez', 'signature'] as cle}
+          {@const ch = r.champs[cle]}
+          <label class="grid gap-1 text-sm">
+            <span class="text-muted-foreground">{ch.libelle}</span>
+            <input class="h-10 rounded-lg border bg-background px-3" maxlength={ch.maxi} bind:value={j[cle]} oninput={() => (modifie = true)} />
+            <span class="text-xs text-muted-foreground">{ch.aide}</span>
+          </label>
+        {/each}
+        <label class="grid gap-1 text-sm sm:col-span-2">
+          <span class="text-muted-foreground">{r.champs.mot_modele.libelle}</span>
+          <textarea rows="6" class="rounded-lg border bg-background px-3 py-2 font-serif" maxlength={r.champs.mot_modele.maxi} bind:value={j.mot_modele} oninput={() => (modifie = true)}></textarea>
+          <span class="text-xs text-muted-foreground">{r.champs.mot_modele.aide}</span>
+        </label>
+        <label class="flex items-center gap-3 text-sm">
+          <input type="color" class="h-9 w-12 rounded border bg-background" bind:value={j.accent} oninput={() => (modifie = true)} />
+          <span><span class="text-muted-foreground">{r.champs.accent.libelle}</span> · {j.accent}</span>
+        </label>
+        <label class="flex items-center gap-3 text-sm">
+          <input type="checkbox" bind:checked={j.larousse} onchange={() => (modifie = true)} />
+          <span>Utiliser Larousse, Journaux de l'année (1966-2003)</span>
+        </label>
+      </div>
+      <div class="mt-4 flex flex-wrap items-center gap-3">
+        <Button type="submit" disabled={!modifie || envoiJ}>Enregistrer</Button>
+        {#if !modifie && !messageJ}<span class="text-xs text-muted-foreground">rien à enregistrer</span>{/if}
+        {#if messageJ}<span class="text-sm" role="status">{messageJ}</span>{/if}
+      </div>
+      <p class="mt-3 text-xs text-muted-foreground">Impression : {r.lecture_seule ? 'lecture seule, rien ne part à l\'imprimante' : 'à venir (temps 3) ; PDF à imprimer pour l\'instant'}.</p>
+    </form>
+  {/if}
 
   {#if c}
     <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Top 5 culturel">
@@ -99,13 +137,13 @@
 
   <section class="mt-4 rounded-2xl border bg-card p-5">
     <h2 class="text-lg font-semibold">Journal</h2>
-    {#if r.journal.length === 0}
+    {#if r.historique.length === 0}
       <p class="mt-1 text-sm text-muted-foreground">Rien pour l'instant.</p>
     {:else}
       <ul class="mt-2 grid gap-1 text-sm">
-        {#each r.journal as j}
-          <li class="flex gap-3"><span class="w-36 shrink-0 text-muted-foreground">{j.le.replace('T', ' ').slice(0, 16)}</span>
-            <span>{GESTES[j.geste] ?? j.geste}{j.nom ? ' · ' + j.nom : ''}{j.detail ? ' · ' + j.detail : ''}</span></li>
+        {#each r.historique as h}
+          <li class="flex gap-3"><span class="w-36 shrink-0 text-muted-foreground">{h.le.replace('T', ' ').slice(0, 16)}</span>
+            <span>{GESTES[h.geste] ?? h.geste}{h.nom ? ' · ' + h.nom : ''}{h.detail ? ' · ' + h.detail : ''}</span></li>
         {/each}
       </ul>
     {/if}

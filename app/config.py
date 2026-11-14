@@ -18,9 +18,10 @@ class Config:
     password: str
     data: Path
     static: Path
-    titre: str = "La Gazette"            # GAZETTE_TITRE : nom du journal (masthead)
-    signature: str = "Vos hôtes"         # GAZETTE_SIGNATURE : signature par défaut du mot des hôtes
-    lieu: str = "La maison"              # GAZETTE_LIEU : colophon de la page 4
+    # Valeurs de départ seulement : le journal se règle dans l'appli (Réglages › Le journal, journal.py)
+    titre: str = "La Gazette"            # GAZETTE_TITRE
+    signature: str = "Vos hôtes"         # GAZETTE_SIGNATURE
+    lieu: str = "La maison"              # GAZETTE_LIEU
     jeton_ha: str = ""                   # GAZETTE_JETON_HA : porte /ha/… ; vide : fermée
     imprimante: str = ""                 # GAZETTE_IMPRIMANTE : adresse IPP (temps 3)
     lecture_seule: bool = False          # GAZETTE_LECTURE_SEULE : n'imprime pas (seule écriture hors de chez elle)
@@ -28,7 +29,7 @@ class Config:
     attente_connexion: bool = True       # délai anti-essais ; coupé dans les tests
     synchrone: bool = False              # tests : la préparation se fait dans la requête, pas en file
     adresse: str = ""                    # GAZETTE_ADRESSE : adresse de Gazette dans le navigateur (liens des notifications)
-    larousse: bool = True                # GAZETTE_LAROUSSE=non : n'utilise pas les Journaux de l'année
+    larousse: bool = True                # GAZETTE_LAROUSSE=non (valeur de départ, puis Réglages)
 
 
 def charger() -> Config:

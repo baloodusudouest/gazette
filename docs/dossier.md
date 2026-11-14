@@ -172,3 +172,7 @@ Choix du 14/11 : Larousse retenu avec **texte et mention** (« d'après Larousse
 ## Top 5 culturel (14/11/2026)
 
 Un fichier `top5_culture_annuel.csv` (1900 à 2026 : films au box-office, séries en tête des audiences US, titres en tête des ventes / du Billboard), préparé avec Claude, et un prompt pour le tenir à jour chaque année. Gazette le livre (`app/donnees/`) et s'en sert pour la page 3 : Musique et Cinéma ne sont plus saisis à la main. Mise à jour : Réglages › Top 5 culturel (télécharger, copier le prompt, importer). Un fichier importé est contrôlé avant d'être gardé et remplace la version livrée ; « Revenir à la version livrée » le retire. La chronologie passe à 6 repères pour que la page tienne.
+
+## Le journal réglé dans l'appli (14/11/2026)
+
+Titre, sous-titre, lieu (et sa ligne de détail), « chez vous » avec l'article, signature des hôtes, mot par défaut, couleur d'accent et Larousse se règlent dans Réglages › Le journal, gardés dans la base (table `reglages`, clé `journal`). Les variables de la stack ne donnent plus que la valeur de départ.
