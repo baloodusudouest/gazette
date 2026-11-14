@@ -5,6 +5,7 @@
   import BookOpenCheck from '@lucide/svelte/icons/book-open-check'
   import Cake from '@lucide/svelte/icons/cake'
   import TriangleAlert from '@lucide/svelte/icons/triangle-alert'
+  import CalendarClock from '@lucide/svelte/icons/calendar-clock'
   import { api } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import FicheForm from '$lib/FicheForm.svelte'
@@ -19,7 +20,7 @@
   async function lire() {
     try {
       t = await api.get('/api/a-traiter')
-      if (!choisi) choisi = ['fiches', 'anniversaires', 'relire', 'erreurs'].find((k) => t[k].length) ?? null
+      if (!choisi) choisi = ['fiches', 'dates', 'anniversaires', 'relire', 'erreurs'].find((k) => t[k].length) ?? null
       onchange?.()
     } catch (err) {
       if (err.statut === 401) ondeconnecte?.()
@@ -33,6 +34,19 @@
     await lire()
     return r
   }
+  async function depuisCarnet(f) {
+    try {
+      await api.post('/api/a-traiter/creer-depuis-carnet', { nom: f.nom })
+      message = `Fiche créée d'après carnet : le livret de ${f.nom} se prépare.`
+      await lire()
+    } catch (err) { message = err.message }
+  }
+  async function prendreDate(d) {
+    await api.put(`/api/personnes/${d.id}`, { naissance: d.carnet })
+    message = `Date de ${d.nom} corrigée d'après carnet : le livret est refait.`
+    await lire()
+  }
+  const MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre']
   async function ignorer(sorte, cle) { await api.post('/api/a-traiter/ignorer', { sorte, cle }); await lire() }
   async function ajouter(a, phrase) {
     await api.post(`/api/livrets/${a.id}/mot/ajouter`, { phrase, cle: a.cle })
@@ -41,6 +55,7 @@
   }
   const tuiles = [
     { cle: 'fiches', nom: 'Invités sans fiche', icone: UserPlus, aide: 'annoncés par Home Assistant' },
+    { cle: 'dates', nom: 'Dates à vérifier', icone: CalendarClock, aide: 'différentes dans carnet' },
     { cle: 'anniversaires', nom: 'Anniversaires proches', icone: Cake, aide: 'à 14 jours du séjour' },
     { cle: 'relire', nom: 'Livrets à relire', icone: BookOpenCheck, aide: 'avant d\'approuver' },
     { cle: 'erreurs', nom: 'Préparations en échec', icone: TriangleAlert, aide: 'sources illisibles' },
@@ -56,7 +71,7 @@
 {#if message}<p class="mb-4 rounded-xl border px-4 py-2 text-sm" role="status">{message}</p>{/if}
 
 {#if t}
-  <div class="grid grid-cols-2 gap-3 md:grid-cols-4" role="group" aria-label="Tuiles">
+  <div class="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5" role="group" aria-label="Tuiles">
     {#each tuiles as tu}
       {@const Icone = tu.icone}
       {#if t[tu.cle].length}
@@ -82,13 +97,34 @@
         {#each t.fiches as f}
           <li class="rounded-xl border p-3">
             <div class="flex flex-wrap items-center justify-between gap-2">
-              <span><b>{f.nom}</b> <span class="text-sm text-muted-foreground">· chambre {f.chambre}, {dateCourte(f.du)} → {dateCourte(f.jusqu_au)}</span></span>
-              <span class="flex gap-2">
+              <span><b>{f.nom}</b> <span class="text-sm text-muted-foreground">· chambre {f.chambre}, {dateCourte(f.du)} → {dateCourte(f.jusqu_au)}</span>
+                {#if f.carnet?.naissance}<span class="block text-sm text-valide">Carnet : né·e le {dateLongue(f.carnet.naissance)}</span>
+                {:else if f.carnet?.jour}<span class="block text-sm text-primary">Carnet : le {f.carnet.jour === 1 ? '1er' : f.carnet.jour} {MOIS[f.carnet.mois - 1]}, année inconnue</span>
+                {:else if f.carnet?.plusieurs}<span class="block text-sm text-muted-foreground">Carnet : plusieurs contacts à ce nom</span>{/if}</span>
+              <span class="flex flex-wrap gap-2">
+                {#if f.carnet?.naissance}<Button size="sm" onclick={() => depuisCarnet(f)}>Créer d'après carnet</Button>{/if}
                 <Button size="sm" variant="outline" onclick={() => (ficheDe = ficheDe === f.nom ? null : f.nom)}>Créer la fiche</Button>
                 <Button size="sm" variant="outline" onclick={() => ignorer('fiche', f.nom)}>Pas de livret</Button>
               </span>
             </div>
             {#if ficheDe === f.nom}<div class="mt-3"><FicheForm valeur={{ nom: f.nom }} onvalider={creer} onannuler={() => (ficheDe = null)} /></div>{/if}
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {:else if choisi === 'dates' && t.dates.length}
+    <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Dates à vérifier">
+      <h2 class="text-lg font-semibold">Dates de naissance à vérifier</h2>
+      <p class="mt-1 text-sm text-muted-foreground">Carnet ne donne pas la même date que la fiche. Prendre celle de carnet refait le livret.</p>
+      <ul class="mt-3 grid gap-3">
+        {#each t.dates as d}
+          <li class="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3">
+            <span><a class="font-semibold underline-offset-4 hover:underline" href={'#/livret/' + d.id}>{d.nom}</a>
+              <span class="block text-sm">Gazette : {dateLongue(d.gazette)} · <span class="text-primary">carnet : {dateLongue(d.carnet)}</span></span></span>
+            <span class="flex flex-wrap gap-2">
+              <Button size="sm" onclick={() => prendreDate(d)}>Prendre celle de carnet</Button>
+              <Button size="sm" variant="outline" onclick={() => ignorer('date', d.cle)}>Garder la fiche</Button>
+            </span>
           </li>
         {/each}
       </ul>

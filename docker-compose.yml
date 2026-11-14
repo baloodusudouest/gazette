@@ -17,5 +17,7 @@ services:
       - GAZETTE_JETON_HA=${GAZETTE_JETON_HA:-}         # jeton de Home Assistant pour /ha/… ; vide : porte fermée
       - GAZETTE_ADRESSE=${GAZETTE_ADRESSE:-}           # adresse de Gazette dans le navigateur (liens des notifications)
       - GAZETTE_LECTURE_SEULE=${GAZETTE_LECTURE_SEULE:-}   # « oui » : n'imprime rien (temps 3)
+      - GAZETTE_CARNET_JETON=${GAZETTE_CARNET_JETON:-} # = CARNET_JETON_GAZETTE de carnet (≥ 2.20) ; vide : carnet pas lu
+      - GAZETTE_CARNET_URL=${GAZETTE_CARNET_URL:-http://carnet:8096}   # adresse de carnet vue depuis le conteneur
     volumes:
       - ${GAZETTE_DATA_DIR}:/data                      # gazette.db (fiches, livrets, cache des sources)

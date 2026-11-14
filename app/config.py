@@ -30,6 +30,8 @@ class Config:
     synchrone: bool = False              # tests : la préparation se fait dans la requête, pas en file
     adresse: str = ""                    # GAZETTE_ADRESSE : adresse de Gazette dans le navigateur (liens des notifications)
     larousse: bool = True                # GAZETTE_LAROUSSE=non (valeur de départ, puis Réglages)
+    carnet_url: str = ""                 # GAZETTE_CARNET_URL : adresse de carnet (http://carnet:8096 dans la stack)
+    carnet_jeton: str = ""               # GAZETTE_CARNET_JETON : = CARNET_JETON_GAZETTE de carnet ; vide : carnet pas lu
 
 
 def charger() -> Config:
@@ -48,4 +50,6 @@ def charger() -> Config:
         lecture_seule=_oui("GAZETTE_LECTURE_SEULE"),
         adresse=os.environ.get("GAZETTE_ADRESSE", "").strip().rstrip("/"),
         larousse=os.environ.get("GAZETTE_LAROUSSE", "").strip().lower() not in ("non", "0", "false", "no"),
+        carnet_url=os.environ.get("GAZETTE_CARNET_URL", "").strip().rstrip("/") or "http://carnet:8096",
+        carnet_jeton=os.environ.get("GAZETTE_CARNET_JETON", "").strip(),
     )

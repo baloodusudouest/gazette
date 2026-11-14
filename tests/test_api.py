@@ -173,3 +173,75 @@ def test_mesure_de_la_place(client):
     assert any(b["bloc"] == "p2:0" and b["h"] > 300 for b in pages[2]["blocs"])
     detail = client.post(f"/api/livrets/{pid}/approuver").json()["detail"]
     assert "page 2" in detail and "rouge" in detail and "vert" in detail
+
+
+CARNET = [
+    {"carnet_id": "c1", "nom": "Dominique INCONNU", "nom_carnet": "Dominique Inconnu", "prenom": "Dominique",
+     "naissance": "1988-07-07", "jour": 7, "mois": 7, "annee": 1988},
+    {"carnet_id": "c2", "nom": "Sacha Sansannee", "nom_carnet": "Sacha Sansannee", "prenom": "Sacha",
+     "naissance": None, "jour": 3, "mois": 5, "annee": None},
+    {"carnet_id": "c3", "nom": "Camille Fabre", "nom_carnet": "Camille Fabre", "prenom": "Camille",
+     "naissance": "1988-07-08", "jour": 8, "mois": 7, "annee": 1988},
+]
+
+
+@pytest.fixture()
+def client_carnet(tmp_path):
+    main.ETAT.clear()
+    main.ETAT["cfg"] = Config(password=MDP, data=tmp_path, static=tmp_path / "static", attente_connexion=False,
+                              sources_actives=False, synchrone=True, jeton_ha=JETON, carnet_url="http://carnet.test",
+                              carnet_jeton="jeton-carnet")
+    appels = []
+    main.ETAT["carnet_lire"] = lambda url, jeton: (appels.append((url, jeton)), CARNET)[1]
+    with TestClient(main.app) as c:
+        b = main.ETAT["base"]
+        for cle, contenu in {"wp:fr:Juillet 1988": F.MOIS_PUCES, "wp:fr:Juin 1988": "", "wp:fr:1988 en France": F.ANNEE_FRANCE,
+                             "wp:fr:1988": F.ANNEE_MONDE, "wp:fr:7 juillet": F.JOUR, "lar:1988-07": F.LAROUSSE,
+                             "lar:1988-06": ""}.items():
+            b.garder_source(cle, contenu)
+        c.appels = appels
+        yield c
+    main.ETAT.clear()
+
+
+def test_carnet_fiche_auto_saisie_et_dates(client_carnet):
+    c = client_carnet
+    connecter(c)
+    du = date.today() + timedelta(days=5)
+    # HA annonce un invité sans fiche que carnet connaît (date complète) : fiche créée, livret préparé
+    r = ha(c, {"chambre": "ami", "noms": ["DOMINIQUE INCONNU", "Sacha Sansannee"], "du": du.isoformat(),
+               "jusqu_au": (du + timedelta(days=1)).isoformat()}).json()
+    assert r["depuis_carnet"] == ["DOMINIQUE INCONNU"] and r["manquants"] == ["Sacha Sansannee"]
+    assert r["a_relire"] == ["DOMINIQUE INCONNU"]
+    dom = next(p for p in c.get("/api/livrets").json()["livrets"] if p["nom"] == "Dominique Inconnu")
+    assert dom["naissance"] == "1988-07-07"
+    assert c.appels and c.appels[0] == ("http://carnet.test", "jeton-carnet")
+    # Sans année dans carnet : pas de fiche, mais À traiter dit ce que carnet sait
+    t = c.get("/api/a-traiter").json()
+    sacha = t["fiches"][0]
+    assert sacha["nom"] == "Sacha Sansannee" and sacha["carnet"]["jour"] == 3 and sacha["carnet"]["annee"] is None
+    assert c.post("/api/a-traiter/creer-depuis-carnet", json={"nom": "Sacha Sansannee"}).status_code == 409
+    # Saisie assistée
+    s = c.get("/api/carnet/suggestions", params={"q": "cami"}).json()["suggestions"]
+    assert s[0]["nom"] == "Camille Fabre" and s[0]["naissance"] == "1988-07-08"
+    # Date différente de carnet : à traiter, puis ignorée
+    pid = c.post("/api/personnes", json={"nom": "Camille Fabre", "naissance": "1988-07-07"}).json()["id"]
+    d = c.get("/api/a-traiter").json()["dates"]
+    assert d == [{"id": pid, "nom": "Camille Fabre", "gazette": "1988-07-07", "carnet": "1988-07-08", "cle": f"{pid}:1988-07-08"}]
+    c.post("/api/a-traiter/ignorer", json={"sorte": "date", "cle": d[0]["cle"]})
+    assert c.get("/api/a-traiter").json()["dates"] == []
+    # Connexion : la tuile carnet
+    v = c.post("/api/connexion/verifier").json()["carnet"]
+    assert v["ok"] and "3 contacts, 2 avec date complète" in v["detail"]
+    assert c.get("/api/connexion/etat").json()["carnet"]["personnes"] == 3
+
+
+def test_carnet_en_panne(client_carnet):
+    def panne(url, jeton):
+        raise RuntimeError("carnet injoignable")
+    main.ETAT["carnet"]._lire = panne
+    main.ETAT["carnet"]._liste = None
+    r = ha(client_carnet, {"chambre": "ami", "noms": ["Dominique Inconnu"], "du": date.today().isoformat(),
+                           "jusqu_au": date.today().isoformat()}).json()
+    assert r["manquants"] == ["Dominique Inconnu"] and r["depuis_carnet"] == []
+    assert main.ETAT["carnet"].etat()["erreur"] == "carnet injoignable"

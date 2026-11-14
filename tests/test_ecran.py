@@ -71,8 +71,8 @@ def sans_debordement(page):
 @pytest.mark.parametrize("taille", TAILLES)
 def test_livrets(navigateur, adresse, taille):
     page, erreurs = ouvrir(navigateur, adresse, taille)
-    assert page.locator("ul[aria-label=Livrets] li").count() == 2
-    page.get_by_text("Dominique Inconnu").wait_for()                 # séjour annoncé, invité sans fiche
+    assert page.locator("ul[aria-label=Livrets] li").count() == 3       # deux fiches + une créée d'après carnet (démo)
+    page.get_by_text("Sacha Exemple").first.wait_for()               # séjour annoncé, invité sans fiche
     sans_debordement(page)
     assert erreurs == []
 
@@ -110,5 +110,17 @@ def test_connexion_et_reglages(navigateur, adresse, taille, chemin, titre):
     if titre == "Réglages":
         page.get_by_role("heading", name="Top 5 culturel").wait_for()
         page.get_by_role("button", name="Copier le prompt").wait_for()
+    sans_debordement(page)
+    assert erreurs == []
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_a_traiter_avec_carnet(navigateur, adresse, taille):
+    """Invité sans fiche : ce que carnet sait est dit ; la fiche propose le contact de carnet."""
+    page, erreurs = ouvrir(navigateur, adresse, taille, "#/a-traiter")
+    page.get_by_text("Carnet : le 3 mai, année inconnue").wait_for()
+    page.get_by_role("button", name="Créer la fiche").first.click()
+    page.get_by_role("group", name="Contacts de carnet").get_by_role("button").first.click()
+    page.get_by_text("année inconnue : complète la date").wait_for()
     sans_debordement(page)
     assert erreurs == []

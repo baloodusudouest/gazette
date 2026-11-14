@@ -18,8 +18,9 @@ from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 
 from . import __version__, anniversaire, culture, journal, rendu
+from .carnet import Carnet
 from .auth import COMMUN, DUREE, Sessions
-from .base import ETATS, Base, maintenant
+from .base import ETATS, Base, cle_nom, maintenant
 from .config import APPLI, Config, charger
 from .regles import bloc_depuis, preparer
 from .sources import Sources
@@ -107,6 +108,7 @@ async def cycle(app: FastAPI):
                 file=queue.Queue(), en_file=set(), culture=culture.Culture(cfg.data))
     ETAT.setdefault("sources", Sources(base, actives=cfg.sources_actives, larousse=cfg.larousse))
     ETAT["sources"].larousse_actif = journal.charger(base, cfg)["larousse"]
+    ETAT["carnet"] = Carnet(cfg.carnet_url, cfg.carnet_jeton, base, lire=ETAT.get("carnet_lire"))
     ouvrier = threading.Thread(target=_ouvrier, daemon=True, name="preparation")
     ouvrier.start()
     # Livrets restés « en préparation » (redémarrage pendant une lecture) : on reprend
@@ -536,7 +538,8 @@ def a_traiter() -> dict:
         for i in s["invites"]:
             if i["personne_id"] is None and i["nom"] not in vus and i["nom"] not in ign_fiches:
                 vus.add(i["nom"])
-                fiches.append({"nom": i["nom"], "chambre": s["chambre"], "du": s["du"], "jusqu_au": s["jusqu_au"]})
+                fiches.append({"nom": i["nom"], "chambre": s["chambre"], "du": s["du"], "jusqu_au": s["jusqu_au"],
+                               "carnet": _carnet_sur(i["nom"])})
     relire, erreurs, annivs = [], [], []
     attendus = {i["personne_id"] for s in base.sejours() for i in s["invites"] if i["personne_id"]}
     for p in base.personnes():
@@ -549,8 +552,27 @@ def a_traiter() -> dict:
             if not a["ignore"]:
                 annivs.append({"id": p["id"], "nom": p["nom"], **a})
     relire.sort(key=lambda x: not x["attendu"])
-    return {"fiches": fiches, "relire": relire, "anniversaires": annivs, "erreurs": erreurs,
-            "total": len(fiches) + len(relire) + len(annivs) + len(erreurs)}
+    # Date d'une fiche différente de celle de carnet (contact unique au même nom, date complète)
+    dates = []
+    if ETAT["carnet"].actif:
+        ign_dates = base.ignores("date")
+        for p in base.personnes():
+            c = ETAT["carnet"].date_sure([p["nom"], *p["alias"]])
+            if c and c["naissance"] != p["naissance"] and f"{p['id']}:{c['naissance']}" not in ign_dates:
+                dates.append({"id": p["id"], "nom": p["nom"], "gazette": p["naissance"], "carnet": c["naissance"],
+                              "cle": f"{p['id']}:{c['naissance']}"})
+    return {"fiches": fiches, "relire": relire, "anniversaires": annivs, "erreurs": erreurs, "dates": dates,
+            "total": len(fiches) + len(relire) + len(annivs) + len(erreurs) + len(dates)}
+
+
+def _carnet_sur(nom: str) -> dict | None:
+    """Ce que carnet sait d'un invité sans fiche : date complète (création possible) ou partielle (année inconnue)."""
+    trouves = ETAT["carnet"].chercher(nom) if ETAT["carnet"].actif else []
+    if len(trouves) != 1:
+        return {"plusieurs": True} if trouves else None
+    c = trouves[0]
+    return {"naissance": c.get("naissance"), "jour": c.get("jour"), "mois": c.get("mois"), "annee": c.get("annee"),
+            "nom": c.get("nom_carnet") or c.get("nom")}
 
 
 @app.get("/api/a-traiter")
@@ -561,10 +583,24 @@ def route_a_traiter():
 @app.post("/api/a-traiter/ignorer")
 def ignorer(corps: dict = Body(...)):
     sorte = corps.get("sorte")
-    if sorte not in ("fiche", "anniversaire"):
+    if sorte not in ("fiche", "anniversaire", "date"):
         raise HTTPException(422, "Sorte inconnue.")
     ETAT["base"].ignorer(sorte, str(corps.get("cle", ""))[:80])
     return {"ok": True}
+
+
+@app.post("/api/a-traiter/creer-depuis-carnet")
+def creer_depuis_carnet(corps: dict = Body(...)):
+    """Invité sans fiche que carnet connaît : même création que celle faite à l'annonce de HA."""
+    pid = _fiche_depuis_carnet(str(corps.get("nom", ""))[:80])
+    if not pid:
+        raise HTTPException(409, "Carnet ne donne pas de date complète et sûre pour ce nom : crée la fiche à la main.")
+    return {"id": pid}
+
+
+@app.get("/api/carnet/suggestions")
+def suggestions_carnet(q: str = ""):
+    return {"actif": ETAT["carnet"].actif, "suggestions": ETAT["carnet"].suggestions(q[:80])}
 
 
 # ================================================================ Connexion et Réglages
@@ -577,12 +613,20 @@ def etat_connexions():
             "ha": {"porte": bool(cfg.jeton_ha), "dernier_appel": base.reglage("ha_dernier_appel"),
                    "dernier_corps": base.reglage("ha_dernier_resume")},
             "rendu": {"polices": rendu.polices_presentes()},
-            "imprimante": {"reglee": bool(cfg.imprimante)}, "larousse": _journal()["larousse"]}
+            "imprimante": {"reglee": bool(cfg.imprimante)}, "larousse": _journal()["larousse"],
+            "carnet": ETAT["carnet"].etat()}
 
 
 @app.post("/api/connexion/verifier")
 def verifier_sources():
-    return ETAT["sources"].sonder()
+    r = ETAT["sources"].sonder()
+    if ETAT["carnet"].actif:
+        liste = ETAT["carnet"].personnes(forcer=True)
+        err = ETAT["carnet"].erreur
+        r["carnet"] = {"ok": not err, "detail": err or f"{len(liste)} contacts, {sum(1 for p in liste if p.get('naissance'))} avec date complète"}
+    else:
+        r["carnet"] = {"ok": None, "detail": "pas réglé (GAZETTE_CARNET_JETON vide)"}
+    return r
 
 
 @app.get("/api/reglages")
@@ -628,6 +672,11 @@ def ha_sejour(corps: dict = Body(...)):
         raise HTTPException(422, "Dates de séjour impossibles.")
     sid = base.poser_sejour(chambre, du.isoformat(), fin.isoformat(), noms)
     sejour = next(s for s in base.sejours(depuis="0000") if s["id"] == sid)
+    # Invité sans fiche que carnet connaît (un seul contact, date complète) : la fiche est créée et le livret
+    # préparé ; relecture et approbation restent à faire.
+    crees = [n for n in (i["nom"] for i in sejour["invites"] if i["personne_id"] is None) if _fiche_depuis_carnet(n)]
+    if crees:
+        sejour = next(s for s in base.sejours(depuis="0000") if s["id"] == sid)
     invites, manquants, relire, annivs = [], [], [], []
     for i in sejour["invites"]:
         if i["personne_id"] is None:
@@ -647,7 +696,28 @@ def ha_sejour(corps: dict = Body(...)):
         invites.append({"nom": i["nom"], "fiche": True, "livret": lv["etat"], "lien": _lien(p["id"]),
                         "anniversaire": cas})
     base.poser_reglage("ha_dernier_resume", f"{chambre} : {', '.join(noms)} ({du.isoformat()} → {fin.isoformat()})")
-    return {"chambre": chambre, "invites": invites, "manquants": manquants, "a_relire": relire, "anniversaires": annivs}
+    return {"chambre": chambre, "invites": invites, "manquants": manquants, "a_relire": relire, "anniversaires": annivs,
+            "depuis_carnet": crees}
+
+
+def _fiche_depuis_carnet(nom: str) -> int | None:
+    """Crée la fiche d'un invité d'après carnet (contact unique, date complète) et lance la préparation."""
+    base: Base = ETAT["base"]
+    if base.trouver(nom):
+        return None
+    c = ETAT["carnet"].date_sure([nom])
+    if not c:
+        return None
+    nom_fiche = " ".join((c.get("nom_carnet") or c.get("nom") or nom).split())[:80]
+    alias = []
+    for autre in (nom, c.get("nom", "")):
+        if autre and cle_nom(autre) != cle_nom(nom_fiche) and cle_nom(autre) not in map(cle_nom, alias):
+            alias.append(" ".join(autre.split())[:80])
+    prenom = " ".join((c.get("prenom") or nom_fiche.split(" ")[0]).split())[:40]
+    pid = base.creer_personne(nom_fiche, prenom, c["naissance"], "France", alias)
+    base.noter("fiche", pid, "créée d'après carnet")
+    demander_preparation(pid)
+    return pid
 
 
 @app.get("/ha/etat")

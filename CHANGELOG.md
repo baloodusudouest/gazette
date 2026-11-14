@@ -1,5 +1,13 @@
 # Journal des versions
 
+## 0.6.0 — 14/11/2026 (dates de naissance lues dans carnet)
+- **Fiche créée seule** : quand Home Assistant annonce un invité sans fiche et que carnet connaît un seul contact à ce nom avec une date de naissance complète, Gazette crée la fiche (nom de carnet, nom de la réservation gardé en « autre nom ») et prépare le livret. Il reste à relire et approuver ; la notification de HA dit « livret à relire » au lieu de « pas de fiche ».
+- **À traiter › Invités sans fiche** dit ce que carnet sait (« né·e le … », « le 3 mai, année inconnue », « plusieurs contacts à ce nom ») ; bouton « Créer d'après carnet » quand la date est complète.
+- **Saisie assistée** : en tapant un nom dans une nouvelle fiche, les contacts de carnet sont proposés ; un toucher remplit nom, prénom, date et autres noms.
+- **Dates à vérifier** (nouvelle tuile d'À traiter) : une fiche dont la date diffère de celle de carnet ; « Prendre celle de carnet » (le livret est refait) ou « Garder la fiche ».
+- **Connexion › Carnet** : nombre de contacts et de dates complètes, erreur claire (jeton refusé, carnet arrêté). Lecture seule : Gazette n'écrit rien dans carnet. Liste gardée 10 minutes, et la dernière bonne dans la base si carnet est en panne.
+- Variables : `GAZETTE_CARNET_JETON` (même valeur que `CARNET_JETON_GAZETTE` de carnet 2.20) et `GAZETTE_CARNET_URL` (par défaut `http://carnet:8096`).
+
 ## 0.5.0 — 14/11/2026 (page trop pleine : on voit quoi changer)
 - **Blocs en rouge** : quand une page déborde, ses blocs sont encadrés de rouge dans l'éditeur, avec un bandeau « Page 2 trop pleine : il manque environ 6 lignes ».
 - **Compteur qui suit la frappe** : sous chaque bloc, le nombre de signes et ce qu'il faudrait retirer (« en retirer environ 316 suffirait ») ; tout passe au vert dès que la page devrait tenir (« enregistre pour vérifier »). Masquer un bloc compte aussi.

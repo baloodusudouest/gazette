@@ -27,6 +27,14 @@ JETON = "jeton-de-demo"
 SOURCES = {"wp:fr:Juillet 1988": F.MOIS_PUCES, "wp:fr:Juin 1988": "", "wp:fr:1988 en France": F.ANNEE_FRANCE,
            "wp:fr:1988": F.ANNEE_MONDE, "wp:fr:7 juillet": F.JOUR, "wp:en:July 1988": F.EN_MOIS, "wp:en:June 1988": "",
            "lar:1988-07": F.LAROUSSE, "lar:1988-06": ""}
+CARNET = [  # carnet simulé, personnes inventées
+    {"carnet_id": "d1", "nom": "Dominique INCONNU", "nom_carnet": "Dominique Inconnu", "prenom": "Dominique",
+     "naissance": "1988-07-07", "jour": 7, "mois": 7, "annee": 1988},
+    {"carnet_id": "d2", "nom": "Sacha Exemple", "nom_carnet": "Sacha Exemple", "prenom": "Sacha",
+     "naissance": None, "jour": 3, "mois": 5, "annee": None},
+    {"carnet_id": "d3", "nom": "Lou MARTIN", "nom_carnet": "Lou Martin", "prenom": "Lou",
+     "naissance": "1988-07-08", "jour": 8, "mois": 7, "annee": 1988},
+]
 NOTORIETE = [("Gustav Exemple", 90), ("Ringo Exemple", 120), ("Arthur Exemple", 80), ("Henri Exemple", 20)]
 
 
@@ -38,7 +46,9 @@ def configurer(data: Path) -> None:
         b.garder_source(f"wd:fr:{t}", f'{{"n": {n}, "humain": true}}')
     b.fermer()
     main.ETAT.clear()
+    main.ETAT["carnet_lire"] = lambda url, jeton: CARNET
     main.ETAT["cfg"] = Config(password=MDP, data=data, static=RACINE / "app" / "static", attente_connexion=False,
+                              carnet_url="http://carnet.demo", carnet_jeton="jeton-de-demo",
                               sources_actives=False, synchrone=True, jeton_ha=JETON, titre="La Gazette de démonstration",
                               signature="Les hôtes", lieu="La maison")
 
@@ -57,7 +67,7 @@ def semer(adresse: str) -> None:
         c.post("/api/personnes", json={"nom": "Lou Martin", "naissance": "1988-07-07"})
         a = date.today().year + (1 if date.today() >= date(date.today().year, 7, 3) else 0)
         c.post("/ha/sejour", headers={"Authorization": f"Bearer {JETON}"},
-               json={"chambre": "verte", "noms": ["Camille Fabre", "Dominique Inconnu"],
+               json={"chambre": "verte", "noms": ["Camille Fabre", "Dominique Inconnu", "Sacha Exemple"],
                      "du": f"{a}-07-03", "jusqu_au": f"{a}-07-05"})
 
 

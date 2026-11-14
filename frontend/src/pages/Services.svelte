@@ -8,6 +8,7 @@
   import Library from '@lucide/svelte/icons/library'
   import House from '@lucide/svelte/icons/house'
   import FileText from '@lucide/svelte/icons/file-text'
+  import BookUser from '@lucide/svelte/icons/book-user'
   import { api } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import { dateCourte } from '$lib/format.js'
@@ -32,11 +33,13 @@
     { cle: 'wikidata', nom: 'Wikidata', icone: Database, cache: e.sources.wd, lit: 'notoriété des pages (liens interlangues) et nature « être humain »', ecrit: 'rien' },
     { cle: 'larousse', nom: 'Larousse', icone: Library, cache: e.sources.lar, lit: "Journaux de l'année, chronologie du mois (1966 à 2003). Textes non libres : usage familial, rien ne sort du NAS", ecrit: 'rien' },
     { cle: 'ha', nom: 'Home Assistant', icone: House, cache: null, lit: 'reçoit les séjours sur /ha/sejour (jeton GAZETTE_JETON_HA) ; HA lit /ha/etat', ecrit: 'rien' },
+    { cle: 'carnet', nom: 'Carnet', icone: BookUser, cache: null, lit: 'noms et dates de naissance sur /gazette/personnes (jeton GAZETTE_CARNET_JETON) : fiche créée seule pour un invité connu, saisie assistée, dates comparées', ecrit: 'rien' },
     { cle: 'rendu', nom: 'Rendu PDF', icone: FileText, cache: null, lit: 'Chromium dans le conteneur, polices embarquées', ecrit: 'rien' },
   ] : [])
   function voyant(s) {
     if (s.cle === 'ha') return e.ha.porte ? (e.ha.dernier_appel ? 'ok' : 'attente') : 'ko'
     if (s.cle === 'rendu') return e.rendu.polices ? 'ok' : 'ko'
+    if (s.cle === 'carnet' && !sonde?.carnet) return !e.carnet.regle ? 'coupe' : e.carnet.erreur ? 'ko' : e.carnet.personnes !== null ? 'ok' : 'attente'
     if (s.cle === 'larousse' && !e.larousse) return 'coupe'
     if (sonde?.[s.cle]) return sonde[s.cle].ok ? 'ok' : sonde[s.cle].ok === null ? 'coupe' : 'ko'
     if (e.erreurs[s.cle]) return 'ko'
@@ -45,6 +48,8 @@
   function detail(s) {
     if (s.cle === 'ha') return e.ha.porte ? (e.ha.dernier_appel ? `dernier séjour reçu ${dateCourte(e.ha.dernier_appel)}` : 'porte ouverte, rien reçu') : 'porte fermée (jeton absent)'
     if (s.cle === 'rendu') return e.rendu.polices ? 'polices présentes' : 'polices absentes'
+    if (s.cle === 'carnet' && !sonde?.carnet) return !e.carnet.regle ? 'pas réglé (jeton absent)' : e.carnet.erreur ? e.carnet.erreur
+      : e.carnet.personnes !== null ? `${e.carnet.personnes} contacts, ${e.carnet.dates} avec date complète` : 'pas encore lu'
     if (sonde?.[s.cle]) return sonde[s.cle].detail
     if (e.erreurs[s.cle]) return e.erreurs[s.cle]
     return s.cache ? `${s.cache.pages} pages gardées` : 'rien de lu pour l\'instant'

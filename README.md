@@ -6,6 +6,7 @@ Un petit journal imprimé, « le monde le jour de votre naissance », pour les p
 - **Rédaction par règles, sans IA** : Gazette choisit et trie des faits datés, cités en entier ; elle n'invente rien. Tout bloc se remplace par une autre proposition ou se corrige à la main.
 - **Sources** : Wikipédia FR (pages du mois, de l'année, du jour), Wikidata (notoriété, personnes), Wikipédia EN en repli (proposé en anglais, jamais choisi seul), un top 5 culturel annuel (films, séries, musique) pour la page 3 et, pour 1966-2003, les Journaux de l'année de Larousse (usage familial privé, rien n'en sort du NAS, mention « d'après Larousse »).
 - **Home Assistant** annonce les séjours (`POST /ha/sejour`, jeton) : Gazette retrouve le livret de chaque invité, signale les fiches manquantes, les livrets à relire et les anniversaires à 14 jours ou moins du séjour (avec trois phrases à ajouter au mot des hôtes).
+- **Carnet** (l'appli de contacts de la maison, ≥ 2.20) donne les dates de naissance (`GET /gazette/personnes`, jeton) : la fiche d'un invité connu se crée seule, la saisie propose les contacts, une date différente est signalée. Gazette n'y écrit rien.
 - **Rendu** : HTML puis PDF par Chromium ; « à imprimer » (A4 paysage, recto-verso bord court) et « lecture » (4 pages A5). Aucune page ne doit déborder : contrôlé avant l'approbation.
 
 Installation : service `gazette` de `docker-compose.yml` dans la stack, variables dans `.env.example`. Dossier : `docs/dossier.md`. Reprise : `REPRISE.md`.
