@@ -17,11 +17,11 @@ from datetime import date, datetime, timedelta
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 
-from . import __version__, anniversaire, culture, journal, rendu
+from . import __version__, anniversaire, culture, journal, maison, rendu
 from .carnet import Carnet
 from .auth import COMMUN, DUREE, Sessions
 from .base import ETATS, Base, cle_nom, maintenant
-from .config import APPLI, Config, charger
+from .config import APPLI, Config, charger, racine
 from .regles import bloc_depuis, preparer
 from .sources import Sources
 
@@ -172,7 +172,7 @@ def sante():
 @app.get("/api/session")
 def session(request: Request):
     return {"connecte": ETAT["sessions"].connecte(request.cookies), "version": __version__,
-            "lecture_seule": ETAT["cfg"].lecture_seule}
+            "lecture_seule": ETAT["cfg"].lecture_seule, "lecture_seule_origine": _origine_lecture_seule()}
 
 
 @app.post("/api/connexion")
@@ -255,8 +255,25 @@ def _journal() -> dict:
     return journal.charger(ETAT["base"], ETAT["cfg"])
 
 
+ANNUAIRE = maison.Annuaire()
+
+
+def _adresse() -> str:
+    """0.7 : adresse de Gazette pour le navigateur (liens des notifications de Home Assistant), lue dans l'Anneau
+    (tuile « Gazette »), sinon GAZETTE_ADRESSE. Les liens partent vers HA, pas vers la page ouverte : jamais
+    l'adresse privée (prive=False). Schéma, hôte et port seulement : un chemin donnait un lien faux."""
+    return racine(ANNUAIRE.adresse("Gazette", prive=False, repli=ETAT["cfg"].adresse))
+
+
 def _lien(pid: int) -> str:
-    return f"{ETAT['cfg'].adresse}/#/livret/{pid}" if ETAT["cfg"].adresse else f"/#/livret/{pid}"
+    adresse = _adresse()
+    return f"{adresse}/#/livret/{pid}" if adresse else f"/#/livret/{pid}"
+
+
+def _origine_lecture_seule() -> str:
+    """« maison » (MAISON_LECTURE_SEULE), « appli » (GAZETTE_LECTURE_SEULE) ou « » : pour l'écran."""
+    cfg: Config = ETAT["cfg"]
+    return (cfg.lecture_seule_origine or "appli") if cfg.lecture_seule else ""
 
 
 # ================================================================ fiches et livrets
@@ -625,7 +642,7 @@ def verifier_sources():
         err = ETAT["carnet"].erreur
         r["carnet"] = {"ok": not err, "detail": err or f"{len(liste)} contacts, {sum(1 for p in liste if p.get('naissance'))} avec date complète"}
     else:
-        r["carnet"] = {"ok": None, "detail": "pas réglé (GAZETTE_CARNET_JETON vide)"}
+        r["carnet"] = {"ok": None, "detail": "pas réglé (ni GAZETTE_CARNET_JETON ni MAISON_JETON)"}
     return r
 
 
@@ -633,7 +650,7 @@ def verifier_sources():
 def reglages():
     cfg: Config = ETAT["cfg"]
     return {"journal": _journal(), "champs": {k: {"libelle": v[0], "aide": v[1], "maxi": v[2]} for k, v in journal.CHAMPS.items()},
-            "lecture_seule": cfg.lecture_seule, "version": __version__, "historique": ETAT["base"].journal(40)}
+            "lecture_seule": cfg.lecture_seule, "lecture_seule_origine": _origine_lecture_seule(), "version": __version__, "historique": ETAT["base"].journal(40)}
 
 
 @app.put("/api/reglages/journal")
@@ -729,7 +746,7 @@ def ha_etat():
     lignes += [f"{a['nom']} : anniversaire {a['libelle']} ({a['anniversaire']})" for a in t["anniversaires"]]
     return {"a_traiter": len(lignes), "fiches_manquantes": len(t["fiches"]),
             "a_relire": sum(1 for r in t["relire"] if r["attendu"]), "anniversaires": len(t["anniversaires"]),
-            "liste": lignes, "adresse": ETAT["cfg"].adresse}
+            "liste": lignes, "adresse": _adresse()}
 
 
 # ================================================================ interface

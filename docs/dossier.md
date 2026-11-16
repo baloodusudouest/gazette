@@ -48,7 +48,7 @@ Ce que l'appli n'est pas : un générateur d'articles. Elle choisit, trie et met
 | Sécurité | Mot de passe commun et cookie `maison_session` ; jeton `GAZETTE_JETON_HA` ; mode lecture seule `GAZETTE_LECTURE_SEULE` (ici : n'imprime pas, n'écrit chez personne) ; Watchtower désactivé |
 | Écritures extérieures | Aucune, sauf l'impression. Gazette n'écrit ni dans carnet, ni dans Immich, ni dans HA |
 
-**Variables** (noms seulement) : `GAZETTE_PASSWORD` (= mot de passe commun), `GAZETTE_JETON_HA`, `GAZETTE_TITRE` (titre du journal), `GAZETTE_SIGNATURE` (le mot des hôtes), `GAZETTE_LIEU` (colophon), `GAZETTE_IMPRIMANTE` (adresse IPP), `GAZETTE_CARNET_URL` et `GAZETTE_CARNET_JETON` (si (a)), `GAZETTE_IMMICH_URL` et `GAZETTE_IMMICH_CLE` (plus tard), `GAZETTE_LECTURE_SEULE`.
+**Variables** (noms seulement) : `MAISON_PASSWORD` (0.7, repli `GAZETTE_PASSWORD`), `MAISON_JETON` et `MAISON_LECTURE_SEULE` (0.7), `GAZETTE_JETON_HA`, `GAZETTE_TITRE` (titre du journal), `GAZETTE_SIGNATURE` (le mot des hôtes), `GAZETTE_LIEU` (colophon), `GAZETTE_IMPRIMANTE` (adresse IPP), `GAZETTE_CARNET_URL` et `GAZETTE_CARNET_JETON` (si (a)), `GAZETTE_IMMICH_URL` et `GAZETTE_IMMICH_CLE` (plus tard), `GAZETTE_LECTURE_SEULE`.
 
 ### Règles de rédaction (sans IA)
 

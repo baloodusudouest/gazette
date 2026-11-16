@@ -90,7 +90,7 @@
         {#if !modifie && !messageJ}<span class="text-xs text-muted-foreground">rien à enregistrer</span>{/if}
         {#if messageJ}<span class="text-sm" role="status">{messageJ}</span>{/if}
       </div>
-      <p class="mt-3 text-xs text-muted-foreground">Impression : {r.lecture_seule ? 'lecture seule, rien ne part à l\'imprimante' : 'à venir (temps 3) ; PDF à imprimer pour l\'instant'}.</p>
+      <p class="mt-3 text-xs text-muted-foreground">Impression : {r.lecture_seule ? `lecture seule (${r.lecture_seule_origine === 'maison' ? 'toute la maison' : 'cette appli'}), rien ne part à l'imprimante` : 'à venir (temps 3) ; PDF à imprimer pour l\'instant'}.</p>
     </form>
   {/if}
 

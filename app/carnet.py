@@ -1,7 +1,7 @@
 """Lecture de carnet (l'appli de contacts de la maison) : noms et dates de naissance.
 
 Gazette lit `GET /gazette/personnes` avec son jeton (GAZETTE_CARNET_JETON, la même valeur que
-CARNET_JETON_GAZETTE côté carnet) et n'écrit jamais rien dans carnet. La liste est gardée en mémoire
+CARNET_JETON_GAZETTE côté carnet ; 0.7 : à défaut, le jeton commun MAISON_JETON) et n'écrit jamais rien dans carnet. La liste est gardée en mémoire
 10 minutes (et la dernière bonne dans la base, pour survivre à une panne de carnet).
 
 Usages :
@@ -28,7 +28,7 @@ DELAI = 8            # secondes : délai d'une lecture
 def _lire_http(url: str, jeton: str) -> list[dict]:
     r = httpx.get(f"{url}/gazette/personnes", headers={"Authorization": f"Bearer {jeton}"}, timeout=DELAI)
     if r.status_code == 401:
-        raise RuntimeError("jeton refusé par carnet (GAZETTE_CARNET_JETON ≠ CARNET_JETON_GAZETTE)")
+        raise RuntimeError("jeton refusé par carnet (GAZETTE_CARNET_JETON ≠ CARNET_JETON_GAZETTE, ou MAISON_JETON différent)")
     r.raise_for_status()
     return list(r.json().get("personnes") or [])
 

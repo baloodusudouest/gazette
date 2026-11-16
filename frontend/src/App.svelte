@@ -23,7 +23,7 @@
   ]
 
   let connecte = $state(null)
-  let session = $state({ version: '', lecture_seule: false })
+  let session = $state({ version: '', lecture_seule: false, lecture_seule_origine: '' })
   let route = $state(lireRoute())
   let compteur = $state(0)
 
@@ -93,7 +93,8 @@
     >
       {#if session.lecture_seule}
         <p class="mb-4 rounded-xl border border-primary/50 px-4 py-2 text-sm" role="status">
-          Mode lecture seule : Gazette prépare et montre les livrets mais n'imprime rien (GAZETTE_LECTURE_SEULE).
+          Mode lecture seule : Gazette prépare et montre les livrets mais n'imprime rien
+          ({session.lecture_seule_origine === 'maison' ? 'toute la maison, MAISON_LECTURE_SEULE' : 'cette appli, GAZETTE_LECTURE_SEULE'}).
         </p>
       {/if}
       {#key route.page + (route.id ?? '')}

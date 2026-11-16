@@ -1,5 +1,14 @@
 # Journal des versions
 
+## 0.7.0 — 16/11/2026 (variables communes de la maison)
+- **Module commun** `app/maison.py` (contrat 1 du socle 0.5.0), copié tel quel ; un test refuse une copie retouchée.
+- **Mot de passe** : `MAISON_PASSWORD`, sinon `GAZETTE_PASSWORD` comme avant. Message d'erreur : « MAISON_PASSWORD (ou GAZETTE_PASSWORD) ».
+- **Lecture seule** : `MAISON_LECTURE_SEULE=oui` met toute la maison en lecture seule ; `GAZETTE_LECTURE_SEULE` (« oui » ou « non »), si elle est posée, l'emporte pour Gazette. Le bandeau et Réglages disent d'où elle vient (« toute la maison » ou « cette appli »).
+- **Jeton envoyé à carnet** (`/gazette/personnes`) : `GAZETTE_CARNET_JETON` d'abord tant qu'il est posé, sinon le jeton commun `MAISON_JETON` (carnet ≥ 2.25 l'accepte). Le jeton de Home Assistant (`GAZETTE_JETON_HA`) ne change pas : `MAISON_JETON` n'ouvre pas `/ha/…`.
+- **Adresse de Gazette** dans les liens des notifications (`/ha/sejour`, `/ha/etat`) : lue dans l'Anneau (tuile « Gazette », adresse locale, car les liens partent vers Home Assistant), sinon `GAZETTE_ADRESSE`.
+- **Correction** : une adresse avec un chemin (ex. `…:8089/ha/sejour`) donnait des liens faux (`…/ha/sejour/#/livret/3`, refusés sans jeton). Gazette ne garde plus que schéma, hôte et port.
+- Rien ne change tant que la stack n'a pas les nouvelles variables : les anciens noms restent lus. `docker-compose.yml` et `.env.example` montrent les nouveaux noms.
+
 ## 0.6.0 — 14/11/2026 (dates de naissance lues dans carnet)
 - **Fiche créée seule** : quand Home Assistant annonce un invité sans fiche et que carnet connaît un seul contact à ce nom avec une date de naissance complète, Gazette crée la fiche (nom de carnet, nom de la réservation gardé en « autre nom ») et prépare le livret. Il reste à relire et approuver ; la notification de HA dit « livret à relire » au lieu de « pas de fiche ».
 - **À traiter › Invités sans fiche** dit ce que carnet sait (« né·e le … », « le 3 mai, année inconnue », « plusieurs contacts à ce nom ») ; bouton « Créer d'après carnet » quand la date est complète.
