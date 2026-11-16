@@ -1,5 +1,9 @@
-"""Réglages lus dans l'environnement du conteneur. Aucune valeur personnelle dans le code :
-le titre du journal, la signature et le lieu viennent de la stack."""
+"""Ce que Gazette lit dans l'environnement du conteneur. Aucune valeur personnelle dans le code.
+
+0.8 : seules restent les variables qui ne sont pas des réglages d'usage — le mot de passe et le jeton communs
+(MAISON_PASSWORD, MAISON_JETON), la lecture seule (MAISON_LECTURE_SEULE, forçable par GAZETTE_LECTURE_SEULE), le
+jeton de Home Assistant (GAZETTE_JETON_HA) et l'adresse de carnet dans la stack (GAZETTE_CARNET_URL). Le titre du
+journal, le lieu, les hôtes, le mot par défaut, la couleur et Larousse se règlent dans l'appli (journal.py)."""
 from __future__ import annotations
 
 import os
@@ -29,41 +33,27 @@ class Config:
     password: str
     data: Path
     static: Path
-    # Valeurs de départ seulement : le journal se règle dans l'appli (Réglages › Le journal, journal.py)
-    titre: str = "La Gazette"            # GAZETTE_TITRE
-    signature: str = "Vos hôtes"         # GAZETTE_SIGNATURE
-    lieu: str = "La maison"              # GAZETTE_LIEU
     jeton_ha: str = ""                   # GAZETTE_JETON_HA : porte /ha/… ; vide : fermée
-    imprimante: str = ""                 # GAZETTE_IMPRIMANTE : adresse IPP (temps 3)
     lecture_seule: bool = False          # MAISON_LECTURE_SEULE ou GAZETTE_LECTURE_SEULE : n'imprime pas (seule écriture hors de chez elle)
     lecture_seule_origine: str = ""      # « maison », « appli » ou « » : d'où vient la lecture seule (affichée)
     sources_actives: bool = True         # coupé dans les tests : aucune lecture réseau
     attente_connexion: bool = True       # délai anti-essais ; coupé dans les tests
     synchrone: bool = False              # tests : la préparation se fait dans la requête, pas en file
-    adresse: str = ""                    # GAZETTE_ADRESSE : repli de l'adresse de Gazette (tuile « Gazette » de l'Anneau d'abord)
-    larousse: bool = True                # GAZETTE_LAROUSSE=non (valeur de départ, puis Réglages)
     carnet_url: str = ""                 # GAZETTE_CARNET_URL : adresse de carnet (http://carnet:8096 dans la stack)
-    carnet_jeton: str = ""               # GAZETTE_CARNET_JETON, puis MAISON_JETON ; vide : carnet pas lu
+    carnet_jeton: str = ""               # MAISON_JETON (0.8 : plus d'ancien jeton par paire) ; vide : carnet pas lu
 
 
 def charger() -> Config:
-    mot_de_passe = maison.mot_de_passe("GAZETTE_PASSWORD")      # 0.7 : MAISON_PASSWORD, repli sur l'ancien nom
+    mot_de_passe = maison.mot_de_passe()                       # 0.8 : MAISON_PASSWORD seul
     if len(mot_de_passe) < 12:
-        raise SystemExit("MAISON_PASSWORD (ou GAZETTE_PASSWORD) est absent ou trop court (12 caractères au moins) : "
-                         "Gazette ne démarre pas.")
+        raise SystemExit("MAISON_PASSWORD est absent ou trop court (12 caractères au moins) : Gazette ne démarre pas.")
     return Config(
         password=mot_de_passe,
-        data=Path(os.environ.get("GAZETTE_DATA", "/data")),
+        data=Path(os.environ.get("GAZETTE_DATA", "/data")),      # dossier dans le conteneur (image), pas la stack
         static=Path(__file__).parent / "static",
-        titre=os.environ.get("GAZETTE_TITRE", "").strip() or "La Gazette",
-        signature=os.environ.get("GAZETTE_SIGNATURE", "").strip() or "Vos hôtes",
-        lieu=os.environ.get("GAZETTE_LIEU", "").strip() or "La maison",
         jeton_ha=os.environ.get("GAZETTE_JETON_HA", "").strip(),
-        imprimante=os.environ.get("GAZETTE_IMPRIMANTE", "").strip(),
-        lecture_seule=maison.lecture_seule("GAZETTE_LECTURE_SEULE"),          # 0.7 : MAISON_LECTURE_SEULE, forçable ici
+        lecture_seule=maison.lecture_seule("GAZETTE_LECTURE_SEULE"),
         lecture_seule_origine=maison.origine_lecture_seule("GAZETTE_LECTURE_SEULE"),
-        adresse=racine(os.environ.get("GAZETTE_ADRESSE", "")),                # 0.7 : sans chemin
-        larousse=os.environ.get("GAZETTE_LAROUSSE", "").strip().lower() not in ("non", "0", "false", "no"),
         carnet_url=os.environ.get("GAZETTE_CARNET_URL", "").strip().rstrip("/") or "http://carnet:8096",
-        carnet_jeton=maison.jeton_a_envoyer("GAZETTE_CARNET_JETON"),          # 0.7 : puis MAISON_JETON
+        carnet_jeton=maison.jeton_a_envoyer(),                 # 0.8 : MAISON_JETON seul
     )

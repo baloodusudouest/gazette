@@ -38,6 +38,15 @@ CARNET = [  # carnet simulé, personnes inventées
 NOTORIETE = [("Gustav Exemple", 90), ("Ringo Exemple", 120), ("Arthur Exemple", 80), ("Henri Exemple", 20)]
 
 
+def anneau_simule(adresse: str, jeton: str) -> dict:
+    """L'Anneau simulé : deux sauvegardes des réglages, la plus récente d'abord (aucun réseau)."""
+    if "?le=" not in adresse:
+        return {"dates": ["2026-11-15", "2026-11-14"]}
+    le = adresse.rsplit("?le=", 1)[1]
+    return {"le": le, "version": "0.8.0", "reglages": {"titre": "La Gazette d'avant", "signature": "Les hôtes",
+                                                       "accent": "#1B4E9E", "larousse": False}}
+
+
 def configurer(data: Path) -> None:
     b = Base(data / "gazette.db")
     for cle, contenu in SOURCES.items():
@@ -49,8 +58,8 @@ def configurer(data: Path) -> None:
     main.ETAT["carnet_lire"] = lambda url, jeton: CARNET
     main.ETAT["cfg"] = Config(password=MDP, data=data, static=RACINE / "app" / "static", attente_connexion=False,
                               carnet_url="http://carnet.demo", carnet_jeton="jeton-de-demo",
-                              sources_actives=False, synchrone=True, jeton_ha=JETON, titre="La Gazette de démonstration",
-                              signature="Les hôtes", lieu="La maison")
+                              sources_actives=False, synchrone=True, jeton_ha=JETON)
+    main.ETAT["anneau_lire"] = anneau_simule
 
 
 def semer(adresse: str) -> None:
@@ -63,6 +72,7 @@ def semer(adresse: str) -> None:
             time.sleep(0.1)
     with httpx.Client(base_url=adresse) as c:
         c.post("/api/connexion", json={"mot_de_passe": MDP})
+        c.put("/api/reglages", json={"titre": "La Gazette de démonstration", "signature": "Les hôtes"})
         c.post("/api/personnes", json={"nom": "Camille Fabre", "naissance": "1988-07-07", "alias": ["Cam"]})
         c.post("/api/personnes", json={"nom": "Lou Martin", "naissance": "1988-07-07"})
         a = date.today().year + (1 if date.today() >= date(date.today().year, 7, 3) else 0)

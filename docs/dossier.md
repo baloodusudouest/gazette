@@ -50,6 +50,8 @@ Ce que l'appli n'est pas : un générateur d'articles. Elle choisit, trie et met
 
 **Variables** (noms seulement) : `MAISON_PASSWORD` (0.7, repli `GAZETTE_PASSWORD`), `MAISON_JETON` et `MAISON_LECTURE_SEULE` (0.7), `GAZETTE_JETON_HA`, `GAZETTE_TITRE` (titre du journal), `GAZETTE_SIGNATURE` (le mot des hôtes), `GAZETTE_LIEU` (colophon), `GAZETTE_IMPRIMANTE` (adresse IPP), `GAZETTE_CARNET_URL` et `GAZETTE_CARNET_JETON` (si (a)), `GAZETTE_IMMICH_URL` et `GAZETTE_IMMICH_CLE` (plus tard), `GAZETTE_LECTURE_SEULE`.
 
+> **0.8.0 (16/11/2026)** : la stack ne porte plus que `MAISON_PASSWORD`, `MAISON_JETON`, `MAISON_LECTURE_SEULE`, `GAZETTE_LECTURE_SEULE`, `GAZETTE_JETON_HA` et `GAZETTE_CARNET_URL`. Titre, lieu, hôtes, mot par défaut, couleur et Larousse se règlent dans Réglages › Le journal (`GAZETTE_TITRE`, `GAZETTE_SIGNATURE`, `GAZETTE_LIEU`, `GAZETTE_LAROUSSE` repris une fois au premier démarrage) ; l'Anneau les sauvegarde (`GET /externe/sauvegarde`, jeton commun) et Réglages › Restaurer les réglages les remet. `GAZETTE_PASSWORD`, `GAZETTE_CARNET_JETON` et `GAZETTE_ADRESSE` ne sont plus lus ; l'adresse IPP de l'imprimante se réglera dans Réglages au temps 3 (`GAZETTE_IMPRIMANTE` n'est plus lue).
+
 ### Règles de rédaction (sans IA)
 
 - **Une** : les événements datés du jour exact dans la page « <mois> <année> » ; repli sur la veille (un quotidien du jour parle de la veille), puis la semaine. Gros titre = l'événement le mieux classé (notoriété de la page liée, priorité France puis monde) ; listes d'exclusion : décès, attentats, catastrophes ne sont jamais en gros titre.

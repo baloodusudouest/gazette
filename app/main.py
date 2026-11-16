@@ -1,15 +1,16 @@
 """Gazette : « le monde le jour de votre naissance », un livret A5 par proche, préparé une fois et réimprimé
 à chaque visite.
 
-Routes : /health (publique) ; /api/… (session) ; /ha/… (jeton de Home Assistant) ; puis l'interface.
+Routes : /health (publique) ; /api/… (session) ; /ha/… (jeton de Home Assistant) ; /externe/sauvegarde (jeton
+commun de la maison, pour l'Anneau) ; puis l'interface.
 Gazette n'écrit chez personne : ni dans carnet, ni dans Immich, ni dans Home Assistant. L'impression (temps 3)
 sera sa seule écriture extérieure, refusée en lecture seule."""
 from __future__ import annotations
 
 import asyncio
 import hmac
-import json
 import queue
+import re
 import threading
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
@@ -106,8 +107,12 @@ async def cycle(app: FastAPI):
     base = Base(cfg.data / "gazette.db")
     ETAT.update(cfg=cfg, sessions=Sessions(APPLI, cfg.password, _lire_generation(cfg)), base=base,
                 file=queue.Queue(), en_file=set(), culture=culture.Culture(cfg.data))
-    ETAT.setdefault("sources", Sources(base, actives=cfg.sources_actives, larousse=cfg.larousse))
-    ETAT["sources"].larousse_actif = journal.charger(base, cfg)["larousse"]
+    # 0.8 : réglages d'usage — reprise unique des anciennes variables pour une clé encore absente de la base
+    for cle in journal.reprendre(base):
+        base.noter("reglages", None, f"{journal.LIBELLES[cle]} repris de {journal.VARIABLES[cle]} (premier démarrage)")
+    larousse = journal.charger(base)["larousse"]
+    ETAT.setdefault("sources", Sources(base, actives=cfg.sources_actives, larousse=larousse))
+    ETAT["sources"].larousse_actif = larousse
     ETAT["carnet"] = Carnet(cfg.carnet_url, cfg.carnet_jeton, base, lire=ETAT.get("carnet_lire"))
     ouvrier = threading.Thread(target=_ouvrier, daemon=True, name="preparation")
     ouvrier.start()
@@ -134,10 +139,11 @@ async def garde(request: Request, appel):
         jeton = ETAT["cfg"].jeton_ha
         if not jeton or not hmac.compare_digest(request.headers.get("authorization", "").encode(), f"Bearer {jeton}".encode()):
             return JSONResponse({"detail": "Jeton manquant ou invalide."}, status_code=401)
+    # /externe/… : chaque route contrôle le jeton commun elle-même (pas de session)
     elif chemin.startswith("/api/") and chemin not in PUBLIQUES and not ETAT["sessions"].connecte(request.cookies):
         return JSONResponse({"detail": "Connexion nécessaire."}, status_code=401)
     reponse = await appel(request)
-    if chemin.startswith(("/api/", "/ha/")):
+    if chemin.startswith(("/api/", "/ha/", "/externe/")):
         reponse.headers["Cache-Control"] = "no-store"
     return reponse
 
@@ -252,17 +258,18 @@ def _resume(p: dict) -> dict:
 
 
 def _journal() -> dict:
-    return journal.charger(ETAT["base"], ETAT["cfg"])
+    return journal.charger(ETAT["base"])
 
 
 ANNUAIRE = maison.Annuaire()
 
 
 def _adresse() -> str:
-    """0.7 : adresse de Gazette pour le navigateur (liens des notifications de Home Assistant), lue dans l'Anneau
-    (tuile « Gazette »), sinon GAZETTE_ADRESSE. Les liens partent vers HA, pas vers la page ouverte : jamais
-    l'adresse privée (prive=False). Schéma, hôte et port seulement : un chemin donnait un lien faux."""
-    return racine(ANNUAIRE.adresse("Gazette", prive=False, repli=ETAT["cfg"].adresse))
+    """Adresse de Gazette pour le navigateur (liens des notifications de Home Assistant), lue dans l'Anneau
+    (tuile « Gazette ») seulement (0.8 : plus de variable de repli) ; inconnue : liens relatifs. Les liens partent
+    vers HA, pas vers la page ouverte : jamais l'adresse privée (prive=False). Schéma, hôte et port seulement :
+    un chemin donnait un lien faux."""
+    return racine(ANNUAIRE.adresse("Gazette", prive=False, repli=""))
 
 
 def _lien(pid: int) -> str:
@@ -630,7 +637,7 @@ def etat_connexions():
             "ha": {"porte": bool(cfg.jeton_ha), "dernier_appel": base.reglage("ha_dernier_appel"),
                    "dernier_corps": base.reglage("ha_dernier_resume")},
             "rendu": {"polices": rendu.polices_presentes()},
-            "imprimante": {"reglee": bool(cfg.imprimante)}, "larousse": _journal()["larousse"],
+            "larousse": _journal()["larousse"],
             "carnet": ETAT["carnet"].etat()}
 
 
@@ -642,29 +649,133 @@ def verifier_sources():
         err = ETAT["carnet"].erreur
         r["carnet"] = {"ok": not err, "detail": err or f"{len(liste)} contacts, {sum(1 for p in liste if p.get('naissance'))} avec date complète"}
     else:
-        r["carnet"] = {"ok": None, "detail": "pas réglé (ni GAZETTE_CARNET_JETON ni MAISON_JETON)"}
+        r["carnet"] = {"ok": None, "detail": "pas réglé (MAISON_JETON vide)"}
     return r
 
 
 @app.get("/api/reglages")
 def reglages():
     cfg: Config = ETAT["cfg"]
-    return {"journal": _journal(), "champs": {k: {"libelle": v[0], "aide": v[1], "maxi": v[2]} for k, v in journal.CHAMPS.items()},
-            "lecture_seule": cfg.lecture_seule, "lecture_seule_origine": _origine_lecture_seule(), "version": __version__, "historique": ETAT["base"].journal(40)}
+    j = _journal()
+    return {"reglages": j, "journal": j,
+            "champs": {k: {"libelle": v[0], "aide": v[1], "maxi": v[2]} for k, v in journal.CHAMPS.items()},
+            "libelles": journal.LIBELLES,
+            "lecture_seule": cfg.lecture_seule, "lecture_seule_origine": _origine_lecture_seule(), "version": __version__,
+            "historique": ETAT["base"].journal(40)}
 
 
-@app.put("/api/reglages/journal")
-def enregistrer_journal(corps: dict = Body(...)):
-    """Les éléments communs à tous les livrets. Ils valent aussitôt pour les aperçus et les PDF ; un mot des
-    hôtes déjà écrit dans un livret est gardé."""
+def _changer_reglages(corps, statut: int, geste: str) -> dict:
+    """Contrôle, garde et applique les réglages (le journal). Ils valent aussitôt pour les aperçus et les PDF ;
+    un mot des hôtes déjà écrit dans un livret est gardé."""
     try:
         j = journal.valider(corps, _journal())
     except ValueError as ex:
-        raise HTTPException(422, str(ex))
-    ETAT["base"].poser_reglage("journal", json.dumps(j, ensure_ascii=False))
+        raise HTTPException(statut, str(ex))
+    journal.enregistrer(ETAT["base"], j)
     ETAT["sources"].larousse_actif = j["larousse"]
-    ETAT["base"].noter("reglages", None, "le journal")
+    ETAT["base"].noter("reglages", None, geste)
     return j
+
+
+@app.put("/api/reglages")
+def enregistrer_reglages(corps=Body(...)):
+    """Contrat de sauvegarde 1 : mauvais type ou valeur refusée → 400 avec le message."""
+    return _changer_reglages(corps, 400, "le journal")
+
+
+@app.put("/api/reglages/journal")
+def enregistrer_journal(corps=Body(...)):
+    """Ancienne adresse (0.3), gardée : même chose, refus en 422."""
+    return _changer_reglages(corps, 422, "le journal")
+
+
+# ================================================================ sauvegarde et restauration (contrat de sauvegarde 1)
+
+@app.get("/externe/sauvegarde")
+def externe_sauvegarde(request: Request):
+    """Pour l'Anneau (collecte de nuit) : les réglages d'usage de Gazette et sa version, rien d'autre. Porte ouverte
+    par le jeton commun seul (MAISON_JETON) ; jeton commun vide : porte fermée (404)."""
+    acceptes = maison.jetons()
+    if not acceptes:
+        raise HTTPException(404, "Not Found")
+    if not maison.jeton_valide(maison.jeton_propose(request.headers), acceptes):
+        raise HTTPException(401, "Jeton manquant ou invalide.")
+    return maison.sauvegarde(APPLI, __version__, _journal(), exclus=journal.EXCLUS)
+
+
+class AnneauMuet(Exception):
+    def __init__(self, statut: int, message: str):
+        super().__init__(message)
+        self.statut, self.message = statut, message
+
+
+def _lire_sauvegarde(le: str = "") -> dict:
+    """Chez l'Anneau ; dans les tests et la démo, ETAT["anneau_lire"] remplace la lecture réseau."""
+    try:
+        r = maison.lire_sauvegarde(APPLI, le, lire=ETAT.get("anneau_lire"))
+    except Exception as ex:  # noqa: BLE001 — Anneau arrêté, réseau, jeton : un message, jamais une erreur de page
+        if getattr(ex, "code", None) == 404:
+            raise AnneauMuet(404, f"L'Anneau n'a pas de sauvegarde de Gazette{' du ' + le if le else ''}.")
+        if getattr(ex, "code", None) in (401, 403):
+            raise AnneauMuet(503, "L'Anneau refuse le jeton (MAISON_JETON différent ou vide).")
+        raise AnneauMuet(503, f"Anneau injoignable ({ex.__class__.__name__}) : réessaie plus tard.")
+    if not isinstance(r, dict):
+        raise AnneauMuet(503, "Réponse de l'Anneau illisible.")
+    return r
+
+
+@app.exception_handler(AnneauMuet)
+async def _anneau_muet(_: Request, exc: AnneauMuet):
+    return JSONResponse({"detail": exc.message}, status_code=exc.statut)
+
+
+def _jour(le) -> str:
+    le = str(le or "").strip()
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", le):
+        raise HTTPException(400, "Date de sauvegarde attendue au format AAAA-MM-JJ.")
+    return le
+
+
+def _sauves(le: str) -> dict:
+    r = _lire_sauvegarde(le)
+    sauves = r.get("reglages")
+    if not isinstance(sauves, dict):
+        raise AnneauMuet(404, f"L'Anneau n'a pas de réglages de Gazette du {le}.")
+    return r
+
+
+@app.get("/api/restaurer")
+def restaurer_voir(le: str = ""):
+    """Sans « le » : les dates des sauvegardes gardées par l'Anneau. Avec « le » : ce qui changerait."""
+    if not le:
+        dates = _lire_sauvegarde().get("dates") or []
+        if not dates:
+            raise AnneauMuet(404, "L'Anneau n'a encore aucune sauvegarde de Gazette.")
+        return {"dates": [str(d) for d in dates]}
+    le = _jour(le)
+    r = _sauves(le)
+    return {"le": le, "version": r.get("version", ""),
+            "differences": maison.differences(_journal(), r["reglages"], journal.EXCLUS)}
+
+
+@app.post("/api/restaurer")
+def restaurer(corps: dict = Body(...)):
+    """Remet les réglages d'une sauvegarde (réglages seulement : ni fiches ni livrets). Permis en lecture seule :
+    rien ne sort de Gazette."""
+    le = _jour(corps.get("le"))
+    r = _sauves(le)
+    diff = maison.differences(_journal(), r["reglages"], journal.EXCLUS)
+    if not diff:
+        return {"reglages": _journal(), "restaures": [], "message": "Rien à restaurer : les réglages sont déjà ceux-là."}
+    try:
+        j = journal.valider({d["cle"]: d["sauve"] for d in diff}, _journal())
+    except ValueError as ex:
+        raise HTTPException(422, f"Sauvegarde du {le} refusée : {ex}")
+    journal.enregistrer(ETAT["base"], j)
+    ETAT["sources"].larousse_actif = j["larousse"]
+    noms = ", ".join(journal.LIBELLES.get(d["cle"], d["cle"]) for d in diff)
+    ETAT["base"].noter("reglages", None, f"restaurés depuis la sauvegarde du {le} : {noms}")
+    return {"reglages": j, "restaures": [d["cle"] for d in diff]}
 
 
 # ================================================================ Home Assistant

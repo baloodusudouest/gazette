@@ -4,7 +4,7 @@ from datetime import date, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
-from app import main
+from app import journal, main
 from app.config import Config
 from tests import fixtures as F
 
@@ -16,10 +16,11 @@ JETON = "jeton-ha-de-test"
 def client(tmp_path):
     main.ETAT.clear()
     main.ETAT["cfg"] = Config(password=MDP, data=tmp_path, static=tmp_path / "static", attente_connexion=False,
-                              sources_actives=False, synchrone=True, jeton_ha=JETON, titre="Le Journal de Test",
-                              signature="Les hôtes de test", lieu="Testville")
+                              sources_actives=False, synchrone=True, jeton_ha=JETON)
     with TestClient(main.app) as c:
         b = main.ETAT["base"]
+        journal.enregistrer(b, {**journal.charger(b), "titre": "Le Journal de Test", "signature": "Les hôtes de test",
+                                "lieu": "Testville"})
         for cle, contenu in {"wp:fr:Juillet 1988": F.MOIS_PUCES, "wp:fr:Juin 1988": "", "wp:fr:1988 en France": F.ANNEE_FRANCE,
                              "wp:fr:1988": F.ANNEE_MONDE, "wp:fr:7 juillet": F.JOUR, "lar:1988-07": F.LAROUSSE,
                              "lar:1988-06": ""}.items():

@@ -1,5 +1,6 @@
 <script>
-  // « Réglages » : ce qui vient de la stack (affiché), le journal, la version et la déconnexion.
+  // « Réglages » : le journal (réglages d'usage, sauvegardés chaque nuit par l'Anneau), Restaurer les réglages,
+  // le top 5 culturel, les règles, le journal des gestes, la version et la déconnexion.
   import { onMount } from 'svelte'
   import { api } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
@@ -24,7 +25,7 @@
   async function enregistrerJournal(e) {
     e.preventDefault()
     envoiJ = true; messageJ = ''
-    try { await api.put('/api/reglages/journal', $state.snapshot(j)); await lire(); messageJ = 'Enregistré : vaut aussitôt pour tous les aperçus et les PDF.' }
+    try { await api.put('/api/reglages', $state.snapshot(j)); await lire(); messageJ = 'Enregistré : vaut aussitôt pour tous les aperçus et les PDF.' }
     catch (err) { messageJ = err.message }
     envoiJ = false
   }
@@ -48,6 +49,37 @@
   async function copier() {
     try { await navigator.clipboard.writeText(c.prompt); copie = true; setTimeout(() => (copie = false), 2000) }
     catch { voirPrompt = true }
+  }
+
+  // Restaurer les réglages : dates gardées par l'Anneau → différences (avant → sauvegardé) → confirmer
+  let rest = $state({ ouvert: false, dates: [], le: '', diff: null, version: '', message: '', attente: false })
+  function valeur(v) {
+    if (typeof v === 'boolean') return v ? 'oui' : 'non'
+    if (v === null || v === undefined || v === '') return '(vide)'
+    const s = String(v)
+    return s.length > 80 ? s.slice(0, 79) + '…' : s
+  }
+  async function ouvrirRestaurer() {
+    rest = { ouvert: true, dates: [], le: '', diff: null, version: '', message: '', attente: true }
+    try { rest.dates = (await api.get('/api/restaurer')).dates; rest.le = rest.dates[0] ?? ''; if (rest.le) await voirDifferences() }
+    catch (err) { rest.message = err.message }
+    rest.attente = false
+  }
+  async function voirDifferences() {
+    rest.diff = null; rest.message = ''; rest.attente = true
+    try { const v = await api.get('/api/restaurer?le=' + encodeURIComponent(rest.le)); rest.diff = v.differences; rest.version = v.version }
+    catch (err) { rest.message = err.message }
+    rest.attente = false
+  }
+  async function confirmerRestaurer() {
+    rest.attente = true; rest.message = ''
+    try {
+      const r2 = await api.post('/api/restaurer', { le: rest.le })
+      await lire()
+      rest.diff = []
+      rest.message = r2.restaures.length ? `Réglages du ${rest.le.split('-').reverse().join('/')} remis : ${r2.restaures.length} changé${r2.restaures.length > 1 ? 's' : ''}.` : (r2.message ?? 'Rien à restaurer.')
+    } catch (err) { rest.message = err.message }
+    rest.attente = false
   }
   onMount(lire)
 </script>
@@ -93,6 +125,41 @@
       <p class="mt-3 text-xs text-muted-foreground">Impression : {r.lecture_seule ? `lecture seule (${r.lecture_seule_origine === 'maison' ? 'toute la maison' : 'cette appli'}), rien ne part à l'imprimante` : 'à venir (temps 3) ; PDF à imprimer pour l\'instant'}.</p>
     </form>
   {/if}
+
+  <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Restaurer les réglages">
+    <h2 class="text-lg font-semibold">Restaurer les réglages</h2>
+    <p class="mt-1 text-sm text-muted-foreground">L'Anneau garde chaque nuit une copie des réglages du journal (rien d'autre : ni fiches, ni livrets, ni mot de passe). Choisis une date, vérifie ce qui changerait, puis confirme.</p>
+    {#if !rest.ouvert}
+      <div class="mt-3"><Button variant="outline" onclick={ouvrirRestaurer}>Restaurer les réglages</Button></div>
+    {:else}
+      {#if rest.dates.length}
+        <label class="mt-3 grid max-w-xs gap-1 text-sm">
+          <span class="text-muted-foreground">Sauvegarde du</span>
+          <select class="h-10 rounded-lg border bg-background px-3" bind:value={rest.le} onchange={voirDifferences} disabled={rest.attente}>
+            {#each rest.dates as d}<option value={d}>{d.split('-').reverse().join('/')}</option>{/each}
+          </select>
+        </label>
+      {/if}
+      {#if rest.diff && rest.diff.length}
+        <ul class="mt-3 grid gap-2 text-sm" aria-label="Différences">
+          {#each rest.diff as d}
+            <li class="min-w-0 rounded-lg border bg-background px-3 py-2">
+              <span class="block text-muted-foreground">{r.libelles?.[d.cle] ?? d.cle}</span>
+              <span class="block break-words"><span class="text-muted-foreground line-through">{valeur(d.actuel)}</span> → {valeur(d.sauve)}</span>
+            </li>
+          {/each}
+        </ul>
+        <div class="mt-3 flex flex-wrap items-center gap-3">
+          <Button onclick={confirmerRestaurer} disabled={rest.attente}>Remettre ces réglages</Button>
+          <span class="text-xs text-muted-foreground">sauvegarde faite par Gazette {rest.version || '?'}</span>
+        </div>
+      {:else if rest.diff && !rest.message}
+        <p class="mt-3 text-sm text-muted-foreground">Rien à restaurer : les réglages actuels sont ceux de cette sauvegarde.</p>
+      {/if}
+      {#if rest.attente}<p class="mt-3 text-sm text-muted-foreground" role="status">Lecture chez l'Anneau…</p>{/if}
+      {#if rest.message}<p class="mt-3 text-sm" role="status">{rest.message}</p>{/if}
+    {/if}
+  </section>
 
   {#if c}
     <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Top 5 culturel">

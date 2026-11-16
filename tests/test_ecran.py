@@ -106,7 +106,7 @@ def test_a_traiter(navigateur, adresse, taille):
 @pytest.mark.parametrize("chemin, titre", [("#/connexion", "Connexion"), ("#/reglages", "Réglages")])
 def test_connexion_et_reglages(navigateur, adresse, taille, chemin, titre):
     page, erreurs = ouvrir(navigateur, adresse, taille, chemin)
-    page.get_by_role("heading", name=titre).wait_for()
+    page.get_by_role("heading", name=titre, exact=True).wait_for()
     if titre == "Réglages":
         page.get_by_role("heading", name="Top 5 culturel").wait_for()
         page.get_by_role("button", name="Copier le prompt").wait_for()
@@ -122,5 +122,18 @@ def test_a_traiter_avec_carnet(navigateur, adresse, taille):
     page.get_by_role("button", name="Créer la fiche").first.click()
     page.get_by_role("group", name="Contacts de carnet").get_by_role("button").first.click()
     page.get_by_text("année inconnue : complète la date").wait_for()
+    sans_debordement(page)
+    assert erreurs == []
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_reglages_restaurer(navigateur, adresse, taille):
+    """Restaurer les réglages : dates de l'Anneau simulé, différences avant → sauvegardé (rien n'est confirmé ici)."""
+    page, erreurs = ouvrir(navigateur, adresse, taille, "#/reglages")
+    page.get_by_role("heading", name="Restaurer les réglages").wait_for()
+    page.get_by_role("button", name="Restaurer les réglages").click()
+    page.get_by_label("Sauvegarde du").wait_for()
+    page.get_by_role("list", name="Différences").get_by_text("La Gazette d'avant").wait_for()
+    page.get_by_role("button", name="Remettre ces réglages").wait_for()
     sans_debordement(page)
     assert erreurs == []

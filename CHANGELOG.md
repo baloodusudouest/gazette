@@ -1,5 +1,14 @@
 # Journal des versions
 
+## 0.8.0 — 16 novembre 2026 (réglages dans l'appli, sauvegarde et restauration ; anciens noms retirés)
+- **Réglages dans l'appli** : le titre du journal, le sous-titre, le lieu, la ligne sous le lieu, « chez vous », la signature des hôtes, le mot par défaut, la couleur d'accent et Larousse sont les réglages de Gazette. Ils restent gardés dans `gazette.db` (Réglages › Le journal) ; `GET /api/reglages` les rend, `PUT /api/reglages` les change (valeur du mauvais type : refus 400 avec un message clair).
+- **Reprise unique** : au premier démarrage de la 0.8, un réglage encore absent de la base prend la valeur de son ancienne variable si elle est posée (`GAZETTE_TITRE`, `GAZETTE_SIGNATURE`, `GAZETTE_LIEU`, `GAZETTE_LAROUSSE`) ; une ligne au journal de l'appli le dit. Ensuite ces variables ne sont plus jamais lues. Un réglage déjà enregistré dans l'appli n'est jamais écrasé.
+- **Sauvegarde par l'Anneau** : `GET /externe/sauvegarde` rend les réglages et la version (contrat de sauvegarde 1). Porte ouverte par le jeton commun `MAISON_JETON` seul ; jeton commun vide : porte fermée (404). Ni mot de passe, ni jeton, ni variable, ni chemin dans la réponse.
+- **Restaurer les réglages** (Réglages) : choisir une date gardée par l'Anneau, voir ce qui changerait (avant → sauvegardé), confirmer. Seuls les réglages du journal changent (ni fiches ni livrets) ; permis même en lecture seule ; une ligne au journal. Anneau injoignable ou rien à restaurer : un message, pas d'erreur.
+- **Anciens noms retirés** : `GAZETTE_PASSWORD` n'est plus lu (sans `MAISON_PASSWORD`, Gazette ne démarre pas : « MAISON_PASSWORD est absent ou trop court… ») ; carnet est lu avec `MAISON_JETON` seul (`GAZETTE_CARNET_JETON` n'est plus lu) ; l'adresse de Gazette dans les liens vient seulement de l'Anneau (`GAZETTE_ADRESSE` n'est plus lue ; sans tuile « Gazette », les liens sont relatifs comme avant la 0.7). `GAZETTE_IMPRIMANTE` n'est plus lue non plus : l'impression (temps 3) n'existe pas encore, son adresse se réglera dans Réglages.
+- **Restent dans la stack** : `MAISON_PASSWORD`, `MAISON_JETON`, `MAISON_LECTURE_SEULE`, `GAZETTE_LECTURE_SEULE` (forçage pour Gazette seule), `GAZETTE_JETON_HA` (inchangé, n'ouvre que `/ha/…`) et `GAZETTE_CARNET_URL`.
+- Module commun `app/maison.py` : contrat 2 (copie du socle, non retouchée).
+
 ## 0.7.0 — 16/11/2026 (variables communes de la maison)
 - **Module commun** `app/maison.py` (contrat 1 du socle 0.5.0), copié tel quel ; un test refuse une copie retouchée.
 - **Mot de passe** : `MAISON_PASSWORD`, sinon `GAZETTE_PASSWORD` comme avant. Message d'erreur : « MAISON_PASSWORD (ou GAZETTE_PASSWORD) ».

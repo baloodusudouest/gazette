@@ -9,7 +9,7 @@ from playwright.sync_api import sync_playwright
 ICI = pathlib.Path(__file__).parent
 FONTS = ICI / "node_modules/@fontsource"
 SORTIE = ICI / "sortie"
-# Valeurs réelles : variables de la stack dans l'appli (GAZETTE_TITRE, GAZETTE_SIGNATURE, GAZETTE_LIEU).
+# Valeurs réelles : réglées dans l'appli (Réglages › Le journal), jamais dans le code.
 TITRE = "La Gazette"
 SIGNATURE = "Les hôtes"
 LIEU = "La maison"

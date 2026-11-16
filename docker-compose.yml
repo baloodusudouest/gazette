@@ -1,7 +1,9 @@
 # Service gazette à placer dans la stack homelab.yml (Portainer).
 # Les variables viennent des « Environment variables » de la stack (voir .env.example).
 # Watchtower désactivé : l'image change seulement quand on choisit la version.
-# Titre du journal, lieu, hôtes, mot par défaut, couleur, Larousse : réglés dans l'appli (Réglages › Le journal).
+# 0.8 : aucun réglage d'usage ici. Titre du journal, lieu, hôtes, mot par défaut, couleur et Larousse se règlent
+# dans l'appli (Réglages › Le journal) ; GAZETTE_TITRE, GAZETTE_SIGNATURE, GAZETTE_LIEU et GAZETTE_LAROUSSE, s'ils
+# sont encore posés, sont repris une seule fois au premier démarrage, puis peuvent être retirés.
 services:
   gazette:
     image: ghcr.io/baloodusudouest/gazette:${GAZETTE_VERSION:-latest}
@@ -13,15 +15,13 @@ services:
       - com.centurylinklabs.watchtower.enable=false
     environment:
       - TZ=Europe/Paris
-      # 0.7 : variables communes de la maison (module app/maison.py) ; les anciennes restent lues en repli
-      - MAISON_PASSWORD=${MAISON_PASSWORD}             # mot de passe commun des applis (repli : GAZETTE_PASSWORD)
-      - MAISON_JETON=${MAISON_JETON:-}                 # jeton commun : lecture de carnet, annuaire de l'Anneau
+      # Variables communes de la maison (module app/maison.py)
+      - MAISON_PASSWORD=${MAISON_PASSWORD}             # mot de passe commun des applis (12 caractères au moins)
+      - MAISON_JETON=${MAISON_JETON:-}                 # jeton commun : lecture de carnet, annuaire et sauvegardes de l'Anneau
       - MAISON_LECTURE_SEULE=${MAISON_LECTURE_SEULE:-} # « oui » : aucune appli n'écrit ; GAZETTE_LECTURE_SEULE l'emporte si posée
-      # - GAZETTE_PASSWORD=${APPS_PASSWORD}            # ancien nom, lu en repli tant que MAISON_PASSWORD est vide
-      - GAZETTE_JETON_HA=${GAZETTE_JETON_HA:-}         # jeton de Home Assistant pour /ha/… ; vide : porte fermée
-      - GAZETTE_ADRESSE=${GAZETTE_ADRESSE:-}           # repli de l'adresse de Gazette (tuile « Gazette » de l'Anneau d'abord) ; schéma://hôte:port, sans chemin
+      # Propres à Gazette
       - GAZETTE_LECTURE_SEULE=${GAZETTE_LECTURE_SEULE:-}   # « oui » ou « non » : force Gazette seule (« oui » : n'imprime rien)
-      - GAZETTE_CARNET_JETON=${GAZETTE_CARNET_JETON:-} # = CARNET_JETON_GAZETTE de carnet ; envoyé d'abord, puis MAISON_JETON
+      - GAZETTE_JETON_HA=${GAZETTE_JETON_HA:-}         # jeton de Home Assistant pour /ha/… ; vide : porte fermée
       - GAZETTE_CARNET_URL=${GAZETTE_CARNET_URL:-http://carnet:8096}   # adresse de carnet vue depuis le conteneur
     volumes:
-      - ${GAZETTE_DATA_DIR}:/data                      # gazette.db (fiches, livrets, cache des sources)
+      - ${GAZETTE_DATA_DIR}:/data                      # gazette.db (fiches, livrets, réglages, cache des sources)

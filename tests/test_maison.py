@@ -1,4 +1,5 @@
-"""0.7 : variables communes de la maison (module app/maison.py). Sans réseau, jetons et adresses inventés."""
+"""Variables communes de la maison (module app/maison.py). 0.8 : les anciens noms ne sont plus lus.
+Sans réseau, jetons et adresses inventés."""
 import pytest
 from fastapi.testclient import TestClient
 
@@ -8,7 +9,8 @@ from app.config import Config
 MDP = "mot-de-passe-de-test"
 JETON_HA = "jeton-ha-de-test"
 COMMUNES = ("MAISON_PASSWORD", "MAISON_JETON", "MAISON_JETON_ANCIEN", "MAISON_LECTURE_SEULE", "MAISON_ANNEAU_URL",
-            "GAZETTE_PASSWORD", "GAZETTE_LECTURE_SEULE", "GAZETTE_CARNET_JETON", "GAZETTE_ADRESSE", "GAZETTE_JETON_HA")
+            "GAZETTE_PASSWORD", "GAZETTE_LECTURE_SEULE", "GAZETTE_CARNET_JETON", "GAZETTE_ADRESSE", "GAZETTE_JETON_HA",
+            "GAZETTE_TITRE", "GAZETTE_SIGNATURE", "GAZETTE_LIEU", "GAZETTE_LAROUSSE", "GAZETTE_IMPRIMANTE")
 
 
 @pytest.fixture(autouse=True)
@@ -18,28 +20,29 @@ def env_propre(monkeypatch):
 
 
 def test_copie_du_module_non_retouchee():
-    assert maison.CONTRAT == 1
+    assert maison.CONTRAT == 2 and maison.CONTRAT_SAUVEGARDE == 1
     assert maison.empreinte_calculee() == maison.empreinte_ecrite()
 
 
 # ---------------------------------------------------------------- mot de passe
 
-def test_mot_de_passe_commun_puis_repli(monkeypatch):
+def test_mot_de_passe_commun_seul(monkeypatch):
     monkeypatch.setenv("GAZETTE_PASSWORD", "ancien-mot-de-passe")
-    assert config.charger().password == "ancien-mot-de-passe"          # stack actuelle : rien ne change
+    with pytest.raises(SystemExit, match="^MAISON_PASSWORD est absent ou trop court"):
+        config.charger()                                                # l'ancien nom seul ne suffit plus
     monkeypatch.setenv("MAISON_PASSWORD", "commun-mot-de-passe")
-    assert config.charger().password == "commun-mot-de-passe"          # le commun l'emporte
+    assert config.charger().password == "commun-mot-de-passe"
 
 
-def test_mot_de_passe_absent(monkeypatch):
-    with pytest.raises(SystemExit, match="MAISON_PASSWORD \\(ou GAZETTE_PASSWORD\\)"):
+def test_mot_de_passe_absent_ou_court(monkeypatch):
+    with pytest.raises(SystemExit, match="MAISON_PASSWORD est absent ou trop court"):
         config.charger()
     monkeypatch.setenv("MAISON_PASSWORD", "court")
     with pytest.raises(SystemExit):
         config.charger()
 
 
-# ---------------------------------------------------------------- lecture seule
+# ---------------------------------------------------------------- lecture seule (GAZETTE_LECTURE_SEULE reste)
 
 def test_lecture_seule_maison_et_forcage(monkeypatch):
     monkeypatch.setenv("MAISON_PASSWORD", MDP)
@@ -51,7 +54,7 @@ def test_lecture_seule_maison_et_forcage(monkeypatch):
     monkeypatch.setenv("GAZETTE_LECTURE_SEULE", "non")                # forcée en écriture pour Gazette seule
     assert config.charger().lecture_seule is False
     monkeypatch.delenv("MAISON_LECTURE_SEULE")
-    for v in ("oui", "1", "true"):                                     # valeurs acceptées jusqu'ici
+    for v in ("oui", "1", "true"):
         monkeypatch.setenv("GAZETTE_LECTURE_SEULE", v)
         c = config.charger()
         assert (c.lecture_seule, c.lecture_seule_origine) == (True, "appli")
@@ -85,13 +88,12 @@ def test_porte_ha_non_ouverte_par_le_jeton_commun(tmp_path, monkeypatch):
     main.ETAT.clear()
 
 
-def test_jeton_envoye_a_carnet_ancien_d_abord_puis_commun(monkeypatch):
+def test_jeton_envoye_a_carnet_commun_seul(monkeypatch):
     monkeypatch.setenv("MAISON_PASSWORD", MDP)
-    assert config.charger().carnet_jeton == ""                          # rien : carnet pas lu
+    monkeypatch.setenv("GAZETTE_CARNET_JETON", "jeton-gazette-de-test")
+    assert config.charger().carnet_jeton == ""                          # l'ancien jeton par paire n'est plus lu
     monkeypatch.setenv("MAISON_JETON", "jeton-commun-de-test")
     assert config.charger().carnet_jeton == "jeton-commun-de-test"
-    monkeypatch.setenv("GAZETTE_CARNET_JETON", "jeton-gazette-de-test")
-    assert config.charger().carnet_jeton == "jeton-gazette-de-test"     # l'ancien passe d'abord (transition)
 
 
 # ---------------------------------------------------------------- adresse de Gazette
@@ -108,32 +110,24 @@ def test_racine_sans_chemin(brut, attendu):
     assert config.racine(brut) == attendu
 
 
-def test_adresse_variable_avec_chemin_corrigee(monkeypatch):
-    monkeypatch.setenv("MAISON_PASSWORD", MDP)
-    monkeypatch.setenv("GAZETTE_ADRESSE", "http://nas.exemple:8089/ha/sejour")
-    assert config.charger().adresse == "http://nas.exemple:8089"
-
-
-def test_adresse_par_l_annuaire_puis_repli(tmp_path, monkeypatch):
+def test_adresse_par_l_annuaire_seul(tmp_path, monkeypatch):
+    monkeypatch.setenv("GAZETTE_ADRESSE", "http://repli.exemple:8089")      # ancienne variable : plus lue
     services = [{"nom": "Gazette", "locale": "http://nas.exemple:8089/", "privee": "http://gazette.exemple.ts.net"}]
     monkeypatch.setattr(main, "ANNUAIRE", maison.Annuaire(url="http://anneau", jeton="j", lire=lambda: services))
     entetes = {"Authorization": f"Bearer {JETON_HA}"}
-    with _client(tmp_path, adresse="http://repli.exemple:8089") as c:
+    with _client(tmp_path) as c:
         # La tuile « Gazette » de l'Anneau, adresse locale (les liens partent vers Home Assistant)
         assert c.get("/ha/etat", headers=entetes).json()["adresse"] == "http://nas.exemple:8089"
         assert main._lien(3) == "http://nas.exemple:8089/#/livret/3"
-    # L'Anneau ne connaît pas la tuile : GAZETTE_ADRESSE
+    # L'Anneau ne connaît pas la tuile : lien relatif
     monkeypatch.setattr(main, "ANNUAIRE", maison.Annuaire(url="http://anneau", jeton="j", lire=lambda: []))
-    with _client(tmp_path, adresse="http://repli.exemple:8089") as c:
-        assert c.get("/ha/etat", headers=entetes).json()["adresse"] == "http://repli.exemple:8089"
-    # L'Anneau injoignable : GAZETTE_ADRESSE aussi
+    with _client(tmp_path) as c:
+        assert c.get("/ha/etat", headers=entetes).json()["adresse"] == ""
+        assert main._lien(3) == "/#/livret/3"
+    # L'Anneau injoignable : lien relatif aussi
     def panne():
         raise OSError("injoignable")
     monkeypatch.setattr(main, "ANNUAIRE", maison.Annuaire(url="http://anneau", jeton="j", lire=panne))
-    with _client(tmp_path, adresse="http://repli.exemple:8089") as c:
-        assert main._lien(3) == "http://repli.exemple:8089/#/livret/3"
-    # Rien du tout : lien relatif, comme avant
-    monkeypatch.setattr(main, "ANNUAIRE", maison.Annuaire(url="http://anneau", jeton="", lire=lambda: services))
     with _client(tmp_path) as c:
         assert main._lien(3) == "/#/livret/3"
     main.ETAT.clear()

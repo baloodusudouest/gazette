@@ -1,15 +1,19 @@
-"""Les éléments communs à tous les livrets (titre du journal, lieu, hôtes, mot par défaut, couleur…),
-réglés dans l'appli (Réglages › Le journal) et gardés dans la base.
+"""Les éléments communs à tous les livrets (titre du journal, lieu, hôtes, mot par défaut, couleur, Larousse),
+réglés dans l'appli (Réglages › Le journal) et gardés dans la base (`reglages`, clé « journal »).
 
-Les variables de la stack GAZETTE_TITRE, GAZETTE_SIGNATURE, GAZETTE_LIEU et GAZETTE_LAROUSSE ne donnent
-plus que la valeur de départ, tant que rien n'a été enregistré dans l'appli."""
+0.8 : ce sont les réglages d'usage de Gazette, ceux que l'Anneau sauvegarde (GET /externe/sauvegarde) et que
+« Restaurer les réglages » remet. Les anciennes variables de la stack (GAZETTE_TITRE, GAZETTE_SIGNATURE,
+GAZETTE_LIEU, GAZETTE_LAROUSSE) ne sont lues qu'une fois, au premier démarrage, pour une clé encore absente de
+la base (`reprendre`) ; ensuite seul l'écran Réglages fait foi."""
 from __future__ import annotations
 
 import json
+import os
 import re
 from datetime import date
 
-from .regles import MOIS, jour_mois
+from . import maison
+from .regles import jour_mois
 
 CHAMPS = {
     # clé : (libellé, aide, longueur maximale)
@@ -22,33 +26,74 @@ CHAMPS = {
     "mot_modele": ("Mot des hôtes par défaut", "{date}, {prenom} et {chez} sont remplacés ; une ligne vide sépare les paragraphes", 1500),
     "accent": ("Couleur d'accent", "titres de rubrique, chiffres, lettrine (#RRGGBB)", 7),
 }
+LIBELLES = {**{k: v[0] for k, v in CHAMPS.items()}, "larousse": "Larousse, Journaux de l'année"}
 MOT = ("Le {date}, le monde tournait comme le racontent ces pages. Ce soir, c'est {chez} que l'on vous attend.\n\n"
        "Ce petit journal est à vous, {prenom} : il raconte le monde tel qu'il était le jour de votre naissance. "
        "Gardez-le, glissez-le dans un livre, ou relisez-le au petit-déjeuner.\n\n"
        "Installez-vous, reposez-vous, et surtout faites comme chez vous.")
+DEFAUTS = {"titre": "La Gazette", "sous_titre": "Le monde tel qu'il était le jour de votre naissance",
+           "lieu": "La maison", "lieu_detail": "", "chez": "à la maison", "signature": "Vos hôtes",
+           "mot_modele": MOT, "accent": "#9E1B1B", "larousse": True}
+# Anciennes variables de la stack, lues une seule fois (premier démarrage) pour une clé absente de la base
+VARIABLES = {"titre": "GAZETTE_TITRE", "signature": "GAZETTE_SIGNATURE", "lieu": "GAZETTE_LIEU",
+             "larousse": "GAZETTE_LAROUSSE"}
+# Jamais dans une sauvegarde, même si une telle clé apparaissait un jour (en plus de maison.est_secret)
+EXCLUS = ("mot_de_passe", "password", "jeton", "jeton_ha", "jeton_carnet", "carnet_url", "imprimante")
 
 
-def defauts(cfg) -> dict:
-    return {"titre": cfg.titre, "sous_titre": "Le monde tel qu'il était le jour de votre naissance",
-            "lieu": cfg.lieu, "lieu_detail": "", "chez": "à la maison", "signature": cfg.signature,
-            "mot_modele": MOT, "accent": "#9E1B1B", "larousse": cfg.larousse}
-
-
-def charger(base, cfg) -> dict:
-    j = defauts(cfg)
+def _lire(base) -> dict:
     try:
-        j.update(json.loads(base.reglage("journal", "{}")))
+        j = json.loads(base.reglage("journal", "{}"))
     except ValueError:
-        pass
+        return {}
+    return j if isinstance(j, dict) else {}
+
+
+def reprendre(base) -> list[str]:
+    """Au démarrage : complète le journal gardé dans la base. Une clé absente prend la valeur de son ancienne
+    variable si elle est posée (reprise, rendue pour le journal de l'appli), sinon la valeur par défaut. Une clé
+    déjà gardée n'est jamais changée : la variable n'est plus lue."""
+    j, repris, change = _lire(base), [], False
+    for cle, defaut in DEFAUTS.items():
+        if cle in j:
+            continue
+        brut = os.environ.get(VARIABLES.get(cle, ""), "").strip() if cle in VARIABLES else ""
+        if brut:
+            j[cle] = brut.lower() not in maison.FAUX if isinstance(defaut, bool) else " ".join(brut.split())[:CHAMPS[cle][2]]
+            repris.append(cle)
+        else:
+            j[cle] = defaut
+        change = True
+    if change:
+        base.poser_reglage("journal", json.dumps(j, ensure_ascii=False))
+    return repris
+
+
+def charger(base) -> dict:
+    j = dict(DEFAUTS)
+    j.update({k: v for k, v in _lire(base).items() if k in DEFAUTS})
     return j
 
 
+def enregistrer(base, j: dict) -> None:
+    base.poser_reglage("journal", json.dumps({k: j[k] for k in DEFAUTS if k in j}, ensure_ascii=False))
+
+
 def valider(corps: dict, actuel: dict) -> dict:
+    """Contrôle et applique les clés connues (les autres sont ignorées). ValueError avec un message clair si une
+    valeur n'a pas le bon type ou ne convient pas."""
+    if not isinstance(corps, dict):
+        raise ValueError("Réglages attendus sous forme d'objet JSON.")
     j = dict(actuel)
     for cle, (libelle, _, maxi) in CHAMPS.items():
         if cle not in corps:
             continue
-        v = str(corps[cle] or "").replace("\r", "")
+        brut = corps[cle]
+        if brut is None:
+            brut = ""
+        if not isinstance(brut, str):
+            raise ValueError(f"{libelle} : texte attendu.")
+        v = brut.replace("\r", "")
         v = v.strip() if cle == "mot_modele" else " ".join(v.split())
         if len(v) > maxi:
             raise ValueError(f"{libelle} : {maxi} caractères au plus.")
@@ -58,7 +103,9 @@ def valider(corps: dict, actuel: dict) -> dict:
             raise ValueError("Couleur d'accent : au format #RRGGBB.")
         j[cle] = v
     if "larousse" in corps:
-        j["larousse"] = bool(corps["larousse"])
+        if not isinstance(corps["larousse"], bool):
+            raise ValueError("Larousse : oui ou non attendu (true ou false).")
+        j["larousse"] = corps["larousse"]
     return j
 
 
