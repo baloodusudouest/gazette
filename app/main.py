@@ -13,6 +13,7 @@ import hmac
 import queue
 import re
 import threading
+import time
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 
@@ -330,9 +331,12 @@ async def _lecture_seule(_: Request, exc: LectureSeule):
 @app.get("/health")
 def sante():
     """Public. Pour la tuile de l'Anneau : nombres seulement, aucun nom."""
-    try:
-        t = a_traiter()
-        return {"ok": True, "version": __version__, "livrets": len(ETAT["base"].personnes()), "a_traiter": t["total"]}
+    try:   # 0.20.6 : « À traiter » recalculé au plus une fois par minute (appelée chaque minute par Docker et l'Anneau)
+        garde = ETAT.get("sante")
+        if not garde or time.monotonic() - garde[0] > 60:      # « À traiter » est le calcul coûteux
+            garde = (time.monotonic(), a_traiter()["total"])
+            ETAT["sante"] = garde
+        return {"ok": True, "version": __version__, "livrets": len(ETAT["base"].personnes()), "a_traiter": garde[1]}
     except Exception:  # noqa: BLE001 — la santé répond même si la base est occupée
         return {"ok": True, "version": __version__}
 
@@ -543,6 +547,8 @@ def modifier_personne(pid: int, corps: dict = Body(...)):
 @app.delete("/api/personnes/{pid}")
 def supprimer_personne(pid: int):
     _personne_ou_404(pid)
+    # 0.20.6 : copie de la base avant (livret, Récidives et scandales publiés partent avec la fiche)
+    ETAT["base"].copie(ETAT["cfg"].data / "sauvegardes", f"gazette-{maintenant()[:19].replace(':', '-')}-avant-suppression-{pid}.db")
     ETAT["base"].supprimer_personne(pid)
     ETAT["base"].noter("fiche", None, f"fiche {pid} supprimée")
     return {"ok": True}

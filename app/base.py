@@ -154,6 +154,20 @@ class Base:
                                 "approuve_le = '' WHERE personne_id = ?", (pid,))
         self.relier_invites()
 
+    def copie(self, dossier: Path, nom: str, garder: int = 10) -> Path:
+        """0.20.6 : copie cohérente de la base (API de sauvegarde de SQLite) ; les plus anciennes au-delà de `garder` partent."""
+        dossier.mkdir(parents=True, exist_ok=True)
+        cible = dossier / nom
+        with self._verrou:
+            dest = sqlite3.connect(cible)
+            try:
+                self._c.backup(dest)
+            finally:
+                dest.close()
+        for vieille in sorted(dossier.glob("gazette-*.db"))[:-garder]:
+            vieille.unlink(missing_ok=True)
+        return cible
+
     def supprimer_personne(self, pid: int) -> None:
         with self._verrou, self._c:
             self._c.execute("UPDATE invites SET personne_id = NULL WHERE personne_id = ?", (pid,))

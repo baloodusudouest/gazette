@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 0.20.6 — 17 novembre 2026 (corrections de l'audit, suite)
+- Supprimer une fiche fait d'abord une copie de la base dans `sauvegardes/` (livret, Récidives approuvées et mémoire des scandales partent avec la fiche) ; les 10 dernières copies sont gardées.
+- `/health` (public, appelé chaque minute) ne recalcule plus « À traiter » qu'une fois par minute.
+
 ## 0.20.5 — 17 novembre 2026 (connexion plus sûre)
 - **Connexion plus sûre** (audit du 17/11/2026, même correctif dans toutes les applis maison) :
   - un cookie portant un caractère non ASCII donnait une erreur 500 sur toute l'API ; il est maintenant simplement refusé ;

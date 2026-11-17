@@ -246,3 +246,12 @@ def test_carnet_en_panne(client_carnet):
                            "jusqu_au": date.today().isoformat()}).json()
     assert r["manquants"] == ["Dominique Inconnu"] and r["depuis_carnet"] == []
     assert main.ETAT["carnet"].etat()["erreur"] == "carnet injoignable"
+
+
+def test_suppression_d_une_fiche_garde_une_copie(client, tmp_path):
+    """0.20.6 (audit du 17/11/2026) : copie de la base avant de supprimer une fiche."""
+    connecter(client)
+    pid = client.post("/api/personnes", json={"nom": "Personne Inventée", "naissance": "1988-07-07"}).json()["id"]
+    assert client.delete(f"/api/personnes/{pid}").status_code == 200
+    copies = list((tmp_path / "sauvegardes").glob(f"gazette-*-avant-suppression-{pid}.db"))
+    assert len(copies) == 1 and copies[0].stat().st_size > 0
