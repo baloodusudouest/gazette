@@ -114,6 +114,15 @@ def _ouvrier() -> None:
                 _preparer_recidive(tache[1], tache[2])
             else:
                 _preparer(tache)
+        except Exception as ex:  # noqa: BLE001 — 0.20.4 : une tâche ratée ne tue plus l'ouvrier
+            try:
+                if isinstance(tache, tuple):
+                    ETAT["base"].noter("erreur", None, f"Récidive {tache[1]} : {type(ex).__name__} : {ex}"[:200])
+                else:
+                    ETAT["base"].maj_livret(tache, etat="a_preparer", erreur=f"{type(ex).__name__} : {ex}"[:300])
+                    ETAT["base"].noter("erreur", tache, f"préparation : {type(ex).__name__} : {ex}"[:200])
+            except Exception:  # noqa: BLE001 — même la note ne doit pas arrêter la file
+                pass
         finally:
             ETAT["en_file"].discard(tache if not isinstance(tache, tuple) else ("r", tache[1]))
             file.task_done()

@@ -1,5 +1,10 @@
 # Journal des versions
 
+## 0.20.4 — 17 novembre 2026 (corrections de l'audit)
+- **Bug** : une erreur inattendue pendant la préparation d'un livret ou d'une Récidive tuait le fil de préparation, sans trace ; les livrets suivants restaient « en préparation » jusqu'au redémarrage du conteneur. Le fil continue maintenant : la fiche repasse « à préparer » avec l'erreur affichée, et la ligne va au journal.
+- Intégration continue : l'image n'est plus publiée si les tests échouent (`docker.yml` appelle `tests.yml` avant de construire).
+- Tests : 154 (dont `test_ouvrier.py`).
+
 ## 0.20.3 — 17 novembre 2026 (vérification de l'IA avec un modèle sans étiquette)
 - **Bug** : avec `GAZETTE_OLLAMA_MODELE=mistral-nemo` (nom sans « : »), « Vérifier les sources » plantait (le nom était coupé sur « : ») et l'écran n'en disait rien : la tuile « IA du PC » restait sur « à vérifier » alors que le PC répondait. Trouvé sur le PC de Julien le 17/11 (journal d'Ollama : `GET /api/tags` du NAS en 200). `ollama.meme_modele` : « mistral-nemo » = « mistral-nemo:latest ».
 - Une sonde qui plante ne fait plus tomber toute la vérification (Immich, IA) ; une vérification qui échoue s'affiche en rouge en haut de Connexion.
