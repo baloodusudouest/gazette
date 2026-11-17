@@ -39,6 +39,7 @@
   let evenement = $state('')        // 0.15 : événement du séjour (pour l'horoscope, jamais imprimé)
   let codeBarres = $state('')       // 0.11.4 : message caché dans le code-barres
   let propsHoroscope = $state([])
+  let propsMot = $state([])         // 0.18.1 : droit de réponse proposé par l'IA
   let modifie = $state(false)
   let message = $state('')
   let attente = $state('')
@@ -58,6 +59,8 @@
   const total = $derived(Object.keys(registre).length)
   const restants = $derived(Object.values(registre).filter((x) => !x).length)
   const fini = $derived(total > 0 && restants === 0)
+  // 0.18.1 : les cases « Pour l'IA » se replient quand ce qu'elles nourrissent est validé
+  const courrierAFaire = $derived(revoir || !d || courrier.length < d.lettres_maxi || courrier.some((_, i) => registre[`lettre:${i}`] === false))
   function aFaire(...prefixes) {
     if (revoir) return true
     const miens = Object.entries(registre).filter(([k]) => prefixes.some((p) => k === p || k.startsWith(p + ':')))
@@ -231,6 +234,13 @@
     const x = propsCourrier.find((y) => !courrier.some((z) => z.lettre === y.lettre))
     if (x) { courrier[i] = { ...x }; toucher() } else proposerPage4('courrier')
   }
+  const proposerMot = () => enfiler('Droit de réponse', async () => {
+    demande = 'mot'
+    message = ''
+    try { propsMot = (await api.post(`/api/recidives/${id}/mot`, { texte: mot })).propositions }
+    catch (err) { message = err.message }
+    demande = ''
+  })
   function changerHoroscope() {
     const t = suivant(propsHoroscope, horoscope)
     if (t) { horoscope = t; toucher() } else proposerPage4('horoscope')
@@ -435,7 +445,7 @@
         {@render alerte(4)}
         <h2 class="etiquette mb-3">Page 4 · dans l'ordre de l'impression</h2>
         <h3 class="etiquette mb-2">Courrier des lecteurs ({courrier.length}/{d.lettres_maxi})</h3>
-        <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Lettres imprimées</span>
+        <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Lettres imprimées{courrier.length && !revoir && courrier.every((_, i) => registre[`lettre:${i}`]) ? ` : ${courrier.length} validée${courrier.length > 1 ? 's' : ''}` : ''}</span>
         <ul class="mt-1 grid gap-2">
           {#each courrier as x, i}
             <li class="min-w-0">
@@ -451,7 +461,7 @@
         {#if courrier.length < d.lettres_maxi}
           <button type="button" class="mt-1 text-xs text-muted-foreground hover:text-foreground" onclick={() => { courrier = [...courrier, { lettre: '', signe: '', reponse: '' }]; toucher() }}>+ Écrire une lettre</button>
         {/if}
-        <div class="mt-2 grid min-w-0 gap-1.5 rounded-lg border border-dashed p-2">
+        <div class="mt-2 grid min-w-0 gap-1.5 rounded-lg border border-dashed p-2" class:hidden={!courrierAFaire}>
           <div class="flex flex-wrap items-center justify-between gap-2">
             <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Pour l'IA (non imprimé) · d'après les indices des rumeurs</span>
             <Button size="sm" variant="outline" class="shrink-0" onclick={() => proposerPage4('courrier')} disabled={demande === 'courrier'}>
@@ -469,7 +479,6 @@
                  onchanger={d.signe ? changerHoroscope : null} changer="Un autre horoscope proposé" onrefuser={horoscope.trim() ? () => { horoscope = ''; toucher() } : null}>
         <textarea rows="3" class="w-full rounded-lg border bg-background px-2 py-1 text-sm" maxlength="280" bind:value={horoscope} oninput={toucher} aria-label="Horoscope"></textarea>
         <p class="text-xs text-muted-foreground">Seul le signe est imprimé, jamais la date de naissance.</p>
-        </Element>
         <div class="mt-2 grid min-w-0 gap-1.5 rounded-lg border border-dashed p-2">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Pour l'IA (non imprimé)</span>
@@ -487,11 +496,20 @@
             <button type="button" class="w-full rounded-md px-2 py-1 text-left text-sm break-words whitespace-normal hover:bg-secondary" onclick={() => { horoscope = t; toucher() }}>« {t} »</button>
           {/each}
         </div>
+        </Element>
 
         <h3 class="etiquette mt-5 mb-2">Droit de réponse (le mot des hôtes)</h3>
-        <Element cle="mot" page={4} titre="Le mot des hôtes" valeur={mot} onchanger={() => { mot = ed.mot_defaut; toucher() }} changer="Mot par défaut">
+        <Element cle="mot" page={4} titre="Le mot des hôtes" valeur={mot} onia={proposerMot} onchanger={() => { mot = ed.mot_defaut; toucher() }} changer="Mot par défaut">
         <textarea class="w-full rounded-lg border bg-background px-3 py-2 font-serif" rows="7" bind:value={mot} oninput={toucher} aria-label="Mot des hôtes"></textarea>
         <p class="mt-1 text-xs text-muted-foreground">Une ligne vide sépare les paragraphes. Signature : « {d.signature} » (Réglages › Le journal). Aucune date de naissance dans ce journal.</p>
+        {#if demande === 'mot'}<p class="text-xs text-muted-foreground">L'IA écrit…</p>{/if}
+        {#if propsMot.length}
+          <ul class="grid gap-1 rounded-lg border border-dashed p-1.5" aria-label="Droits de réponse proposés">
+            {#each propsMot as t}
+              <li><button type="button" class="w-full rounded-md px-2 py-1 text-left font-serif text-sm break-words whitespace-pre-line hover:bg-secondary" onclick={() => { mot = t; propsMot = []; toucher() }}>{t}</button></li>
+            {/each}
+          </ul>
+        {/if}
         </Element>
 
         <div class="mt-5"></div>

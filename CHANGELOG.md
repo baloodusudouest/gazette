@@ -1,5 +1,13 @@
 # Journal des versions
 
+## 0.18.1 — 17 novembre 2026 (corrections vues sur l'édition d'Camille)
+- **« 1°) 2°) 3°) »** laissés par l'IA dans l'horoscope : retirés (propositions, enregistré, impression).
+- **L'horoscope parlait d'Eurovision** pour un séjour « apéro avec le travail » : l'exemple de broderie de la consigne était recopié. Nouvel exemple sur un événement imaginaire, avec « n'en reprends aucun mot » et « n'invente aucun autre événement ».
+- **Rien sur le corps** (une lettre de lecteur parlait de « seins rebondis ») : consignes plus nettes et filtre qui écarte toute proposition sur le corps ou le sexe (titres, légendes, rumeurs, lettres, horoscopes), y compris les propositions déjà gardées.
+- **Droit de réponse de La Récidive : bouton IA** (comme les autres éléments) — 3 versions d'après les indices, l'événement du séjour, le gros titre et les rumeurs.
+- Les cases « Pour l'IA » du courrier et de l'horoscope se replient quand leurs éléments sont validés.
+- Tests : 144.
+
 ## 0.18.0 — 17 novembre 2026 (réglages généraux de La Récidive)
 - **Réglages › Le journal › La Récidive** (demande de Julien du 17/11) : titre du magazine (« La Récidive » par défaut ; un titre plus long s'imprime plus petit pour tenir dans le bandeau), accroche sous le titre en trois versions selon le genre de la fiche carnet (femme, homme, inconnu ; {prenom} remplacé), droit de réponse par défaut ({salut} et {prenom} remplacés).
 - Ce sont des valeurs par défaut : chaque édition reste modifiable. L'accroche est fixée à la préparation d'une édition ; vider la case de l'édition reprend le réglage.

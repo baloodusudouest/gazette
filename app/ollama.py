@@ -30,6 +30,10 @@ MARCHE = ("Sur le PC : ouvrir Ollama (icône près de l'horloge). Une seule fois
 
 INTERDITS = re.compile(r"\b(je ne peux|désolé|en tant qu|as an ai|sorry|i can)\b", re.I)
 ANGLAIS = re.compile(r"\b(the|and|with|her|his|is|of|you)\b", re.I)
+# 0.18.1 : jamais le corps ni le sexe (vu chez Julien le 17/11 : « ses seins rebondis » dans une lettre de lecteur)
+CORPS = re.compile(r"\b(seins?|nichons?|poitrines?|fesses?|cul|culs|derrière rebondi|sexy|sexe|sexuel\w*|érotique\w*|nue?s?|"
+                   r"à poil|décolleté\w*|bonnet [a-e]\b|rebondi(e|s|es)?|plantureu\w+|aguichant\w*|lascive?s?|"
+                   r"obèse|grosse|maigrichon\w*|moche|laide?s?|bourrelets?)\b", re.I)
 
 Lire = Callable[[str, dict], dict]
 
@@ -144,7 +148,7 @@ def consigne_rumeurs(indices: str, genre: str, prenom: str, photos: list[str], d
               f"Réponds seulement par les {NOMBRE_RUMEURS} rumeurs, une par ligne, numérotées.")
 
 
-NUMERO = re.compile(r"^\s*(\d+\s*[.)\-:–—/]+|[-•*–—])\s*")
+NUMERO = re.compile(r"^\s*(\d+\s*[°º]?\s*[.)\-:–—/]+|\d+\s*[°º]|[-•*–—])\s*")     # 0.18.1 : « 1°) » aussi
 # 0.14.1 : chiffres en émoji (« 1️⃣ », vus chez Julien le 17/11) et autres émojis, interdits par la consigne
 EMOJI = re.compile("[0-9#*]\ufe0f?\u20e3|[\U0001F000-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\ufe0f\u200d]")
 
@@ -182,7 +186,7 @@ def consigne_courrier(indices: str, genre: str, prenom: str, deja: list[str] | N
             + (f"Ce que les hôtes savent de {prenom} : « {indices} »\n" if indices else "")
             + "Chaque lettre vient d'un correspondant anonyme et loufoque (« Un voisin inquiet », « Une tomate du jardin », "
               "« Le canapé du salon »…) et reçoit une réponse courte et piquante de la rédaction. Jamais méchant, aucune "
-              f"moquerie du physique, rien de grave ni de vulgaire, aucun autre prénom que {prenom}.\n"
+              f"moquerie du physique, jamais le corps (poitrine, fesses, silhouette), rien de sexuel, rien de grave ni de vulgaire, aucun autre prénom que {prenom}.\n"
               "Pour chaque lettre, exactement trois lignes : « Lettre : … » (deux phrases au plus), « Signature : … », "
               "« Réponse : … » (une phrase). Une ligne vide entre deux lettres. Rien d'autre.")
 
@@ -191,21 +195,23 @@ def consigne_horoscope(signe_: str, indices: str, genre: str, prenom: str, deja:
                        evenement: str = "", avant: list[str] | None = None) -> str:
     """0.15 : `evenement` — l'événement du séjour qui arrive (« soirée Eurovision, dort à la maison pour ne pas rentrer
     tard ») : chaque horoscope brode dessus. `avant` — les événements des séjours précédents, pour un clin d'œil."""
-    exemple_ev = ("Exemples pour un séjour lié à un événement (soirée Eurovision, dort chez ses hôtes pour ne pas rentrer "
-                  "tard) : « Mercure en paillettes : les astres prédisent une victoire de la Suède, grâce à votre costume "
-                  "de tigre. » ; « Pluton percute le Cancer vers 2 h du matin : migraine carabinée garantie au "
-                  "petit-déjeuner. »\n\n") if evenement else ""
+    # 0.18.1 : exemples sur un événement imaginaire (un concours de pétanque), et consigne de ne rien leur emprunter :
+    # l'IA recopiait « soirée Eurovision » des exemples dans un séjour qui n'avait rien à voir (vu chez Julien le 17/11)
+    exemple_ev = ("Exemples de broderie, pour un tout autre événement (un concours de pétanque) — n'en reprends AUCUN mot, "
+                  "ni la pétanque : « Mars aligne vos boules : victoire au cochonnet, mais défaite au pastis. » ; "
+                  "« Pluton percute votre signe vers 2 h du matin : migraine carabinée garantie au petit-déjeuner. »\n\n") if evenement else ""
     return ("Exemple du ton voulu : « Vénus s'installe dans votre chambre d'amis : évitez les décisions importantes avant "
             "le deuxième café. Chiffre de chance : le nombre de croissants restants. »\n\n" + exemple_ev + _feuilleton(deja or [])
             + f"Écris {NOMBRE_HOROSCOPES} horoscopes loufoques pour {prenom}, signe {signe_ or 'inconnu'}, pendant son "
               f"séjour chez ses hôtes, pour un faux journal à scandale. {_accord(genre, prenom)}.\n"
             + (f"Ce que les hôtes savent de {prenom} : « {indices} »\n" if indices else "")
-            + (f"Ce séjour est lié à un événement : « {evenement} ». Chaque horoscope brode dessus (prédictions loufoques sur "
-               "l'événement, ses suites, le lendemain), chacun sous un angle différent.\n" if evenement else "")
+            + (f"Ce séjour est lié à un événement, et à lui seul : « {evenement} ». Chaque horoscope brode dessus "
+               "(prédictions loufoques sur cet événement, ses suites, le lendemain), chacun sous un angle différent ; "
+               "n'invente aucun autre événement.\n" if evenement else "")
             + (f"Séjours précédents de {prenom} : {' ; '.join(avant)} (un clin d'œil est permis, sans s'y attarder).\n"
                if avant else "")
             + "Style horoscope de magazine (planètes, chiffre ou couleur de chance), absurde et affectueux, jamais méchant, "
-              f"rien de grave (santé, argent, couple). {MAXI_HOROSCOPE} caractères au plus chacun, sur une seule ligne, "
+              f"rien de grave (santé, argent, couple), jamais le corps ni le physique. {MAXI_HOROSCOPE} caractères au plus chacun, sur une seule ligne, "
               "sans répéter le nom du signe. Un horoscope par ligne, numérotés.")
 
 
@@ -249,7 +255,8 @@ def lettres(texte: str, genre: str) -> list[dict]:
             continue
         # 0.11.2 : une lettre est écrite à la première personne (« Je ne peux plus dormir… ») : seul un vrai refus
         # en tête est écarté, plus « je ne peux » n'importe où
-        if REFUS.search(lettre) or (not genre and re.search(r"\b(elle|il)\b", lettre + " " + reponse, re.I)):
+        if REFUS.search(lettre) or CORPS.search(f"{lettre} {signe_} {reponse}") or \
+                (not genre and re.search(r"\b(elle|il)\b", lettre + " " + reponse, re.I)):
             continue
         if lettre.casefold() not in {y["lettre"].casefold() for y in res}:
             res.append({"lettre": lettre, "signe": signe_, "reponse": reponse})
@@ -295,6 +302,17 @@ def consigne_gazette(action: str, texte: str, annee: int | None, signes: int | N
                    + ". Fais un ou deux clins d'œil à ces événements, sans en inventer d'autres. " if evenements else "")
                 + (f"Mot actuel, à améliorer : « {texte} ». " if texte else "")
                 + "Ne signe pas (la signature est ajoutée). " + sep, 3, 520)
+    if action == "droit":                # 0.18.1 : droit de réponse des hôtes, page 4 de La Récidive
+        accord = {"femme": "au féminin", "homme": "au masculin"}.get(genre, "sans accord de genre")
+        return (f"Écris 3 versions du « Droit de réponse » des hôtes, en dernière page d'un faux journal à scandale offert à "
+                f"{prenom}, qui revient dormir {chez or 'chez eux'}. Les hôtes répondent aux « accusations » du journal avec "
+                f"tendresse et second degré : ils assument tout et disent leur joie de la ou le revoir. Accorde {accord}. "
+                "3 à 5 phrases, 500 caractères au plus, au « vous », jamais le corps ni le physique, rien de vulgaire. "
+                + (f"Ce qu'on sait de {prenom} : « {indices} ». " if indices else "")
+                + ("Ce que raconte ce numéro : " + " ; ".join(evenements[:8]) + ". Fais un ou deux clins d'œil, sans rien inventer de grave. "
+                   if evenements else "")
+                + (f"Texte actuel, à améliorer : « {texte} ». " if texte else "")
+                + "Ne signe pas (la signature est ajoutée). " + sep, 3, 520)
     if action == "legende":
         return (f"Photo d'un journal de {annee or 'l’époque'}, offert à {prenom} qui vient dormir chez ses hôtes.\n{texte}\n\n"
                 f"Propose 5 légendes pour cette photo, dans le style sobre et un peu solennel de la presse {epoque} "
@@ -327,7 +345,7 @@ def nettoyer(texte: str, genre: str, maxi: int = MAXI) -> list[str]:
         l = sans_numero(l).strip('"«»“”*').strip()
         l = re.sub(r"^.*?→\s*", "", l)            # 0.9.6 : le modèle recopie parfois « description → titre »
         l = re.sub(r"\s+", " ", l)
-        if not l or len(l) > maxi or len(l) < 6 or INTERDITS.search(l) or len(ANGLAIS.findall(l)) >= 2:
+        if not l or len(l) > maxi or len(l) < 6 or INTERDITS.search(l) or CORPS.search(l) or len(ANGLAIS.findall(l)) >= 2:
             continue
         if not genre and re.search(r"\b(elle|il)\b", l, re.I):
             continue
@@ -450,7 +468,7 @@ class Ollama:
         if not self.actif:
             raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
         texte = (texte or "").strip()[:3000]
-        if action not in ("mot", "legende") and len(texte) < 10:
+        if action not in ("mot", "legende", "droit") and len(texte) < 10:
             raise ValueError("Pas assez de texte dans ce bloc.")
         prompt, nombre, maxi = consigne_gazette(action, texte, annee, signes, prenom, genre, indices, chez, evenements)
         brut = ""

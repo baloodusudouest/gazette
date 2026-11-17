@@ -1077,6 +1077,22 @@ def proposer_horoscope(rid: int, corps: dict = Body(default={})):
     return {"propositions": props}
 
 
+@app.post("/api/recidives/{rid}/mot")
+def proposer_droit(rid: int, corps: dict = Body(default={})):
+    """0.18.1 : 3 versions du droit de réponse (mot des hôtes, page 4), d'après les indices, l'événement du séjour et ce
+    que raconte le numéro (gros titre, rumeurs). Rien n'est choisi à la place de Julien."""
+    ed, p = _edition_ou_404(rid)
+    faits = [ed.get("titre_une") or "", ed.get("evenement") or "", *(ed.get("rumeurs") or [])[:4]]
+    try:
+        props = ETAT["ollama"].gazette("droit", str(corps.get("texte") or ""), None, None, _prenom(p), ed["genre"],
+                                       ed.get("indices_rumeurs") or "", _journal()["chez"], [x for x in faits if x.strip()])
+    except ValueError as ex:
+        raise HTTPException(422, str(ex))
+    except RuntimeError as ex:
+        raise HTTPException(503, str(ex))
+    return {"propositions": props}
+
+
 @app.post("/api/recidives/{rid}/preparer")
 def repreparer_edition(rid: int, corps: dict = Body(default={})):
     """De nouveau depuis Immich. `completer: true` garde les photos et légendes de la relecture et remplace seulement
