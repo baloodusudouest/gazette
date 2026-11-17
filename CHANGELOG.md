@@ -1,5 +1,10 @@
 # Journal des versions
 
+## 0.9.6 — 17 novembre 2026 (titres qui ne se chevauchent plus, IA plus piquante)
+- **Gros titre de la une** : interligne élargi (les accents et le surlignage jaune ne chevauchent plus la ligne du dessus) et taille selon la longueur (58 px jusqu'à 22 signes, puis 50, 42, 36 px) ; accroche longue en plus petit. Vu chez Julien le 17/11 (« Soirée apéro : Camille dézingue l'Eurovision Asie »).
+- **IA plus piquante** : consigne de rédacteur en chef de tabloïd (faux scoop, exagération, jeux de mots, vocabulaire people, toujours affectueux, rien de grave ni de vulgaire), cinq exemples du ton voulu, « ne décris pas la photo, transforme-la en scandale », cinq angles différents ; température 1,05, pénalité de répétition. Les propositions trop descriptives (« Camille sourit avec son iPhone ») venaient de l'ancienne consigne.
+- **Modèle changeable** : `GAZETTE_OLLAMA_MODELE` (facultative ; défaut `qwen2.5:7b`), pour essayer un modèle plus drôle en français sans nouvelle version.
+
 ## 0.9.5 — 17 novembre 2026
 - Édition de La Récidive : petits titres « Légende imprimée » et « Pour l'IA (non imprimé) » au-dessus des deux cadres de chaque photo ; « Gros titre de la une (imprimé) ». Demande de Julien.
 

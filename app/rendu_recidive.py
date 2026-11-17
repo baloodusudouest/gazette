@@ -73,12 +73,12 @@ body{font-family:'Serif',Georgia,serif;color:#111;-webkit-print-color-adjust:exa
 p,h1,h2,h3{margin:0}
 .mast{background:var(--a);color:#fff;padding:14px 30px 8px;border-bottom:6px solid #111}
 .mast h1{font-family:'Anton',Impact,sans-serif;font-weight:400;font-size:80px;line-height:.95;letter-spacing:.01em;text-transform:uppercase;transform:skewX(-6deg)}
-.mast .acc{font-family:'Oswald',sans-serif;font-weight:500;font-size:19px;line-height:1.2;color:#FFE600;letter-spacing:.02em;margin-top:2px}
+.mast .acc{font-family:'Oswald',sans-serif;font-weight:500;font-size:var(--ta,19px);line-height:1.2;color:#FFE600;letter-spacing:.02em;margin-top:2px}
 .strip{display:flex;justify-content:space-between;background:#111;color:#FFE600;font-family:'Oswald',sans-serif;font-weight:500;font-size:13px;letter-spacing:.1em;text-transform:uppercase;padding:6px 30px}
 .main{padding:16px 30px 18px;display:flex;flex-direction:column;gap:12px;flex:1 1 auto;min-height:0;position:relative}
 .kick{align-self:flex-start;background:#FFE600;color:#111;font-family:'Oswald',sans-serif;font-weight:700;font-size:15px;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;transform:rotate(-2deg)}
-.hl{font-family:'Anton',Impact,sans-serif;font-weight:400;font-size:calc(58px*var(--k,1));line-height:.98;text-transform:uppercase;text-wrap:balance}
-.hl span{background:#FFE600;padding:0 6px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.hl{font-family:'Anton',Impact,sans-serif;font-weight:400;font-size:calc(var(--t,58px)*var(--k,1));line-height:1.12;text-transform:uppercase;text-wrap:balance}
+.hl span{background:#FFE600;padding:.02em 6px 0;line-height:1.12;box-decoration-break:clone;-webkit-box-decoration-break:clone}
 .sub{font-family:'Oswald',sans-serif;font-weight:500;font-size:19px;line-height:1.2;color:var(--a);text-transform:uppercase}
 .ph{position:relative;background:repeating-linear-gradient(135deg,#e6e6e6 0 10px,#d2d2d2 10px 20px);border:3px solid #111;display:flex;align-items:flex-end;overflow:hidden}
 .ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 20%}
@@ -149,16 +149,23 @@ def _photo(p: dict | None, image: Callable[[str], bytes | None], style: str = ""
     return f'<div class="ph{" arch" if p.get("ancien") else ""}" style="{style}">{img}{dedans}<span class="tag">{e(tag)}</span></div>'
 
 
+def _taille_titre(t: str) -> str:
+    """0.9.6 : plus le titre est long, plus il est petit (un titre de 60 signes tient sur 3 lignes sans chevauchement)."""
+    n = len(t)
+    return "58px" if n <= 22 else "50px" if n <= 32 else "42px" if n <= 46 else "36px"
+
+
 def _gros_titre(g: dict) -> str:
     """Par défaut « [Nom] revient ! » (nom surligné) ; 0.9.1 : le titre choisi ou écrit, le nom surligné s'il y est."""
     t = (g.get("titre_une") or "").strip()
     if not t:
-        return f'<h2 class="hl" data-bloc="titre"><span>{e(g["nom"])}</span> revient !</h2>'
+        t = f"{g['nom']} revient !"
+        return f'<h2 class="hl" data-bloc="titre" style="--t:{_taille_titre(t)}"><span>{e(g["nom"])}</span> revient !</h2>'
     for n in (g["nom"], g["prenom"]):
         if n and n.casefold() in t.casefold():
             i = t.casefold().index(n.casefold())
-            return (f'<h2 class="hl" data-bloc="titre">{e(t[:i])}<span>{e(t[i:i + len(n)])}</span>{e(t[i + len(n):])}</h2>')
-    return f'<h2 class="hl" data-bloc="titre"><span>{e(t)}</span></h2>'
+            return (f'<h2 class="hl" data-bloc="titre" style="--t:{_taille_titre(t)}">{e(t[:i])}<span>{e(t[i:i + len(n)])}</span>{e(t[i + len(n):])}</h2>')
+    return f'<h2 class="hl" data-bloc="titre" style="--t:{_taille_titre(t)}"><span>{e(t)}</span></h2>'
 
 
 def page1(g: dict) -> str:
@@ -169,7 +176,7 @@ def page1(g: dict) -> str:
     place = g.get("macaron") or "hd"
     macaron = f'<div class="burst {place}">Exclusif !</div>' if place in ("hg", "hd", "bg", "bd") else ""
     return f"""<section class="page" data-page="1">
-<div class="mast"><h1>La Récidive</h1><p class="acc">« {e(g['accroche'])} »</p></div>
+<div class="mast"><h1>La Récidive</h1><p class="acc" style="--ta:{'19px' if len(g['accroche']) <= 42 else '15px'}">« {e(g['accroche'])} »</p></div>
 <div class="strip"><span>N° {g['numero']} · {e(g['arrivee_longue'])}</span><span>Prix : offert par la maison</span></div>
 <div class="main">
 <span class="kick">Exclusif · Photos accablantes</span>

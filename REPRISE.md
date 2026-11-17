@@ -2,7 +2,7 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
-## État (17/11/2026) — 0.9.3 (La Récidive + titres par l'IA du PC + macaron et cadrage) sur 0.8.0, temps 1 livré + top 5 culturel + journal réglé dans l'appli + texte complet + aide à la place + carnet + réglages sauvegardés par l'Anneau, installé sur le NAS le 14/11 (pas encore de vrai livret)
+## État (17/11/2026) — 0.9.6 (La Récidive + titres par l'IA du PC + macaron et cadrage) sur 0.8.0, temps 1 livré + top 5 culturel + journal réglé dans l'appli + texte complet + aide à la place + carnet + réglages sauvegardés par l'Anneau, installé sur le NAS le 14/11 (pas encore de vrai livret)
 - Appli complète : fiches, livrets, relecture, aperçu, PDF à imprimer et lecture, À traiter, Connexion, Réglages, porte HA (`/ha/sejour`, `/ha/etat`).
 - Moteur essayé en vrai (réseau) sur trois dates maigres du banc (1964, 1983, 1997) : une, brèves, semaine, chronologie, nés et disparus remplis ; rendu PDF contrôlé à l'œil (aucun débordement).
 - Top 5 culturel : fichier livré dans `app/donnees/`, remplaçable depuis Réglages (fichier importé gardé dans `/data/culture.csv`) ; prompt de mise à jour annuelle dans `app/donnees/prompt_culture.md` (il nomme les années 2026 et 2027 : à adapter chaque année).
@@ -29,7 +29,8 @@
 - **Titres par l'IA (0.9.1)** : `app/ollama.py` (`Ollama.proposer(description, sorte, genre, prenom)` → 5 titres ≤ `MAXI` = 60 ; `consigne`, `nettoyer`, `sonder` ; `MARCHE` = marche à suivre sur le PC ; lecture injectable `ETAT["ollama_lire"]`). Route `POST /api/recidives/{id}/proposer` {cible « une » ou id de photo, description} (422 description vide, 503 IA injoignable). Colonnes `titre_une`, `description_une`, `propositions_une` (ALTER au démarrage) ; photos : `description`, `propositions`. `rendu_recidive._gros_titre`. Écran : snippet `ia` de `Recidive.svelte`. Variable `GAZETTE_OLLAMA_URL`. Jamais essayé : Ollama du PC joint depuis le NAS (OLLAMA_HOST, pare-feu).
 - **0.9.2** : colonne `macaron` (`R.MACARONS` : hg, hd, bg, bd, aucun ; défaut hd), `cadrage` par photo (`R.CADRAGES` : haut par défaut, centre, bas, entiere → classes de l'`img` dans `rendu_recidive`). Le macaron est passé dans `_photo(…, dedans=)`.
 - **0.9.3** : en-tête collant de `Recidive.svelte` (IA, Enregistrer, Approuver) ; `proposerTout` appelle `/proposer` pour chaque texte décrit, l'un après l'autre.
-- 111 tests (`python -m pytest -q`, dont 18 d'écran), sans réseau : pages de sources inventées (`tests/fixtures.py`) ; écrans sur PC et iPhone par le serveur de démonstration (`python -m tools.demo`, mot de passe demo-demo-demo).
+- **0.9.6** : `rendu_recidive._taille_titre` (taille du gros titre selon la longueur), interligne 1,12 ; `ollama.SYSTEME` + `EXEMPLES` (ton tabloïd), option `system`, température 1,05 ; `GAZETTE_OLLAMA_MODELE` facultative. Jamais essayé sur le vrai PC.
+- 112 tests (`python -m pytest -q`, dont 18 d'écran), sans réseau : pages de sources inventées (`tests/fixtures.py`) ; écrans sur PC et iPhone par le serveur de démonstration (`python -m tools.demo`, mot de passe demo-demo-demo).
 - Tuile de l'Anneau : `/health` donne `livrets` et `a_traiter` ; sa ligne du `services.yaml` de l'Anneau est dans Atlas (`data/anneau-services.yaml`, dépôt privé, qui fait foi), comme la stack (`data/homelab.yml`).
 - Package HA `chambres/gazette.yaml` v1.0 : pas dans ce dépôt (il nomme les chambres et le téléphone de la maison) ; sa copie de référence est décrite dans le master doc Home Assistant (§ 6.1 et § 10). Contrat de la porte : `docs/dossier.md`, section « Temps 1 tel que construit ».
 
