@@ -1,5 +1,10 @@
 # Journal des versions
 
+## 0.15.2 — 17 novembre 2026
+- **Page trop pleine encadrée en rouge** (demande de Julien du 17/11) : dans l'édition de La Récidive, les réglages d'une page qui déborde à l'impression (Une, Photos, Rumeurs, Page 4) sont encadrés en rouge, avec « Page n trop pleine à l'impression (il manque environ x mm) : raccourcis un texte de cette page, puis Enregistrer pour revérifier ». Mesure de Chromium sur l'édition enregistrée, refaite à chaque enregistrement.
+- Gazette classique : mêmes encadrés rouges sur les réglages de la page qui déborde (en plus des blocs en rouge), jusqu'à ce que les changements la fassent tenir.
+- Tests : 138.
+
 ## 0.15.1 — 17 novembre 2026
 - **Page 4 de l'édition dans l'ordre de l'impression** (demande de Julien du 17/11) : courrier des lecteurs, puis horoscope du séjour, puis droit de réponse (le mot des hôtes), puis le message du code-barres, comme sur le papier depuis la 0.11.3.
 

@@ -205,3 +205,18 @@ def test_bouton_ia_de_la_gazette(navigateur, adresse, taille):
     page.get_by_role("button", name="Enregistrer", exact=True).wait_for()
     sans_debordement(page)
     assert erreurs == []
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_page_trop_pleine_encadree_en_rouge(navigateur, adresse, taille):
+    """0.15.2 : une page de La Récidive qui déborde à l'impression : ses réglages sont encadrés en rouge, avec un message."""
+    page, erreurs = ouvrir(navigateur, adresse, taille)
+    page.locator("a[href^='#/recidive/']").first.click()
+    page.get_by_role("heading", name="Lou Martin").wait_for()
+    mot = page.get_by_label("Mot des hôtes")
+    mot.fill(("Un très long mot des hôtes qui ne tiendra jamais sur la page, même en tout petit. " * 30).strip())
+    page.get_by_role("button", name="Enregistrer", exact=True).click()
+    page.get_by_role("alert").filter(has_text="Page 4 trop pleine").wait_for()
+    assert "border-destructive" in page.get_by_role("region", name="Page 4").get_attribute("class")
+    sans_debordement(page)
+    assert erreurs == []

@@ -184,6 +184,8 @@
                                    ...(contenu.chrono ?? []).map((b) => b.id)].filter(Boolean) : [])
   const echelle = $derived(Math.min(1, largeur / 600))
   const place = $derived(etatPlace(mes, contenu, mot))
+  // 0.15.2 : encadré rouge sur les réglages d'une page qui déborde à l'impression (tant qu'elle n'est pas censée tenir)
+  const cadrePage = (n) => (place.pages[n] && !place.pages[n].ok ? 'border-destructive ring-2 ring-destructive/50' : '')
   const LIGNE = 17                   // hauteur d'une ligne d'article à la plus petite taille (px)
   function cadre(cle) {
     const x = place.blocs[cle]
@@ -282,7 +284,7 @@
   <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
     <div class="grid min-w-0 content-start gap-4">
       <!-- La une -->
-      <section class="min-w-0 rounded-2xl border bg-card p-4" aria-label="La une">
+      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadrePage(1)}" aria-label="La une">
         <div class="mb-2 flex items-center justify-between"><h2 class="etiquette">Page 1 · la une ({PORTEES[contenu.une?.portee] ?? '—'})</h2>{@render bouton('une', null, 'Changer')}</div>
         <input class="mb-2 w-full rounded-lg border bg-background px-3 py-2 font-serif text-lg font-semibold {bord('une')}" bind:value={contenu.une.titre} oninput={toucher} aria-label="Gros titre" />
         <textarea class="w-full rounded-lg border bg-background px-3 py-2 text-sm {bord('une')}" rows="3" bind:value={contenu.une.chapo} oninput={toucher} aria-label="Chapeau"></textarea>
@@ -298,7 +300,7 @@
       </section>
 
       <!-- Brèves -->
-      <section class="min-w-0 rounded-2xl border bg-card p-4" aria-label="Brèves">
+      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadrePage(1)}" aria-label="Brèves">
         <div class="mb-2 flex items-center justify-between"><h2 class="etiquette">Page 1 · brèves</h2>{@render bouton('breve', null, 'Ajouter')}</div>
         {#if ouvert?.bloc === 'breve' && ouvert.index === null}<Propositions liste={evts} choisis={pris} onchoisir={(f) => choisir('breve', f, null)} onfermer={() => (ouvert = null)} />{/if}
         <ul class="grid gap-3">
@@ -319,7 +321,7 @@
       </section>
 
       <!-- Page 2 -->
-      <section class="min-w-0 rounded-2xl border bg-card p-4" aria-label="Page 2">
+      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadrePage(2)}" aria-label="Page 2">
         <div class="mb-2 flex items-center justify-between"><h2 class="etiquette">Page 2 · {contenu.p2.mode === 'mois' ? 'les titres du mois' : 'la semaine'}</h2>{@render bouton('p2', null, 'Ajouter')}</div>
         {#if ouvert?.bloc === 'p2' && ouvert.index === null}<Propositions liste={evts} choisis={pris} onchoisir={(f) => choisir('p2', f, null)} onfermer={() => (ouvert = null)} />{/if}
         <ul class="grid gap-3">
@@ -341,7 +343,7 @@
       </section>
 
       <!-- Page 3 -->
-      <section class="min-w-0 rounded-2xl border bg-card p-4" aria-label="Chronologie">
+      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadrePage(3)}" aria-label="Chronologie">
         <div class="mb-2 flex items-center justify-between"><h2 class="etiquette">Page 3 · chronologie de l'année</h2>{@render bouton('chrono', null, 'Ajouter')}</div>
         {#if ouvert?.bloc === 'chrono' && ouvert.index === null}<Propositions liste={annee} choisis={pris} onchoisir={(f) => choisir('chrono', f, null)} onfermer={() => (ouvert = null)} />{/if}
         <ul class="grid gap-2">
@@ -413,7 +415,7 @@
       </section>
 
       <!-- Page 4 -->
-      <section class="min-w-0 rounded-2xl border bg-card p-4" aria-label="Le mot des hôtes">
+      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadrePage(4)}" aria-label="Le mot des hôtes">
         <h2 class="etiquette mb-2">Page 4 · le mot des hôtes</h2>
         <textarea class="w-full rounded-lg border bg-background px-3 py-2 font-serif {bord('mot')}" rows="8" bind:value={mot} oninput={toucher} aria-label="Mot des hôtes"></textarea>
         {@render compteur('mot')}

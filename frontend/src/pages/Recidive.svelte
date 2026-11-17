@@ -40,6 +40,13 @@
   let message = $state('')
   let attente = $state('')
   let tampon = $state(Date.now())
+  // 0.15.2 : pages qui débordent à l'impression (mesure de Chromium sur l'édition enregistrée) → encadré rouge
+  let mes = $state(null)
+  const trop = $derived(Object.fromEntries((mes ?? []).filter((p) => p.deborde).map((p) => [p.page, p.exces])))
+  async function mesurer() {
+    try { mes = (await api.get(`/api/recidives/${id}/mesure`)).pages } catch { mes = null }   // sans Chromium : rien
+  }
+  const cadre = (n) => (trop[n] ? 'border-destructive ring-2 ring-destructive/50' : '')
   let largeur = $state(400)
   let minuteur = null
 
@@ -68,6 +75,7 @@
       tampon = Date.now()
       clearTimeout(minuteur)
       if (ed.etat === 'en_preparation') minuteur = setTimeout(lire, 3000)
+      else mesurer()
     } catch (err) {
       if (err.statut === 401) ondeconnecte?.()
       else message = err.message
@@ -176,6 +184,13 @@
   onDestroy(() => clearTimeout(minuteur))
 </script>
 
+{#snippet alerte(n)}
+  {#if trop[n]}
+    <p class="mb-3 rounded-lg border border-destructive/60 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+      Page {n} trop pleine à l'impression (il manque environ {Math.ceil(trop[n] / 3.78)} mm) : raccourcis un texte de cette page, puis Enregistrer pour revérifier.</p>
+  {/if}
+{/snippet}
+
 {#snippet ia(cible, description, props, ecrire, choisir, photo)}
   <div class="mt-2 grid min-w-0 gap-1.5 rounded-lg border border-dashed p-2">
     <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Pour l'IA (non imprimé)</span>
@@ -230,7 +245,8 @@
 
   <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
     <div class="grid min-w-0 content-start gap-4">
-      <section class="min-w-0 rounded-2xl border bg-card p-4" aria-label="Une">
+      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadre(1)}" aria-label="Une">
+        {@render alerte(1)}
         <h2 class="etiquette mb-2">Page 1 · la une</h2>
         <div class="grid gap-3 sm:grid-cols-[8rem_minmax(0,1fr)]">
           <label class="grid gap-1 text-sm"><span class="etiquette">N° (corrigé)</span>
@@ -253,7 +269,8 @@
         {@render ia('une', descriptionUne, propsUne, (v) => { descriptionUne = v; toucher() }, (t) => { titreUne = t; toucher() }, photoUne())}
       </section>
 
-      <section class="min-w-0 rounded-2xl border bg-card p-4" aria-label="Photos">
+      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadre(2)}" aria-label="Photos">
+        {@render alerte(2)}
         <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
           <h2 class="etiquette">Les preuves · {vues.length} photo{vues.length > 1 ? 's' : ''} sur {d.places}</h2>
           <span class="flex flex-wrap gap-2">
@@ -294,7 +311,8 @@
         </ul>
       </section>
 
-      <section class="min-w-0 rounded-2xl border bg-card p-4" aria-label="Rumeurs">
+      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadre(3)}" aria-label="Rumeurs">
+        {@render alerte(3)}
         <h2 class="etiquette mb-2">Page 3 · les rumeurs de la rédaction ({rumeurs.length}/{d.rumeurs_maxi})</h2>
         <p class="mb-2 text-xs text-muted-foreground">Des scandales loufoques, tout inventés, pour remplir la page 3. Imprimées avec la mention « tout est inventé ».</p>
         <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Rumeurs imprimées</span>
@@ -338,7 +356,8 @@
         </details>
       {/if}
 
-      <section class="min-w-0 rounded-2xl border bg-card p-4" aria-label="Page 4">
+      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadre(4)}" aria-label="Page 4">
+        {@render alerte(4)}
         <h2 class="etiquette mb-3">Page 4 · dans l'ordre de l'impression</h2>
         <h3 class="etiquette mb-2">Courrier des lecteurs ({courrier.length}/{d.lettres_maxi})</h3>
         <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Lettres imprimées</span>
