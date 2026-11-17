@@ -1,5 +1,8 @@
 # Journal des versions
 
+## 0.20.1 — 17 novembre 2026 (tuile « IA du PC »)
+- **Connexion, tuile « IA du PC »** : avant « Vérifier les sources », elle disait « rien de lu pour l'instant » avec un voyant gris, même réglée. Elle dit maintenant « réglée, à vérifier (PC allumé ?) » (ou « pas réglée : écris les titres toi-même », ou l'erreur de la dernière demande), avec le voyant qui va avec. Le texte était rangé dans `voyant()` au lieu de `detail()` (`pages/Services.svelte`). Relevé par Julien le 17/11 en branchant Ollama.
+
 ## 0.20.0 — 17 novembre 2026 (archives ; simuler un journal)
 - **Archives** (nouvel onglet, demande de Julien du 17/11) : chaque Gazette et chaque Récidive approuvée dont le séjour est fini y est rangée, par année, avec recherche par nom, filtre par année et par journal, lecture et PDF (à imprimer, lecture). Elles quittent la liste Livrets (« n anciens numéros rangés dans les Archives »).
 - **Simuler un journal** (Réglages, tout en haut) : choisir une personne et La Gazette ou La Récidive → un numéro d'essai à part, ouvert dans l'éditeur. Gazette d'essai : fiche copiée « (essai) », le vrai livret n'est pas touché. Récidive d'essai : date du jour, photos depuis le séjour précédent (ou la dernière année). Un essai ne compte jamais (N°, déjà paru, scandales publiés, carnet, archives, Home Assistant, À traiter) ; bandeau « essai » et « Supprimer l'essai » dans l'éditeur, liste des essais en cours dans Réglages.

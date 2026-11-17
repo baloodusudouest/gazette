@@ -43,7 +43,6 @@
   function voyant(s) {
     if (s.cle === 'ha') return e.ha.porte ? (e.ha.dernier_appel ? 'ok' : 'attente') : 'ko'
     if (s.cle === 'rendu') return e.rendu.polices && e.rendu_recidive?.polices ? 'ok' : 'ko'
-    if (s.cle === 'ia' && !sonde?.ia) return !e.ia.regle ? 'pas réglée : écris les titres toi-même' : e.ia.erreur || 'réglée, à vérifier (PC allumé ?)'
     if (s.cle === 'immich' && !sonde?.immich) return !e.immich.regle ? 'coupe' : e.immich.erreur ? 'ko' : 'attente'
     if (s.cle === 'ia' && !sonde?.ia) return !e.ia.regle ? 'coupe' : e.ia.erreur ? 'ko' : 'attente'
     if (s.cle === 'carnet' && !sonde?.carnet) return !e.carnet.regle ? 'coupe' : e.carnet.erreur ? 'ko' : e.carnet.personnes !== null ? 'ok' : 'attente'
@@ -56,6 +55,7 @@
     if (s.cle === 'ha') return e.ha.porte ? (e.ha.dernier_appel ? `dernier séjour reçu ${dateCourte(e.ha.dernier_appel)}` : 'porte ouverte, rien reçu') : 'porte fermée (jeton absent)'
     if (s.cle === 'rendu') return e.rendu.polices && e.rendu_recidive?.polices ? 'polices présentes' : 'polices absentes'
     if (s.cle === 'immich' && !sonde?.immich) return !e.immich.regle ? 'pas réglé : la Gazette sert à chaque séjour' : e.immich.erreur || 'réglé, pas encore lu'
+    if (s.cle === 'ia' && !sonde?.ia) return !e.ia.regle ? 'pas réglée : écris les titres toi-même' : e.ia.erreur || 'réglée, à vérifier (PC allumé ?)'
     if (s.cle === 'carnet' && !sonde?.carnet) return !e.carnet.regle ? 'pas réglé (jeton absent)' : e.carnet.erreur ? e.carnet.erreur
       : e.carnet.personnes !== null ? `${e.carnet.personnes} contacts, ${e.carnet.dates} avec date complète` : 'pas encore lu'
     if (sonde?.[s.cle]) return sonde[s.cle].detail
