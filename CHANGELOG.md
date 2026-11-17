@@ -1,5 +1,8 @@
 # Journal des versions
 
+## 0.11.1 — 17 novembre 2026
+- **Courrier des lecteurs** : l'IA ne suivait pas le format sur une ligne (« lettre ::: signature ::: réponse ») et rien n'était gardé (« rien proposé d'utilisable », vu chez Julien le 17/11). Consigne à étiquettes (« Lettre : … / Signature : … / Réponse : … ») ; la lecture accepte les deux formes, le gras, les numéros, une signature ou une réponse absente ; un peu plus de place (lettre 300, réponse 160 caractères).
+
 ## 0.11.0 — 17 novembre 2026 (page 4 : courrier des lecteurs et horoscope)
 - **Courrier des lecteurs** (page 4, sous la signature) : l'IA du PC propose 4 fausses lettres de correspondants loufoques (« Un voisin inquiet », « Une tomate du jardin »…) avec la réponse de la rédaction, d'après les indices des rumeurs ; on en prend jusqu'à 2, on les modifie ou on écrit les siennes.
 - **Horoscope du séjour** (encadré jaune) : 3 horoscopes loufoques proposés d'après le signe, calculé à partir de la date de naissance ; seul le signe est imprimé, jamais la date. On en choisit un ou on écrit le sien.

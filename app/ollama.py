@@ -131,7 +131,7 @@ def sans_numero(texte: str) -> str:
     return NUMERO.sub("", texte or "", count=1).strip()
 
 
-MAXI_LETTRE, MAXI_REPONSE, MAXI_HOROSCOPE = 220, 110, 240    # 0.11 : page 4
+MAXI_LETTRE, MAXI_REPONSE, MAXI_HOROSCOPE = 300, 160, 240    # 0.11 : page 4 (0.11.1 : plus de marge)
 NOMBRE_LETTRES, NOMBRE_HOROSCOPES = 4, 3
 
 
@@ -141,18 +141,20 @@ def _accord(genre: str, prenom: str) -> str:
 
 
 def consigne_courrier(indices: str, genre: str, prenom: str, deja: list[str] | None = None) -> str:
-    return ("Exemple du ton voulu :\n"
-            "Depuis que Marc est reparti, mon chat refuse de manger : il réclame ses imitations de mouette. Que faire ? "
-            "::: Un voisin inquiet ::: La rédaction conseille de prolonger le séjour, pour le bien du chat.\n\n"
+    """0.11.1 : format à étiquettes (Lettre / Signature / Réponse), mieux suivi par les petits modèles que « ::: »."""
+    return ("Exemple du ton et du format voulus :\n"
+            "Lettre : Depuis que Marc est reparti, mon chat refuse de manger : il réclame ses imitations de mouette. Que faire ?\n"
+            "Signature : Un voisin inquiet\n"
+            "Réponse : La rédaction conseille de prolonger le séjour, pour le bien du chat.\n\n"
             + _feuilleton(deja or [])
             + f"Écris {NOMBRE_LETTRES} fausses lettres de lecteurs, drôles et affectueuses, pour la rubrique « Courrier des "
               f"lecteurs » d'un faux journal à scandale sur {prenom}, offert par ses hôtes. {_accord(genre, prenom)}.\n"
             + (f"Ce que les hôtes savent de {prenom} : « {indices} »\n" if indices else "")
             + "Chaque lettre vient d'un correspondant anonyme et loufoque (« Un voisin inquiet », « Une tomate du jardin », "
               "« Le canapé du salon »…) et reçoit une réponse courte et piquante de la rédaction. Jamais méchant, aucune "
-              "moquerie du physique, rien de grave ni de vulgaire, aucun autre prénom que " f"{prenom}.\n"
-              f"Format strict, une lettre par ligne : texte de la lettre ({MAXI_LETTRE} caractères au plus) ::: signature "
-              f"::: réponse de la rédaction ({MAXI_REPONSE} caractères au plus). Rien d'autre.")
+              f"moquerie du physique, rien de grave ni de vulgaire, aucun autre prénom que {prenom}.\n"
+              "Pour chaque lettre, exactement trois lignes : « Lettre : … » (deux phrases au plus), « Signature : … », "
+              "« Réponse : … » (une phrase). Une ligne vide entre deux lettres. Rien d'autre.")
 
 
 def consigne_horoscope(signe_: str, indices: str, genre: str, prenom: str, deja: list[str] | None = None) -> str:
@@ -166,19 +168,47 @@ def consigne_horoscope(signe_: str, indices: str, genre: str, prenom: str, deja:
               "sans répéter le nom du signe. Un horoscope par ligne, numérotés.")
 
 
+ETIQUETTES = {"lettre": "lettre", "signature": "signe", "signé": "signe", "signe": "signe", "de": "signe", "auteur": "signe",
+              "réponse": "reponse", "reponse": "reponse", "la rédaction": "reponse", "rédaction": "reponse"}
+
+
+def _propre(x: str) -> str:
+    return " ".join(sans_numero(x.replace("**", "").replace("__", "")).strip().strip('"«»“”*').split())
+
+
 def lettres(texte: str, genre: str) -> list[dict]:
-    """0.11 : « lettre ::: signature ::: réponse » → [{lettre, signe, reponse}], trop longs ou incomplets écartés."""
+    """0.11.1 : lit les lettres du modèle, sous la forme à étiquettes (« Lettre : … / Signature : … / Réponse : … »)
+    ou sur une ligne (« lettre ::: signature ::: réponse », aussi avec « | »). Réponse facultative ; trop longs écartés."""
+    brutes, cour = [], {}
+    for l in (texte or "").replace("\r", "").split("\n"):
+        l = l.strip()
+        if ":::" in l or l.count("|") >= 2:
+            parts = [_propre(x) for x in re.split(r":::|\|", l)]
+            parts = [x for x in parts if x]
+            if len(parts) >= 2:
+                brutes.append({"lettre": parts[0], "signe": parts[1], "reponse": parts[2] if len(parts) > 2 else ""})
+            continue
+        m = re.match(r"^\W*(lettre|signature|signé|signe|de|auteur|réponse|reponse|la rédaction|rédaction)\W*\s*[:：—-]\s*(.+)$",
+                     sans_numero(l.replace("**", "")), re.I)
+        if m:
+            cle = ETIQUETTES[m.group(1).lower()]
+            if cle == "lettre" and cour.get("lettre"):
+                brutes.append(cour)
+                cour = {}
+            cour[cle] = _propre(m.group(2))
+        elif not l and cour.get("lettre"):
+            brutes.append(cour)
+            cour = {}
+    if cour.get("lettre"):
+        brutes.append(cour)
     res = []
-    for l in (texte or "").splitlines():
-        parts = [sans_numero(x).strip().strip('"«»“”*').strip() for x in l.split(":::")]
-        if len(parts) != 3 or not all(parts):
+    for x in brutes:
+        lettre, signe_, reponse = x.get("lettre", ""), x.get("signe", "") or "Un lecteur", x.get("reponse", "")
+        if not lettre or len(lettre) > MAXI_LETTRE or len(reponse) > MAXI_REPONSE or len(signe_) > 60:
             continue
-        lettre, signe_, reponse = (" ".join(x.split()) for x in parts)
-        if len(lettre) > MAXI_LETTRE or len(reponse) > MAXI_REPONSE or len(signe_) > 50 or INTERDITS.search(lettre + reponse):
+        if INTERDITS.search(lettre + " " + reponse) or (not genre and re.search(r"\b(elle|il)\b", lettre + " " + reponse, re.I)):
             continue
-        if not genre and re.search(r"\b(elle|il)\b", lettre + " " + reponse, re.I):
-            continue
-        if lettre.casefold() not in {x["lettre"].casefold() for x in res}:
+        if lettre.casefold() not in {y["lettre"].casefold() for y in res}:
             res.append({"lettre": lettre, "signe": signe_, "reponse": reponse})
     return res
 

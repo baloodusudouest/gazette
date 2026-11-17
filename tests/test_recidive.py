@@ -504,3 +504,14 @@ def test_courrier_et_horoscope(monter):
     html = c.get(f"/api/recidives/{rid}/apercu").text
     assert "Courrier des lecteurs" in html and "Un voisin inquiet" in html and "Horoscope du séjour" in html
     assert "Cancer" in html and "1988" not in html                       # le signe, jamais la date
+
+
+
+def test_lettres_formats_du_modele():
+    etiquettes = ("1. **Lettre :** Depuis son départ, mon chat boude. Que faire ?\n**Signature :** Un voisin inquiet\n"
+                  "**Réponse :** Prolongez le séjour.\n\n2. Lettre : Je suis la tomate du fond du jardin.\nSignature : Une tomate\n"
+                  "Réponse : C'est la saison.\n\nLettre : Une lettre sans réponse ni signature.")
+    ls = O.lettres(etiquettes, "femme")
+    assert [x["signe"] for x in ls] == ["Un voisin inquiet", "Une tomate", "Un lecteur"]
+    assert ls[0]["lettre"] == "Depuis son départ, mon chat boude. Que faire ?" and ls[2]["reponse"] == ""
+    assert O.lettres("Mon chat boude. ::: Un voisin ::: Prolongez.\nLe canapé se plaint | Le canapé | Normal.", "femme")[1]["signe"] == "Le canapé"
