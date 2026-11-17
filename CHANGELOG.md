@@ -1,5 +1,8 @@
 # Journal des versions
 
+## 0.9.8 — 17 novembre 2026
+- **Numéros retirés** : l'IA numérotait ses propositions à sa façon (« 2 - Il se murmure… ») et le numéro restait dans le texte. Toutes les formes (« 2 - », « 3) », « 4 – », « - ») sont retirées des propositions, des rumeurs enregistrées et de l'impression (les rumeurs déjà choisies sont corrigées à l'affichage). Vu chez Julien le 17/11.
+
 ## 0.9.7 — 17 novembre 2026 (les rumeurs de la rédaction)
 - **Page 3 : « Les rumeurs de la rédaction »** pour remplir l'espace libre : l'IA du PC propose 8 rumeurs loufoques et inventées sur l'invité (130 caractères au plus, « Selon nos sources… », jamais méchant, rien de grave), d'après des indices facultatifs (« ce qu'on sait d'elle ») et les descriptions des photos. On en prend jusqu'à 4, on les modifie, ou on écrit les siennes. Imprimées dans un encadré avec « Rumeurs non vérifiées, et pour cause : tout est inventé. » Rien choisi : rien d'imprimé.
 - Le bouton « IA » du haut demande aussi les rumeurs quand aucune n'est encore choisie.

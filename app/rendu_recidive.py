@@ -264,7 +264,8 @@ def page3(g: dict) -> str:
 
 def _rumeurs(g: dict) -> str:
     """0.9.7 : « Les rumeurs de la rédaction », choisies parmi les propositions de l'IA ou écrites à la main."""
-    rs = [x for x in g.get("rumeurs") or [] if x.strip()]
+    from .ollama import sans_numero
+    rs = [sans_numero(x) for x in g.get("rumeurs") or [] if x.strip()]       # 0.9.8 : numéros laissés par l'IA retirés
     if not rs:
         return ""
     return ('<div class="rum" data-bloc="rumeurs"><h3>Les rumeurs de la rédaction</h3>'

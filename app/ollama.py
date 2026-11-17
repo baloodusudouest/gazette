@@ -109,11 +109,19 @@ def consigne_rumeurs(indices: str, genre: str, prenom: str, photos: list[str]) -
               f"Réponds seulement par les {NOMBRE_RUMEURS} rumeurs, une par ligne, numérotées.")
 
 
+NUMERO = re.compile(r"^\s*(\d+\s*[.)\-:–—/]+|[-•*–—])\s*")
+
+
+def sans_numero(texte: str) -> str:
+    """0.9.8 : « 2 - Il se murmure… », « 3) … », « - … » → le texte seul (le modèle numérote à sa façon)."""
+    return NUMERO.sub("", texte or "", count=1).strip()
+
+
 def nettoyer(texte: str, genre: str, maxi: int = MAXI) -> list[str]:
     """Les lignes qui tiennent : numéro retiré, sans refus, sans anglais, sans genre deviné, `maxi` caractères au plus."""
     res = []
     for l in (texte or "").splitlines():
-        l = re.sub(r"^\s*(\d+[.)\-:]|[-•*])\s*", "", l).strip().strip('"«»“”*').strip()
+        l = sans_numero(l).strip('"«»“”*').strip()
         l = re.sub(r"^.*?→\s*", "", l)            # 0.9.6 : le modèle recopie parfois « description → titre »
         l = re.sub(r"\s+", " ", l)
         if not l or len(l) > maxi or len(l) < 6 or INTERDITS.search(l) or len(ANGLAIS.findall(l)) >= 2:

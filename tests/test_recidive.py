@@ -427,3 +427,12 @@ def test_rumeurs_de_la_redaction(monter):
     assert gardees == props[:2] + ["Ma rumeur à moi", "5"]                                  # 4 au plus, vides retirées
     html = c.get(f"/api/recidives/{rid}/apercu").text
     assert "Les rumeurs de la rédaction" in html and "Ma rumeur à moi" in html and "tout est inventé" in html
+
+
+
+def test_numeros_de_l_ia_retires():
+    brut = "1 - Il se murmure que Camille parle aux arbres.\n2) Exclusif : Camille cache un dragon.\n3 – Selon nos sources, Camille vole.\n4. Camille et le rond-point"
+    assert O.nettoyer(brut, "femme", 130) == ["Il se murmure que Camille parle aux arbres.", "Exclusif : Camille cache un dragon.",
+                                             "Selon nos sources, Camille vole.", "Camille et le rond-point"]
+    assert O.sans_numero("2 - Il se murmure que…") == "Il se murmure que…"
+    assert O.sans_numero("Camille 2 fois plus drôle") == "Camille 2 fois plus drôle"

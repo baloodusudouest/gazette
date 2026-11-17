@@ -22,7 +22,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from . import __version__, anniversaire, culture, journal, maison, recidive as R, rendu, rendu_recidive
 from .carnet import Carnet
 from .immich import Immich
-from .ollama import MAXI as MAXI_TITRE, Ollama
+from .ollama import MAXI as MAXI_TITRE, Ollama, sans_numero
 from .auth import COMMUN, DUREE, Sessions
 from .base import ETATS, Base, cle_nom, maintenant
 from .config import APPLI, Config, charger, racine
@@ -741,7 +741,7 @@ def enregistrer_edition(rid: int, corps: dict = Body(...)):
     if "titre_une" in corps:                    # 0.9.1 : vide = « [Nom] revient ! »
         champs["titre_une"] = " ".join(str(corps.get("titre_une") or "").split())[:90]
     if isinstance(corps.get("rumeurs"), list):     # 0.9.7 : 4 rumeurs au plus, imprimées en page 3
-        champs["rumeurs"] = [" ".join(str(x).split())[:160] for x in corps["rumeurs"] if str(x).strip()][:R.RUMEURS]
+        champs["rumeurs"] = [x for x in (sans_numero(" ".join(str(x).split()))[:160] for x in corps["rumeurs"]) if x][:R.RUMEURS]
     if "indices_rumeurs" in corps:
         champs["indices_rumeurs"] = " ".join(str(corps.get("indices_rumeurs") or "").split())[:400]
     if "description_une" in corps:

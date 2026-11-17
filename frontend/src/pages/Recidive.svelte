@@ -49,7 +49,7 @@
       macaron = ed.macaron || 'hd'
       descriptionUne = ed.description_une || ''
       propsUne = ed.propositions_une || []
-      rumeurs = [...(ed.rumeurs || [])]
+      rumeurs = (ed.rumeurs || []).map((r) => r.replace(/^\s*(\d+\s*[.)\-:–—/]+|[-•*–—])\s*/, ''))   // 0.9.8 : numéros de l'IA
       indices = ed.indices_rumeurs || ''
       propsRumeurs = ed.propositions_rumeurs || []
       modifie = false
