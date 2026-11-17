@@ -287,7 +287,9 @@ def _rumeurs(g: dict) -> str:
 
 def _courrier(g: dict) -> str:
     """0.11 : « Courrier des lecteurs » — fausses lettres et réponses de la rédaction (choisies ou écrites)."""
-    ls = [x for x in g.get("courrier") or [] if (x.get("lettre") or "").strip()]
+    from .ollama import sans_emoji
+    ls = [{**x, "lettre": sans_emoji(x.get("lettre", "")), "reponse": sans_emoji(x.get("reponse") or "")}
+          for x in g.get("courrier") or [] if (x.get("lettre") or "").strip()]
     if not ls:
         return ""
     corps = "".join(f'<div><p class="l">« {e(x["lettre"])} »</p><p class="s">— {e(x.get("signe") or "Un lecteur")}</p>'
@@ -298,7 +300,8 @@ def _courrier(g: dict) -> str:
 
 def _horoscope(g: dict) -> str:
     """0.11 : « Horoscope du séjour » — le signe seulement, jamais la date de naissance."""
-    t = (g.get("horoscope") or "").strip()
+    from .ollama import sans_numero
+    t = sans_numero(g.get("horoscope") or "")          # 0.14.1 : « 1️⃣ » laissé par l'IA retiré
     if not t:
         return ""
     return (f'<div class="horo" data-bloc="horoscope"><h3>Horoscope du séjour<span>{e(g.get("signe") or "")}</span></h3>'

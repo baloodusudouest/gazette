@@ -1,5 +1,8 @@
 # Journal des versions
 
+## 0.14.1 — 17 novembre 2026
+- **Chiffres en émoji retirés** : l'IA numérotait l'horoscope avec « 1️⃣ 2️⃣ 3️⃣ » (vu chez Julien le 17/11) et le chiffre restait dans le texte imprimé. Les chiffres en émoji et tous les émojis (interdits par la consigne) sont retirés des propositions, de ce qui est enregistré, de ce qui était déjà gardé et de l'impression (horoscope, rumeurs, courrier, titres). Tests : 135.
+
 ## 0.14.0 — 17 novembre 2026 (bouton « IA » en haut de la Gazette)
 - **Bouton « IA » à côté d'Enregistrer et Approuver** dans la relecture de la Gazette classique (demande de Julien du 17/11, choix « Tout ») : l'IA du PC relit tous les textes et propose, sous chaque bloc, des titres, une version journal et une version raccourcie (une, brèves, page 2), version journal et raccourcie (chronologie), 3 mots des hôtes et une version raccourcie (mot), et 5 légendes pour la photo de la page 4 si elle est choisie. « Traduire » seulement pour un texte qui a l'air anglais. Avancement « IA 3/14 » ; arrêt net si le PC est injoignable. Compter une à deux minutes.
 - Les propositions de chaque aide restent affichées ensemble sous le bloc (Titres, Version journal, Raccourcir…), chacune avec « Fermer ». Rien n'est appliqué sans un toucher ; rien n'est enregistré sans Enregistrer.

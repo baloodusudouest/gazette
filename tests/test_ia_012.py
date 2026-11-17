@@ -91,3 +91,12 @@ def test_proposer_avec_le_contexte_sans_description(monter):
     main.ETAT["ollama"] = O.Ollama("http://pc:11434", lire=(f2 := _faux_ollama(["1. Selon nos sources, Camille parle aux ceps."])))
     c.post(f"/api/recidives/{rid}/rumeurs", json={"indices": ""})
     assert "Vendanges 2023" in f2.appels[-1][1]["prompt"] and "(Bastien)" in f2.appels[-1][1]["prompt"]
+
+
+def test_chiffres_en_emoji_retires():
+    """0.14.1 : « 1️⃣ Sagittaire : … » (vu chez Julien le 17/11) → « Sagittaire : … »."""
+    assert O.sans_numero("1️⃣ Sagittaire : Jupiter vous invite à sortir") == "Sagittaire : Jupiter vous invite à sortir"
+    assert O.sans_numero("🔟 Dix sur dix ✨ pour Camille 🎉") == "Dix sur dix pour Camille"
+    assert O.sans_numero("3. Le nombre 3 est votre sésame") == "Le nombre 3 est votre sésame"
+    assert O.nettoyer("1️⃣ Camille encore prise la main dans le sac\n2️⃣ Scandale au barbecue", "femme") == [
+        "Camille encore prise la main dans le sac", "Scandale au barbecue"]

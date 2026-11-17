@@ -145,11 +145,19 @@ def consigne_rumeurs(indices: str, genre: str, prenom: str, photos: list[str], d
 
 
 NUMERO = re.compile(r"^\s*(\d+\s*[.)\-:–—/]+|[-•*–—])\s*")
+# 0.14.1 : chiffres en émoji (« 1️⃣ », vus chez Julien le 17/11) et autres émojis, interdits par la consigne
+EMOJI = re.compile("[0-9#*]\ufe0f?\u20e3|[\U0001F000-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\ufe0f\u200d]")
+
+
+def sans_emoji(texte: str) -> str:
+    return " ".join(EMOJI.sub(" ", texte or "").split())
 
 
 def sans_numero(texte: str) -> str:
-    """0.9.8 : « 2 - Il se murmure… », « 3) … », « - … » → le texte seul (le modèle numérote à sa façon)."""
-    return NUMERO.sub("", texte or "", count=1).strip()
+    """0.9.8 : « 2 - Il se murmure… », « 3) … », « - … » → le texte seul (le modèle numérote à sa façon).
+    0.14.1 : « 1️⃣ … » aussi, et plus aucun émoji."""
+    t = sans_emoji(texte)
+    return NUMERO.sub("", t, count=1).strip()
 
 
 MAXI_LETTRE, MAXI_REPONSE, MAXI_HOROSCOPE = 400, 200, 240    # 0.11 : page 4 (0.11.2 : plus de marge, Julien raccourcit)

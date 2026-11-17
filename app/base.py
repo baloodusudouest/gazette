@@ -244,6 +244,14 @@ class Base:
         d["propositions_rumeurs"] = json.loads(d.get("propositions_rumeurs") or "[]")
         for k in ("courrier", "propositions_courrier", "propositions_horoscope"):      # 0.11 : page 4
             d[k] = json.loads(d.get(k) or "[]")
+        # 0.14.1 : chiffres en émoji et émojis laissés par l'IA, retirés aussi de ce qui est déjà gardé
+        from .ollama import sans_emoji, sans_numero
+        d["horoscope"] = sans_numero(d.get("horoscope") or "")
+        for k in ("propositions_horoscope", "propositions_rumeurs", "rumeurs", "propositions_une"):
+            d[k] = [sans_numero(x) if isinstance(x, str) else x for x in d.get(k) or []]
+        for k in ("courrier", "propositions_courrier"):
+            d[k] = [{**x, **{c: sans_emoji(x.get(c) or "") for c in ("lettre", "signe", "reponse")}} if isinstance(x, dict) else x
+                    for x in d.get(k) or []]
         d["precedent"] = json.loads(d["precedent"] or "{}") or None
         d["manque_scandale"], d["tag_absent"] = bool(d["manque_scandale"]), bool(d["tag_absent"])
         return d
