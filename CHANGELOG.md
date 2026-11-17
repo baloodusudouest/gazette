@@ -1,5 +1,8 @@
 # Journal des versions
 
+## 0.15.1 — 17 novembre 2026
+- **Page 4 de l'édition dans l'ordre de l'impression** (demande de Julien du 17/11) : courrier des lecteurs, puis horoscope du séjour, puis droit de réponse (le mot des hôtes), puis le message du code-barres, comme sur le papier depuis la 0.11.3.
+
 ## 0.15.0 — 17 novembre 2026 (l'horoscope brode sur l'événement du séjour)
 - **Événement du séjour** (choix de Julien du 17/11) : une case dans l'encart « Pour l'IA » de l'horoscope de La Récidive (« soirée Eurovision, dort à la maison pour ne pas rentrer trop tard »). Quand elle est remplie, les 3 horoscopes brodent dessus, chacun sous un angle différent (« les astres prédisent une victoire de la Suède grâce à votre costume de tigre », « Pluton percute le Cancer : migraine carabinée le lendemain »). Jamais imprimé : seul l'horoscope choisi l'est.
 - **Gardé pour les séjours suivants** : l'événement reste dans l'édition ; les horoscopes des éditions suivantes reçoivent les événements des séjours précédents (« 2026 : soirée Eurovision ») pour un clin d'œil.

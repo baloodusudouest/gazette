@@ -338,12 +338,9 @@
         </details>
       {/if}
 
-      <section class="min-w-0 rounded-2xl border bg-card p-4" aria-label="Droit de réponse">
-        <h2 class="etiquette mb-2">Page 4 · droit de réponse (le mot des hôtes)</h2>
-        <textarea class="w-full rounded-lg border bg-background px-3 py-2 font-serif" rows="7" bind:value={mot} oninput={toucher} aria-label="Mot des hôtes"></textarea>
-        <p class="mt-1 text-xs text-muted-foreground">Une ligne vide sépare les paragraphes. Signature : « {d.signature} » (Réglages › Le journal). Aucune date de naissance dans ce journal.</p>
-
-        <h3 class="etiquette mt-5 mb-2">Courrier des lecteurs ({courrier.length}/{d.lettres_maxi})</h3>
+      <section class="min-w-0 rounded-2xl border bg-card p-4" aria-label="Page 4">
+        <h2 class="etiquette mb-3">Page 4 · dans l'ordre de l'impression</h2>
+        <h3 class="etiquette mb-2">Courrier des lecteurs ({courrier.length}/{d.lettres_maxi})</h3>
         <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Lettres imprimées</span>
         <ul class="mt-1 grid gap-2">
           {#each courrier as x, i}
@@ -371,10 +368,6 @@
           {/each}
         </div>
 
-        <label class="mt-5 grid gap-1 text-sm"><span class="etiquette">Message caché dans le code-barres (en bas de la page 4)</span>
-          <input class="rounded-lg border bg-background px-2 py-1" maxlength={d.code_barres_maxi} placeholder={d.code_barres_defaut} bind:value={codeBarres} oninput={toucher} /></label>
-        <p class="text-xs text-muted-foreground">Un vrai code-barres, lisible par une appli de scan sur téléphone. Sans accents à la lecture ; {d.code_barres_maxi} caractères au plus. Vide : « {d.code_barres_defaut} ».</p>
-
         <h3 class="etiquette mt-5 mb-2">Horoscope du séjour{d.signe ? ` · ${d.signe}` : ''}</h3>
         <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Horoscope imprimé (vide : pas imprimé)</span>
         <textarea rows="3" class="mt-1 w-full rounded-lg border bg-background px-2 py-1 text-sm" maxlength="280" bind:value={horoscope} oninput={toucher} aria-label="Horoscope"></textarea>
@@ -396,6 +389,14 @@
             <button type="button" class="w-full rounded-md px-2 py-1 text-left text-sm break-words whitespace-normal hover:bg-secondary" onclick={() => { horoscope = t; toucher() }}>« {t} »</button>
           {/each}
         </div>
+
+        <h3 class="etiquette mt-5 mb-2">Droit de réponse (le mot des hôtes)</h3>
+        <textarea class="w-full rounded-lg border bg-background px-3 py-2 font-serif" rows="7" bind:value={mot} oninput={toucher} aria-label="Mot des hôtes"></textarea>
+        <p class="mt-1 text-xs text-muted-foreground">Une ligne vide sépare les paragraphes. Signature : « {d.signature} » (Réglages › Le journal). Aucune date de naissance dans ce journal.</p>
+
+        <label class="mt-5 grid gap-1 text-sm"><span class="etiquette">Message caché dans le code-barres (en bas de la page 4)</span>
+          <input class="rounded-lg border bg-background px-2 py-1" maxlength={d.code_barres_maxi} placeholder={d.code_barres_defaut} bind:value={codeBarres} oninput={toucher} /></label>
+        <p class="text-xs text-muted-foreground">Un vrai code-barres, lisible par une appli de scan sur téléphone. Sans accents à la lecture ; {d.code_barres_maxi} caractères au plus. Vide : « {d.code_barres_defaut} ».</p>
       </section>
     </div>
 
