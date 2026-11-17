@@ -188,10 +188,9 @@ def test_filtres_017_1():
     """0.18.1 : « 1°) » retiré ; rien sur le corps ; l'exemple de broderie n'est plus l'Eurovision."""
     assert O.sans_numero("1°) Camille, la Sagittaire joueuse") == "Camille, la Sagittaire joueuse"
     assert O.sans_numero("2°. Saturne suggère") == "Saturne suggère"
-    assert O.nettoyer("1. Ses seins rebondis font scandale\n2. Camille dresse des escargots", "femme", 130) == ["Camille dresse des escargots"]
-    brut = ("Lettre : Depuis l'arrivée de cette humaine aux seins rebondis, notre chat miaule.\nSignature : Une voisine\n"
-            "Réponse : Demande en mariage.\n\nLettre : Mes robinets chantent depuis son passage.\nSignature : Les robinets\nRéponse : Playback.")
-    assert [x["lettre"] for x in O.lettres(brut, "femme")] == ["Mes robinets chantent depuis son passage."]
+    # 0.18.2 : allusions sexuelles permises (choix de Julien), moqueries du physique toujours écartées
+    assert O.nettoyer("1. Ses seins rebondis font scandale\n2. Camille, la moche du quartier\n3. Camille dresse des escargots", "femme", 130) == [
+        "Ses seins rebondis font scandale", "Camille dresse des escargots"]
     p = O.consigne_horoscope("Sagittaire", "", "femme", "Camille", evenement="apéro avec le travail")
     assert "Eurovision" not in p and "apéro avec le travail" in p and "n'en reprends AUCUN mot" in p
 
@@ -206,3 +205,24 @@ def test_droit_de_reponse_par_l_ia(monter):
     props = c.post(f"/api/recidives/{rid}/mot", json={"texte": ""}).json()["propositions"]
     assert props == ["Chère Camille, nous assumons tout.", "Chère Camille, coupables et ravis."]
     assert "apéro avec le travail" in faux.appels[-1][1]["prompt"] and "Droit de réponse" in faux.appels[-1][1]["prompt"]
+
+
+def test_livre_d_or_pour_l_ia(monter):
+    """0.19 : les mots du livre d'or (fiche de carnet 2.31) nourrissent rumeurs, courrier et droit de réponse."""
+    c = monter()
+    for x in main.ETAT["carnet"].personnes(forcer=True):
+        x["personne_id"], x["livre_or"] = "p-camille0001", [{"le": "2026-08-16", "message": "Merci pour les crêpes et le chat !"}]
+    main.ETAT["carnet"]._ecrire = lambda *a: None
+    pid, r = _deux_sejours(c)
+    rid = int(r["invites"][0]["lien"].rsplit("/", 1)[1])
+    faux = _faux_ollama(["1. Selon nos sources, Camille ne vient que pour les crêpes."] * 3
+                        + ["Lettre : Le chat réclame Camille.\nSignature : Le chat\nRéponse : Il attendra."] * 3
+                        + ["Chère Camille, coupables.\n---\nChère Camille, ravis."])
+    main.ETAT["ollama"] = O.Ollama("http://pc:11434", lire=faux)
+    c.post(f"/api/recidives/{rid}/rumeurs", json={"indices": "aime le jardin"})
+    assert "Merci pour les crêpes et le chat" in faux.appels[-1][1]["prompt"] and "livre d'or" in faux.appels[-1][1]["prompt"]
+    c.post(f"/api/recidives/{rid}/courrier", json={})
+    assert "Merci pour les crêpes" in faux.appels[-1][1]["prompt"]
+    c.post(f"/api/recidives/{rid}/mot", json={})
+    assert "Merci pour les crêpes" in faux.appels[-1][1]["prompt"]
+    assert main.ETAT["base"].recidive(rid)["indices_rumeurs"] == "aime le jardin"            # rien de mêlé aux indices gardés

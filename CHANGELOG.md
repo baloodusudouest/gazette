@@ -1,5 +1,10 @@
 # Journal des versions
 
+## 0.19.0 — 17 novembre 2026 (livre d'or ; allusions permises)
+- **Livre d'or** (demande de Julien du 17/11) : les mots que la personne a laissés dans le livre d'or de la maison (carte de Home Assistant → fiche de carnet ≥ 2.31) sont donnés à l'IA pour les rumeurs, le courrier des lecteurs et le droit de réponse de La Récidive (les trois derniers mots). Jamais imprimés tels quels ; jamais mêlés aux indices gardés dans « Pour les journaux ».
+- **Allusions coquines permises** (choix de Julien du 17/11) : le filtre de la 0.18.1 n'écarte plus que les moqueries sur l'apparence ; les consignes disent « allusions coquines permises, avec esprit ».
+- Tests : 145.
+
 ## 0.18.1 — 17 novembre 2026 (corrections vues sur l'édition d'Camille)
 - **« 1°) 2°) 3°) »** laissés par l'IA dans l'horoscope : retirés (propositions, enregistré, impression).
 - **L'horoscope parlait d'Eurovision** pour un séjour « apéro avec le travail » : l'exemple de broderie de la consigne était recopié. Nouvel exemple sur un événement imaginaire, avec « n'en reprends aucun mot » et « n'invente aucun autre événement ».

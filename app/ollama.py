@@ -30,10 +30,9 @@ MARCHE = ("Sur le PC : ouvrir Ollama (icône près de l'horloge). Une seule fois
 
 INTERDITS = re.compile(r"\b(je ne peux|désolé|en tant qu|as an ai|sorry|i can)\b", re.I)
 ANGLAIS = re.compile(r"\b(the|and|with|her|his|is|of|you)\b", re.I)
-# 0.18.1 : jamais le corps ni le sexe (vu chez Julien le 17/11 : « ses seins rebondis » dans une lettre de lecteur)
-CORPS = re.compile(r"\b(seins?|nichons?|poitrines?|fesses?|cul|culs|derrière rebondi|sexy|sexe|sexuel\w*|érotique\w*|nue?s?|"
-                   r"à poil|décolleté\w*|bonnet [a-e]\b|rebondi(e|s|es)?|plantureu\w+|aguichant\w*|lascive?s?|"
-                   r"obèse|grosse|maigrichon\w*|moche|laide?s?|bourrelets?)\b", re.I)
+# 0.18.1 : aucune moquerie du physique. 0.18.2 : les allusions sexuelles sont permises (choix de Julien du 17/11) :
+# le filtre n'écarte plus que les moqueries sur l'apparence.
+CORPS = re.compile(r"\b(obèse|grosse|maigrichon\w*|moche|laide?s?|bourrelets?|boudin|thon)\b", re.I)
 
 Lire = Callable[[str, dict], dict]
 
@@ -186,7 +185,7 @@ def consigne_courrier(indices: str, genre: str, prenom: str, deja: list[str] | N
             + (f"Ce que les hôtes savent de {prenom} : « {indices} »\n" if indices else "")
             + "Chaque lettre vient d'un correspondant anonyme et loufoque (« Un voisin inquiet », « Une tomate du jardin », "
               "« Le canapé du salon »…) et reçoit une réponse courte et piquante de la rédaction. Jamais méchant, aucune "
-              f"moquerie du physique, jamais le corps (poitrine, fesses, silhouette), rien de sexuel, rien de grave ni de vulgaire, aucun autre prénom que {prenom}.\n"
+              f"moquerie du physique (les allusions coquines sont permises, avec esprit), rien de grave, aucun autre prénom que {prenom}.\n"
               "Pour chaque lettre, exactement trois lignes : « Lettre : … » (deux phrases au plus), « Signature : … », "
               "« Réponse : … » (une phrase). Une ligne vide entre deux lettres. Rien d'autre.")
 
@@ -211,7 +210,7 @@ def consigne_horoscope(signe_: str, indices: str, genre: str, prenom: str, deja:
             + (f"Séjours précédents de {prenom} : {' ; '.join(avant)} (un clin d'œil est permis, sans s'y attarder).\n"
                if avant else "")
             + "Style horoscope de magazine (planètes, chiffre ou couleur de chance), absurde et affectueux, jamais méchant, "
-              f"rien de grave (santé, argent, couple), jamais le corps ni le physique. {MAXI_HOROSCOPE} caractères au plus chacun, sur une seule ligne, "
+              f"rien de grave (santé, argent, couple), aucune moquerie du physique. {MAXI_HOROSCOPE} caractères au plus chacun, sur une seule ligne, "
               "sans répéter le nom du signe. Un horoscope par ligne, numérotés.")
 
 
@@ -307,7 +306,7 @@ def consigne_gazette(action: str, texte: str, annee: int | None, signes: int | N
         return (f"Écris 3 versions du « Droit de réponse » des hôtes, en dernière page d'un faux journal à scandale offert à "
                 f"{prenom}, qui revient dormir {chez or 'chez eux'}. Les hôtes répondent aux « accusations » du journal avec "
                 f"tendresse et second degré : ils assument tout et disent leur joie de la ou le revoir. Accorde {accord}. "
-                "3 à 5 phrases, 500 caractères au plus, au « vous », jamais le corps ni le physique, rien de vulgaire. "
+                "3 à 5 phrases, 500 caractères au plus, au « vous », aucune moquerie du physique. "
                 + (f"Ce qu'on sait de {prenom} : « {indices} ». " if indices else "")
                 + ("Ce que raconte ce numéro : " + " ; ".join(evenements[:8]) + ". Fais un ou deux clins d'œil, sans rien inventer de grave. "
                    if evenements else "")
@@ -410,7 +409,7 @@ class Ollama:
         """0.9.7 : jusqu'à 8 rumeurs loufoques (130 caractères au plus) pour la page 3. Indices facultatifs."""
         if not self.actif:
             raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
-        indices = " ".join((indices or "").split())[:400]
+        indices = " ".join((indices or "").split())[:1200]       # 0.19 : indices + livre d'or
         return self._demander(consigne_rumeurs(indices, genre, prenom, photos or [], deja, personnes), NOMBRE_RUMEURS, MAXI_RUMEUR,
                               genre, deja)
 
@@ -433,7 +432,7 @@ class Ollama:
         """0.11 : jusqu'à 4 fausses lettres de lecteurs avec la réponse de la rédaction (page 4)."""
         if not self.actif:
             raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
-        indices = " ".join((indices or "").split())[:400]
+        indices = " ".join((indices or "").split())[:1200]       # 0.19 : indices + livre d'or
         res: list[dict] = []
         brut = ""
         for _ in range(ESSAIS):
@@ -454,7 +453,7 @@ class Ollama:
         """0.11 : jusqu'à 3 horoscopes loufoques du séjour (page 4)."""
         if not self.actif:
             raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
-        indices = " ".join((indices or "").split())[:400]
+        indices = " ".join((indices or "").split())[:1200]       # 0.19 : indices + livre d'or
         evenement = " ".join((evenement or "").split())[:200]
         return self._demander(consigne_horoscope(signe_, indices, genre, prenom, deja, evenement, avant), NOMBRE_HOROSCOPES, MAXI_HOROSCOPE,
                               genre, deja)

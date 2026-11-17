@@ -1022,12 +1022,23 @@ def proposer_rumeurs(rid: int, corps: dict = Body(default={})):
         vues += [f"(numéro de {x.get('le', '')[:4]}) {d}" for d in (x.get("descriptions") or [])[:3]]
     gens = list(dict.fromkeys(g for c in ctxs for g in c.get("personnes") or []))
     try:
-        props = ETAT["ollama"].rumeurs(indices, ed["genre"], _prenom(p), vues, deja=_deja_paru(p["id"], rid), personnes=gens)
+        props = ETAT["ollama"].rumeurs(_avec_livre(p, indices), ed["genre"], _prenom(p), vues, deja=_deja_paru(p["id"], rid), personnes=gens)
     except RuntimeError as ex:
         raise HTTPException(503, str(ex))
     ETAT["base"].maj_recidive(rid, indices_rumeurs=indices, propositions_rumeurs=props)
     ETAT["base"].noter("recidive", p["id"], f"{len(props)} rumeur(s) proposée(s) par l'IA")
     return {"propositions": props, "carnet": _garder_indices(p, indices)}
+
+
+def _avec_livre(p: dict, indices: str) -> str:
+    """0.19 : les indices pour l'IA, complétés par ce que la personne a écrit dans le livre d'or de la maison (fiche de
+    carnet ≥ 2.31, envoyé par Home Assistant). Pour les rumeurs, le courrier et le droit de réponse ; jamais imprimé
+    tel quel, jamais renvoyé dans « Pour les journaux »."""
+    mots = [m for m in (_contact(p).get("livre_or") or []) if (m.get("message") or "").strip()][:3]
+    if not mots:
+        return indices
+    livre = " ; ".join(f"« {' '.join(m['message'].split())[:220]} » ({m.get('le', '')[:4]})" for m in mots)
+    return (indices + " — " if indices else "") + f"Ce que {_prenom(p)} a écrit dans le livre d'or de la maison : {livre}"
 
 
 def _garder_indices(p: dict, indices: str) -> str:
@@ -1054,7 +1065,7 @@ def proposer_courrier(rid: int, corps: dict = Body(default={})):
     ed, p = _edition_ou_404(rid)
     indices = " ".join(str(corps.get("indices") or ed.get("indices_rumeurs") or "").split())[:400]
     try:
-        props = ETAT["ollama"].courrier(indices, ed["genre"], _prenom(p), deja=_deja_paru(p["id"], rid))
+        props = ETAT["ollama"].courrier(_avec_livre(p, indices), ed["genre"], _prenom(p), deja=_deja_paru(p["id"], rid))
     except RuntimeError as ex:
         raise HTTPException(503, str(ex))
     ETAT["base"].maj_recidive(rid, propositions_courrier=props)
@@ -1085,7 +1096,7 @@ def proposer_droit(rid: int, corps: dict = Body(default={})):
     faits = [ed.get("titre_une") or "", ed.get("evenement") or "", *(ed.get("rumeurs") or [])[:4]]
     try:
         props = ETAT["ollama"].gazette("droit", str(corps.get("texte") or ""), None, None, _prenom(p), ed["genre"],
-                                       ed.get("indices_rumeurs") or "", _journal()["chez"], [x for x in faits if x.strip()])
+                                       _avec_livre(p, ed.get("indices_rumeurs") or ""), _journal()["chez"], [x for x in faits if x.strip()])
     except ValueError as ex:
         raise HTTPException(422, str(ex))
     except RuntimeError as ex:
