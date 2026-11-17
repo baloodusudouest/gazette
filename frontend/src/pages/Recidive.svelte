@@ -33,6 +33,7 @@
   let courrier = $state([])         // 0.11 : page 4
   let propsCourrier = $state([])
   let horoscope = $state('')
+  let codeBarres = $state('')       // 0.11.4 : message caché dans le code-barres
   let propsHoroscope = $state([])
   let modifie = $state(false)
   let message = $state('')
@@ -59,6 +60,7 @@
       courrier = (ed.courrier || []).map((x) => ({ ...x }))
       propsCourrier = ed.propositions_courrier || []
       horoscope = ed.horoscope || ''
+      codeBarres = ed.code_barres || ''
       propsHoroscope = ed.propositions_horoscope || []
       modifie = false
       tampon = Date.now()
@@ -70,7 +72,7 @@
     }
   }
   function toucher() { modifie = true; message = '' }
-  const corps = () => ({ numero_main: numero === '' ? null : +numero, accroche, mot, titre_une: titreUne, description_une: descriptionUne, macaron, rumeurs, indices_rumeurs: indices, courrier, horoscope,
+  const corps = () => ({ numero_main: numero === '' ? null : +numero, accroche, mot, titre_une: titreUne, description_une: descriptionUne, macaron, rumeurs, indices_rumeurs: indices, courrier, horoscope, code_barres: codeBarres,
                          photos: photos.map((p) => ({ id: p.id, legende: p.legende, retiree: p.retiree, description: p.description ?? '', cadrage: p.cadrage ?? 'haut' })) })
   // « IA » en haut : 5 titres pour chaque texte décrit (la une et chaque photo gardée), l'un après l'autre
   const cibles = () => [...(descriptionUne.trim().length >= 3 ? ['une'] : []),
@@ -356,6 +358,10 @@
               + « {x.lettre} » <span class="text-muted-foreground">— {x.signe}</span> <span class="text-primary">La rédaction : {x.reponse}</span></button>
           {/each}
         </div>
+
+        <label class="mt-5 grid gap-1 text-sm"><span class="etiquette">Message caché dans le code-barres (en bas de la page 4)</span>
+          <input class="rounded-lg border bg-background px-2 py-1" maxlength={d.code_barres_maxi} placeholder={d.code_barres_defaut} bind:value={codeBarres} oninput={toucher} /></label>
+        <p class="text-xs text-muted-foreground">Un vrai code-barres, lisible par une appli de scan sur téléphone. Sans accents à la lecture ; {d.code_barres_maxi} caractères au plus. Vide : « {d.code_barres_defaut} ».</p>
 
         <h3 class="etiquette mt-5 mb-2">Horoscope du séjour{d.signe ? ` · ${d.signe}` : ''}</h3>
         <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Horoscope imprimé (vide : pas imprimé)</span>

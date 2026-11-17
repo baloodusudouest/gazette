@@ -19,7 +19,7 @@ from datetime import date, datetime, timedelta
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 
-from . import __version__, anniversaire, culture, journal, maison, recidive as R, rendu, rendu_recidive
+from . import __version__, anniversaire, code_barres, culture, journal, maison, recidive as R, rendu, rendu_recidive
 from .carnet import Carnet
 from .immich import Immich
 from .ollama import MAXI as MAXI_TITRE, Ollama, sans_numero
@@ -723,6 +723,7 @@ def edition(rid: int):
     return {"personne": p, "edition": {**ed, "mot_defaut": R.mot_par_defaut(ed["genre"], _prenom(p)),
                                        "accroche_defaut": R.accroche(ed["genre"], _prenom(p))},
             "signature": j["signature"], "places": R.PLACES, "titre_defaut": R.titre_une(p["nom"]),
+            "code_barres_defaut": R.code_barres(_prenom(p)), "code_barres_maxi": code_barres.MAXI,
             "indices_carnet": _contact(p).get("journaux") or "", "deja_paru": _deja_paru(p["id"], rid), "macarons": R.MACARONS, "rumeurs_maxi": R.RUMEURS, "lettres_maxi": R.LETTRES,
             "signe": R.signe(p.get("naissance", ""))[0], "cadrages": R.CADRAGES,
             "ia": {**ETAT["ollama"].etat(), "maxi": MAXI_TITRE}}
@@ -766,6 +767,8 @@ def enregistrer_edition(rid: int, corps: dict = Body(...)):
                 if l["lettre"]:
                     lettres_.append(l)
         champs["courrier"] = lettres_[:R.LETTRES]
+    if "code_barres" in corps:                 # 0.11.4 : vide = « Reviens vite, {prénom} ! »
+        champs["code_barres"] = " ".join(str(corps.get("code_barres") or "").split())[:60]
     if "horoscope" in corps:
         champs["horoscope"] = sans_numero(" ".join(str(corps.get("horoscope") or "").split()))[:280]
     if "indices_rumeurs" in corps:

@@ -13,8 +13,8 @@ import math
 from datetime import date
 from typing import Callable
 
-from . import rendu
-from .recidive import ACCENT, date_photo, jours_absence, signe
+from . import code_barres, rendu
+from .recidive import ACCENT, code_barres as message_defaut, date_photo, jours_absence, signe
 from .regles import MOIS, MOIS_COURT, JOURS, jour_long
 
 e = html.escape
@@ -135,7 +135,8 @@ p,h1,h2,h3{margin:0}
 .stamp{align-self:flex-end;border:4px solid var(--a);color:var(--a);font-family:'Anton',sans-serif;font-size:34px;line-height:1;text-transform:uppercase;padding:4px 14px;transform:rotate(-8deg)}
 .sign{font-family:'Elite',monospace;font-size:20px;text-align:right}
 .petit{font-family:'Oswald',sans-serif;font-size:12px;line-height:1.3;text-transform:uppercase;letter-spacing:.04em;border:2px solid #111;padding:8px 10px}
-.bar{display:flex;align-items:stretch;height:34px;margin-top:auto;flex-shrink:0}
+.bar{display:flex;align-items:stretch;height:40px;margin-top:auto;flex-shrink:0}
+.bar svg{height:40px;width:auto}
 .bar i{display:block;background:#111}
 .pied{display:flex;justify-content:space-between;align-items:flex-end;font-family:'Oswald',sans-serif;font-size:12px;letter-spacing:.06em;text-transform:uppercase}
 .lecture body{background:#e9e4d8}
@@ -271,7 +272,6 @@ def page3(g: dict) -> str:
 <div><b>{absence if absence is not None else '?'}</b><span>jours d'absence</span></div></div>
 <p class="note">{note}</p>
 {_rumeurs(g)}
-<div class="bar">{BARRES}</div>
 </div></section>"""
 
 
@@ -321,7 +321,7 @@ def page4(g: dict) -> str:
 <div class="tampon"><span class="stamp">Démenti</span><p class="sign">{e(g['signature'])}</p></div>
 </div>
 <p class="petit" style="{'' if haut else 'margin-top:auto'}">Une photo vous gêne ? Dites-le, elle sera retirée de l'édition. Chaque exemplaire est relu avant impression.</p>
-<div class="bar" style="margin-top:0">{BARRES}</div>
+<div class="bar" style="margin-top:0">{code_barres.svg(g["code_barres"])}</div>
 <div class="pied"><span>Imprimé {e(g['chez'])}</span><span>N° {g['numero']} · exemplaire unique</span></div>
 </div></section>"""
 
@@ -342,6 +342,7 @@ def document(personne: dict, edition: dict, j: dict, image: Callable[[str], byte
         "trouvees": int(edition.get("trouvees") or 0), "absence": jours_absence(prec, du),
         "mot": edition.get("mot") or "", "signature": j["signature"], "chez": j["chez"],
         "titre_une": edition.get("titre_une") or "", "rumeurs": edition.get("rumeurs") or [],
+        "code_barres": edition.get("code_barres") or message_defaut(prenom),
         "courrier": edition.get("courrier") or [], "horoscope": edition.get("horoscope") or "",
         "signe": signe(personne.get("naissance") or "")[0], "macaron": edition.get("macaron") or "hd",
     }

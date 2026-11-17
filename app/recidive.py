@@ -77,6 +77,11 @@ def titre_une(nom: str) -> str:
     return f"{nom} revient !"
 
 
+def code_barres(prenom: str) -> str:
+    """0.11.4 : le message caché dans le code-barres de la page 4, par défaut."""
+    return f"Reviens vite, {prenom} !"
+
+
 def salut(genre: str, prenom: str) -> str:
     return {"femme": f"Chère {prenom}", "homme": f"Cher {prenom}"}.get(genre, prenom)
 

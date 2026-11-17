@@ -1,5 +1,8 @@
 # Journal des versions
 
+## 0.11.4 — 17 novembre 2026
+- **Code-barres clin d'œil** (page 4 seulement, choix de Julien) : un vrai Code 128, lisible par n'importe quelle appli de scan, qui cache un message réglable dans l'édition (« Reviens vite, {prénom} ! » par défaut, 30 caractères, accents retirés à l'encodage). Aucun texte sous les barres : c'est la surprise. Le faux code-barres de la page 3 est retiré.
+
 ## 0.11.3 — 17 novembre 2026
 - **Page 4 réordonnée** (choix de Julien) : courrier des lecteurs et horoscope en haut (bandeau « Le courrier »), « Droit de réponse » (mot des hôtes, tampon, signature) tout en bas, puis l'encart sur les photos pour finir. Sans courrier ni horoscope, la page reste « Droit de réponse » comme avant. Code-barres qui ne s'écrase plus.
 

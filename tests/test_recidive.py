@@ -522,3 +522,25 @@ def test_lettre_a_la_premiere_personne_gardee():
     ls = O.lettres("Lettre : Je ne peux plus dormir depuis son départ, désolé de vous écrire.\nSignature : Le matelas\nRéponse : Courage.", "femme")
     assert ls and ls[0]["signe"] == "Le matelas"
     assert O.lettres("Désolé, je ne peux pas écrire ces lettres.", "femme") == []
+
+
+
+def test_code_barres_code128():
+    from app import code_barres as C
+    assert C.modules("Reviens vite, Camille !") == "1101001000011000101110101100100001111010010010000110100101100100001100001010010111100100110110011001111010010010000110100100111101001011001000010110011100110110011001010001100010011110010100001001101001001111010110010000110110111101101100110011001101100101000011001100011101011"      # vérifié avec python-barcode
+    assert C.ascii_("Récidive n°2 : Hélène !") == "Recidive no2 : Helene !"
+    assert C.valeurs("A")[:2] == [104, 33] and C.valeurs("A")[-1] == 106
+    assert C.svg("Coucou").startswith("<svg") and "<rect" in C.svg("Coucou")
+
+
+def test_code_barres_de_la_page_4(monter):
+    c = monter()
+    pid, r = _deux_sejours(c)
+    rid = int(r["invites"][0]["lien"].rsplit("/", 1)[1])
+    d = c.get(f"/api/recidives/{rid}").json()
+    assert d["code_barres_defaut"] == "Reviens vite, Camille !"
+    from app import code_barres as C
+    html = c.get(f"/api/recidives/{rid}/apercu").text
+    assert C.svg("Reviens vite, Camille !") in html and html.count('class="cb"') == 1      # page 4 seulement
+    c.put(f"/api/recidives/{rid}", json={"code_barres": "Le rosé t'attend"})
+    assert C.svg("Le rosé t'attend") in c.get(f"/api/recidives/{rid}/apercu").text
