@@ -19,6 +19,9 @@ from datetime import date
 
 from .regles import MOIS
 
+MACARONS = {"hg": "en haut à gauche", "hd": "en haut à droite", "bg": "en bas à gauche", "bd": "en bas à droite",
+            "aucun": "sans macaron"}      # 0.9.2 : place du macaron « Exclusif ! » sur la photo de la une
+CADRAGES = {"haut": "Rogner : haut", "centre": "centre", "bas": "bas", "entiere": "Photo entière"}    # 0.9.2 : cadrage de chaque photo (par défaut : rognée, garder le haut)
 PLACES = 7                    # une photo en une (page 1) + six sur la page 2
 ACCENT = "#D7191C"
 
@@ -155,6 +158,7 @@ def choisir(recentes: list[dict], scandales: list[dict] | None, publies: set[str
         q = {k: p.get(k) for k in ("id", "date", "ancien")}
         q["legende"] = p.get("legende") or legende(q)
         q["retiree"] = False
+        q["cadrage"] = p.get("cadrage") or "haut"
         q["description"] = p.get("description", "")          # 0.9.1 : ce que Julien voit sur la photo (pour l'IA)
         q["propositions"] = list(p.get("propositions") or [])
         sortie.append(q)

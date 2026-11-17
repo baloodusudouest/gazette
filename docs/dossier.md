@@ -222,3 +222,7 @@ Titre, sous-titre, lieu (et sa ligne de détail), « chez vous » avec l'article
 - Rien n'est choisi à la place de Julien ; description et propositions gardées avec l'édition.
 - Sur le PC, une fois : `OLLAMA_HOST=0.0.0.0` puis rouvrir Ollama, port 11434 ouvert dans le pare-feu. Stack : `GAZETTE_OLLAMA_URL`.
 - Jamais essayé sur la vraie installation.
+
+### Macaron et cadrage (0.9.2, 17/11/2026)
+
+Demandes de Julien après les premières éditions : le macaron « Exclusif ! » cachait les visages, et les photos étaient tronquées. Le macaron se place dans la photo de la une (quatre coins ou aucun) ; chaque photo se cadre : rognée en gardant le haut (par défaut), le centre ou le bas, ou entière (sans rognage).

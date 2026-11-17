@@ -708,7 +708,7 @@ def edition(rid: int):
     j = _journal()
     return {"personne": p, "edition": {**ed, "mot_defaut": R.mot_par_defaut(ed["genre"], _prenom(p)),
                                        "accroche_defaut": R.accroche(ed["genre"], _prenom(p))},
-            "signature": j["signature"], "places": R.PLACES, "titre_defaut": R.titre_une(p["nom"]),
+            "signature": j["signature"], "places": R.PLACES, "titre_defaut": R.titre_une(p["nom"]), "macarons": R.MACARONS, "cadrages": R.CADRAGES,
             "ia": {**ETAT["ollama"].etat(), "maxi": MAXI_TITRE}}
 
 
@@ -734,6 +734,10 @@ def enregistrer_edition(rid: int, corps: dict = Body(...)):
         champs["accroche"] = " ".join(str(corps.get("accroche") or "").split())[:80]
     if "mot" in corps:
         champs["mot"] = str(corps.get("mot") or "")[:4000]
+    if "macaron" in corps:                      # 0.9.2 : place du macaron « Exclusif ! » (ou aucun)
+        if corps.get("macaron") not in R.MACARONS:
+            raise HTTPException(422, "Place du macaron inconnue (hg, hd, bg, bd ou aucun).")
+        champs["macaron"] = corps["macaron"]
     if "titre_une" in corps:                    # 0.9.1 : vide = « [Nom] revient ! »
         champs["titre_une"] = " ".join(str(corps.get("titre_une") or "").split())[:90]
     if "description_une" in corps:
@@ -746,7 +750,8 @@ def enregistrer_edition(rid: int, corps: dict = Body(...)):
             if r:
                 x = {**x, "legende": " ".join(str(r.get("legende", x["legende"])).split())[:220] or R.legende(x),
                      "retiree": bool(r.get("retiree", x.get("retiree"))),
-                     "description": " ".join(str(r.get("description", x.get("description", ""))).split())[:400]}
+                     "description": " ".join(str(r.get("description", x.get("description", ""))).split())[:400],
+                     "cadrage": r.get("cadrage") if r.get("cadrage") in R.CADRAGES else x.get("cadrage", "haut")}
             photos.append(x)
         champs["photos"] = photos
     if champs:

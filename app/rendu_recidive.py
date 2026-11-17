@@ -81,10 +81,13 @@ p,h1,h2,h3{margin:0}
 .hl span{background:#FFE600;padding:0 6px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
 .sub{font-family:'Oswald',sans-serif;font-weight:500;font-size:19px;line-height:1.2;color:var(--a);text-transform:uppercase}
 .ph{position:relative;background:repeating-linear-gradient(135deg,#e6e6e6 0 10px,#d2d2d2 10px 20px);border:3px solid #111;display:flex;align-items:flex-end;overflow:hidden}
-.ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 20%}
+.ph img.centre{object-position:50% 50%}.ph img.bas{object-position:50% 85%}
+.ph img.entiere{object-fit:contain;background:#111}
 .ph .tag{position:relative;background:#111;color:#fff;font-family:'Elite',monospace;font-size:12px;padding:3px 8px}
 .ph.arch img{filter:grayscale(1) sepia(.35)}
-.burst{position:absolute;width:118px;height:118px;background:var(--a);color:#FFE600;display:flex;align-items:center;justify-content:center;text-align:center;font-family:'Anton',sans-serif;font-size:23px;line-height:1;text-transform:uppercase;transform:rotate(-12deg);clip-path:ETOILE}
+.burst{position:absolute;z-index:2;width:104px;height:104px;background:var(--a);color:#FFE600;display:flex;align-items:center;justify-content:center;text-align:center;font-family:'Anton',sans-serif;font-size:23px;line-height:1;text-transform:uppercase;transform:rotate(-12deg);clip-path:ETOILE}
+.burst.hg{top:10px;left:10px}.burst.hd{top:10px;right:10px}.burst.bg{bottom:30px;left:10px}.burst.bd{bottom:30px;right:10px}
 .teas{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:auto}
 .teas div{border:2px solid #111;padding:6px 8px;font-family:'Oswald',sans-serif;font-size:13px;line-height:1.2;text-transform:uppercase}
 .teas b{display:block;background:#111;color:#FFE600;margin:-6px -8px 5px;padding:2px 8px;font-size:14px}
@@ -136,13 +139,14 @@ def _court(iso: str) -> str:
     return f"{JOURS[d.weekday()][:3]}. {'1er' if d.day == 1 else d.day} {MOIS_COURT[d.month - 1]}"
 
 
-def _photo(p: dict | None, image: Callable[[str], bytes | None], style: str = "", etiquette: str = "") -> str:
+def _photo(p: dict | None, image: Callable[[str], bytes | None], style: str = "", etiquette: str = "", dedans: str = "") -> str:
     if not p:
-        return f'<div class="ph" style="{style}"></div>'
+        return f'<div class="ph" style="{style}">{dedans}</div>'
     octets = image(p["id"])
-    img = f'<img alt="" src="data:image/jpeg;base64,{base64.b64encode(octets).decode()}">' if octets else ""
+    cadrage = p.get("cadrage") if p.get("cadrage") in ("haut", "centre", "bas", "entiere") else "haut"
+    img = f'<img alt="" class="{cadrage}" src="data:image/jpeg;base64,{base64.b64encode(octets).decode()}">' if octets else ""
     tag = etiquette or ("ARCHIVES · " if p.get("ancien") else "") + date_photo(p.get("date", ""))
-    return f'<div class="ph{" arch" if p.get("ancien") else ""}" style="{style}">{img}<span class="tag">{e(tag)}</span></div>'
+    return f'<div class="ph{" arch" if p.get("ancien") else ""}" style="{style}">{img}{dedans}<span class="tag">{e(tag)}</span></div>'
 
 
 def _gros_titre(g: dict) -> str:
@@ -162,6 +166,8 @@ def page1(g: dict) -> str:
     n_rec, n_anc = g["n_rec"], g["n_anc"]
     sous = f"{n_rec} cliché{'s' if n_rec > 1 else ''} récent{'s' if n_rec > 1 else ''} {'ont' if n_rec > 1 else 'a'} fuité"
     sous += ", et les archives ressortent…" if n_anc else " !"
+    place = g.get("macaron") or "hd"
+    macaron = f'<div class="burst {place}">Exclusif !</div>' if place in ("hg", "hd", "bg", "bd") else ""
     return f"""<section class="page" data-page="1">
 <div class="mast"><h1>La Récidive</h1><p class="acc">« {e(g['accroche'])} »</p></div>
 <div class="strip"><span>N° {g['numero']} · {e(g['arrivee_longue'])}</span><span>Prix : offert par la maison</span></div>
@@ -169,8 +175,7 @@ def page1(g: dict) -> str:
 <span class="kick">Exclusif · Photos accablantes</span>
 {_gros_titre(g)}
 <p class="sub">{e(sous)}</p>
-{_photo(une, g['image'], 'flex:1 1 auto;min-height:0', 'Pièce à conviction n°1 · ' + date_photo(une.get('date', '')) if une else '')}
-<div class="burst" style="right:16px;top:300px">Exclusif !</div>
+{_photo(une, g['image'], 'flex:1 1 auto;min-height:0', 'Pièce à conviction n°1 · ' + date_photo(une.get('date', '')) if une else '', macaron)}
 <div class="teas">
 <div><b>Page 2</b>Les preuves en images</div>
 <div><b>Page 3</b>Chronologie des faits</div>
@@ -273,7 +278,7 @@ def document(personne: dict, edition: dict, j: dict, image: Callable[[str], byte
         "n_rec": sum(1 for p in photos if not p.get("ancien")), "n_anc": sum(1 for p in photos if p.get("ancien")),
         "trouvees": int(edition.get("trouvees") or 0), "absence": jours_absence(prec, du),
         "mot": edition.get("mot") or "", "signature": j["signature"], "chez": j["chez"],
-        "titre_une": edition.get("titre_une") or "",
+        "titre_une": edition.get("titre_une") or "", "macaron": edition.get("macaron") or "hd",
     }
     if mode == "impose":
         corps = f'<div class="feuille">{page4(g)}{page1(g)}</div><div class="feuille">{page2(g)}{page3(g)}</div>'

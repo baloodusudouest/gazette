@@ -22,6 +22,7 @@
   let accroche = $state('')
   let numero = $state('')
   let titreUne = $state('')
+  let macaron = $state('hd')         // 0.9.2 : place du macaron « Exclusif ! »
   let descriptionUne = $state('')
   let propsUne = $state([])
   let demande = $state('')          // cible en cours de proposition (« une » ou id de photo)
@@ -41,6 +42,7 @@
       accroche = ed.accroche || ed.accroche_defaut
       numero = ed.numero_main ?? ''
       titreUne = ed.titre_une || ''
+      macaron = ed.macaron || 'hd'
       descriptionUne = ed.description_une || ''
       propsUne = ed.propositions_une || []
       modifie = false
@@ -53,8 +55,8 @@
     }
   }
   function toucher() { modifie = true; message = '' }
-  const corps = () => ({ numero_main: numero === '' ? null : +numero, accroche, mot, titre_une: titreUne, description_une: descriptionUne,
-                         photos: photos.map((p) => ({ id: p.id, legende: p.legende, retiree: p.retiree, description: p.description ?? '' })) })
+  const corps = () => ({ numero_main: numero === '' ? null : +numero, accroche, mot, titre_une: titreUne, description_une: descriptionUne, macaron,
+                         photos: photos.map((p) => ({ id: p.id, legende: p.legende, retiree: p.retiree, description: p.description ?? '', cadrage: p.cadrage ?? 'haut' })) })
   async function proposer(cible) {
     const description = cible === 'une' ? descriptionUne : photos.find((p) => p.id === cible)?.description ?? ''
     demande = cible
@@ -95,18 +97,18 @@
 </script>
 
 {#snippet ia(cible, description, props, ecrire, choisir)}
-  <div class="mt-2 grid gap-1.5 rounded-lg border border-dashed p-2">
-    <div class="flex gap-2">
-      <input class="min-w-0 flex-1 rounded-lg border bg-background px-2 py-1 text-sm" maxlength="400" value={description}
+  <div class="mt-2 grid min-w-0 gap-1.5 rounded-lg border border-dashed p-2">
+    <div class="flex min-w-0 flex-wrap items-center justify-end gap-2">
+      <input class="w-full min-w-0 rounded-lg border bg-background px-2 py-1 text-sm" maxlength="400" value={description}
              oninput={(e) => ecrire(e.currentTarget.value)} placeholder="Ce qu'on voit, en quelques mots (pour l'IA)"
              aria-label={cible === 'une' ? 'Description de la photo de la une' : 'Description de la photo'} />
-      <Button size="sm" variant="outline" onclick={() => proposer(cible)} disabled={demande !== '' || description.trim().length < 3}>
+      <Button size="sm" variant="outline" class="shrink-0" onclick={() => proposer(cible)} disabled={demande !== '' || description.trim().length < 3}>
         <Sparkles class="size-3.5" aria-hidden="true" />{demande === cible ? '…' : '5 titres'}</Button>
     </div>
     {#if props.length}
       <ul class="grid gap-1" aria-label="Propositions de l'IA">
         {#each props as t}
-          <li><button type="button" class="w-full rounded-md px-2 py-1 text-left text-sm hover:bg-secondary" onclick={() => choisir(t)}>« {t} » <span class="text-xs text-muted-foreground">{t.length}</span></button></li>
+          <li><button type="button" class="w-full rounded-md px-2 py-1 text-left text-sm break-words whitespace-normal hover:bg-secondary" onclick={() => choisir(t)}>« {t} » <span class="text-xs text-muted-foreground">{t.length}</span></button></li>
         {/each}
       </ul>
     {/if}
@@ -154,6 +156,15 @@
         <p class="mt-1 text-xs text-muted-foreground">N° vide : celui du séjour ({ed.numero}). Accroche proposée d'après le genre de la fiche carnet : « {ed.accroche_defaut} ».</p>
         <label class="mt-3 grid gap-1 text-sm"><span class="etiquette">Gros titre de la une</span>
           <input class="rounded-lg border bg-background px-2 py-1" maxlength="90" placeholder={d.titre_defaut} bind:value={titreUne} oninput={toucher} /></label>
+        <fieldset class="mt-3 grid gap-1 text-sm">
+          <legend class="etiquette mb-1">Macaron « Exclusif ! » sur la photo</legend>
+          <div class="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Place du macaron">
+            {#each Object.entries(d.macarons) as [cle, nom]}
+              <button type="button" role="radio" aria-checked={macaron === cle} onclick={() => { macaron = cle; toucher() }}
+                      class="rounded-full border px-3 py-1 text-xs aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground">{nom}</button>
+            {/each}
+          </div>
+        </fieldset>
         {@render ia('une', descriptionUne, propsUne, (v) => { descriptionUne = v; toucher() }, (t) => { titreUne = t; toucher() })}
       </section>
 
@@ -171,10 +182,19 @@
             <li class="flex min-w-0 flex-col gap-2 rounded-xl border p-2 {p.retiree ? 'opacity-45' : ''}">
               <div class="relative aspect-[4/3] overflow-hidden rounded-lg bg-muted">
                 <img src={`/api/recidives/${id}/photos/${p.id}`} alt="Photo du {dateLongue(p.date)}" loading="lazy"
-                     class="size-full object-cover {p.ancien ? 'grayscale sepia-[.35]' : ''}" />
+                     class="size-full {p.cadrage === 'entiere' ? 'object-contain bg-black' : 'object-cover'} {p.ancien ? 'grayscale sepia-[.35]' : ''}"
+                     style="object-position:50% {({ haut: '20%', centre: '50%', bas: '85%' })[p.cadrage ?? 'haut'] ?? '50%'}" />
                 <span class="absolute bottom-1 left-1 rounded bg-black/75 px-1.5 text-[0.7rem] text-white">
                   {p.ancien ? 'Ancien scandale' : i === 0 ? 'En une' : 'Récente'} · {dateCourte(p.date)}</span>
               </div>
+              {#if !p.retiree}
+                <div class="flex flex-wrap items-center gap-1" role="radiogroup" aria-label="Cadrage de la photo du {dateLongue(p.date)}">
+                  {#each Object.entries(d.cadrages) as [cle, nom]}
+                    <button type="button" role="radio" aria-checked={(p.cadrage ?? 'haut') === cle} onclick={() => { p.cadrage = cle; toucher() }}
+                            class="rounded-full border px-2 py-0.5 text-[0.7rem] aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground">{nom}</button>
+                  {/each}
+                </div>
+              {/if}
               <textarea rows="2" class="min-w-0 rounded-lg border bg-background px-2 py-1 font-mono text-sm" maxlength="220" bind:value={p.legende}
                         oninput={toucher} aria-label="Légende de la photo du {dateLongue(p.date)}" disabled={p.retiree}></textarea>
               {#if !p.retiree}{@render ia(p.id, p.description ?? '', p.propositions ?? [], (v) => { p.description = v; toucher() }, (t) => { p.legende = t; toucher() })}{/if}

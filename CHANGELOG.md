@@ -1,5 +1,11 @@
 # Journal des versions
 
+## 0.9.2 — 17 novembre 2026 (La Récidive : macaron et cadrage)
+- **Macaron « Exclusif ! »** : sa place se choisit dans l'édition (en haut à gauche, en haut à droite, en bas à gauche, en bas à droite, ou sans macaron). Il est posé dans la photo de la une, plus en travers de la page, et un peu plus petit.
+- **Cadrage de chaque photo** : rogner en gardant le haut (par défaut, les têtes ne sont plus coupées), le centre ou le bas, ou **photo entière** (sans rognage, bandes sombres autour). Gardé par « Compléter ».
+- Écran : le bouton « 5 titres » ne dépasse plus de son cadre (description sur toute la largeur, bouton dessous).
+- Tests : 111.
+
 ## 0.9.1 — 17 novembre 2026 (La Récidive : titres proposés par l'IA du PC)
 - **Titres par l'IA, d'après ta description** (choix de Julien du 17/11) : dans l'édition, sous la photo de la une et sous chaque photo, on écrit en quelques mots ce qu'on voit, puis « 5 titres » : l'IA du PC (Ollama, `qwen2.5:7b`) propose cinq titres façon presse à scandale, **60 caractères au plus**. Un toucher en prend un pour le **gros titre de la une** ou pour la **légende** ; on peut toujours écrire le sien. Rien n'est choisi à ta place.
 - **Pas de modèle de vision** : la photo ne quitte pas Gazette, seule la description part vers le PC (fin du plantage du pilote AMD sur les grandes photos).

@@ -360,3 +360,35 @@ def test_ia_injoignable_ou_pas_reglee(monter):
     ed = c.get(f"/api/recidives/{rid}").json()["edition"]
     assert ed["propositions_une"] == props and ed["description_une"] == "Camille au marché"
     assert c.post("/api/connexion/verifier").json()["ia"]["ok"] is True
+
+
+
+def test_place_du_macaron(monter):
+    c = monter()
+    pid, r = _deux_sejours(c)
+    rid = int(r["invites"][0]["lien"].rsplit("/", 1)[1])
+    d = c.get(f"/api/recidives/{rid}").json()
+    assert d["edition"]["macaron"] == "hd" and set(d["macarons"]) == {"hg", "hd", "bg", "bd", "aucun"}
+    assert 'class="burst hd"' in c.get(f"/api/recidives/{rid}/apercu").text
+    assert c.put(f"/api/recidives/{rid}", json={"macaron": "bg"}).status_code == 200
+    assert 'class="burst bg"' in c.get(f"/api/recidives/{rid}/apercu").text
+    c.put(f"/api/recidives/{rid}", json={"macaron": "aucun"})
+    assert 'class="burst' not in c.get(f"/api/recidives/{rid}/apercu").text
+    assert c.put(f"/api/recidives/{rid}", json={"macaron": "milieu"}).status_code == 422
+
+
+
+def test_cadrage_des_photos(monter):
+    c = monter()
+    pid, r = _deux_sejours(c)
+    rid = int(r["invites"][0]["lien"].rsplit("/", 1)[1])
+    d = c.get(f"/api/recidives/{rid}").json()
+    p0 = d["edition"]["photos"][0]
+    assert p0["cadrage"] == "haut" and set(d["cadrages"]) == {"haut", "centre", "bas", "entiere"}
+    c.put(f"/api/recidives/{rid}", json={"photos": [{"id": p0["id"], "cadrage": "entiere"}, {"id": d["edition"]["photos"][1]["id"], "cadrage": "n_importe"}]})
+    ph = c.get(f"/api/recidives/{rid}").json()["edition"]["photos"]
+    assert ph[0]["cadrage"] == "entiere" and ph[1]["cadrage"] == "haut"
+    html = c.get(f"/api/recidives/{rid}/apercu").text
+    assert 'class="entiere"' in html and 'class="haut"' in html
+    c.post(f"/api/recidives/{rid}/preparer", json={"completer": True})            # gardé par « Compléter »
+    assert c.get(f"/api/recidives/{rid}").json()["edition"]["photos"][0]["cadrage"] == "entiere"

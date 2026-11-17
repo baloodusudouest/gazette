@@ -75,6 +75,8 @@ class Base:
             self._c.execute("ALTER TABLE personnes ADD COLUMN dernier_avant TEXT NOT NULL DEFAULT ''")
         # 0.9.1 : gros titre de la une choisi ou écrit, description et propositions de l'IA
         colonnes = {l["name"] for l in self._c.execute("PRAGMA table_info(recidives)")}
+        if "macaron" not in colonnes:            # 0.9.2 : place du macaron « Exclusif ! » sur la photo de la une
+            self._c.execute("ALTER TABLE recidives ADD COLUMN macaron TEXT NOT NULL DEFAULT 'hd'")
         for col in ("titre_une", "description_une", "propositions_une"):
             if col not in colonnes:
                 self._c.execute(f"ALTER TABLE recidives ADD COLUMN {col} TEXT NOT NULL DEFAULT '{'[]' if col == 'propositions_une' else ''}'")
