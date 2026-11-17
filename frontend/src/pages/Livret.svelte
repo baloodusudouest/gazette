@@ -28,6 +28,7 @@
   let attente = $state('')
   let ouvert = $state(null)        // {bloc, index} du sélecteur de propositions
   let ficheOuverte = $state(false)
+  let avant = $state({ sejours_avant: 0, dernier_avant: '' })   // 0.9 : séjours d'avant Gazette (N° de La Récidive)
   let tampon = $state(Date.now())
   let largeur = $state(400)
   let mes = $state(null)           // mesure de Chromium du livret enregistré (null : pas de mesure)
@@ -38,6 +39,7 @@
       d = await api.get(`/api/livrets/${id}`)
       contenu = JSON.parse(JSON.stringify(d.livret.contenu))
       mot = d.livret.mot || d.livret.mot_defaut
+      avant = { sejours_avant: d.personne.sejours_avant ?? 0, dernier_avant: d.personne.dernier_avant ?? '' }
       modifie = false
       tampon = Date.now()
       clearTimeout(minuteur)
@@ -100,6 +102,14 @@
     await api.put(`/api/personnes/${id}`, fiche)
     ficheOuverte = false
     await lire()
+  }
+  async function enregistrerAvant() {
+    try {
+      await api.put(`/api/personnes/${id}`, { sejours_avant: +avant.sejours_avant || 0, dernier_avant: avant.dernier_avant || '' })
+      message = 'Séjours d\'avant Gazette enregistrés : le numéro de La Récidive des séjours à venir est recalculé.'
+      await lire()
+      onchange?.()
+    } catch (err) { message = err.message }
   }
   async function supprimer() {
     if (!confirm(`Supprimer la fiche et le livret de ${d.personne.nom} ?`)) return
@@ -346,6 +356,17 @@
           <Button variant="ghost" size="sm" class="text-destructive" onclick={supprimer}>Supprimer</Button>
         </div>
         {#if ficheOuverte}<div class="mt-4"><FicheForm valeur={d.personne} bouton="Enregistrer la fiche" onvalider={modifierFiche} onannuler={() => (ficheOuverte = false)} /></div>{/if}
+        <details class="mt-4 text-sm">
+          <summary class="cursor-pointer text-muted-foreground">Séjours d'avant Gazette {d.personne.sejours_avant ? `(${d.personne.sejours_avant})` : ''}</summary>
+          <p class="mt-2 text-xs text-muted-foreground">La Gazette sert au premier séjour ; à partir du deuxième, La Récidive (journal à scandale) la remplace, avec les photos prises depuis le séjour précédent. Note ici les séjours d'avant l'installation de Gazette.</p>
+          <div class="mt-2 flex flex-wrap items-end gap-3">
+            <label class="grid gap-1"><span class="etiquette">Nombre</span>
+              <input type="number" min="0" max="99" class="w-24 rounded-lg border bg-background px-2 py-1" bind:value={avant.sejours_avant} /></label>
+            <label class="grid gap-1"><span class="etiquette">Arrivée du dernier</span>
+              <input type="date" class="rounded-lg border bg-background px-2 py-1" bind:value={avant.dernier_avant} /></label>
+            <Button size="sm" variant="outline" onclick={enregistrerAvant}>Enregistrer</Button>
+          </div>
+        </details>
         {#if contenu.notes?.length}<p class="mt-3 text-xs text-muted-foreground">Sources en défaut : {contenu.notes.join(' ; ')}</p>{/if}
       </section>
     </div>

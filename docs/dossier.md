@@ -124,7 +124,7 @@ Cinq avis, relecture croisée anonyme, synthèse. Verdict, à valider :
 
 ## Décisions du 14/11/2026 (après le conseil)
 
-- **Unité = la personne** : un livret préparé une fois, à froid, et réimprimé à chaque visite. Home Assistant signale qu'un invité attendu n'a pas encore de livret (ou qu'il est à relire) ; le séjour retrouve le livret existant, il n'en crée pas de nouveau.
+- **Unité = la personne** : un livret préparé une fois, à froid, et réimprimé à chaque visite (0.9 : seulement au premier séjour ; ensuite La Récidive, voir la dernière section). Home Assistant signale qu'un invité attendu n'a pas encore de livret (ou qu'il est à relire) ; le séjour retrouve le livret existant, il n'en crée pas de nouveau.
 - **L'année est toujours affichée** : c'est le principe du journal, entre proches. Pas de case « masquer l'année ». Le garde-fou « l'âge n'est jamais imprimé » est retiré ; l'âge en chiffres reste absent.
 - **« Disparus le même jour » est gardé.**
 - **V1 avec HA** : le temps 1 comprend la fiche personne, le rendu (PDF imposé et lecture), la une, la chronologie, les nés et disparus, l'édition des blocs, le PDF téléchargeable, la mention des sources, **et la porte `/ha/sejour`** avec le package HA (signalement des livrets manquants ou à relire). Musique et cinéma saisis à la main au début ; impression IPP au temps suivant, après un essai du recto-verso à la main.
@@ -180,3 +180,35 @@ Un fichier `top5_culture_annuel.csv` (1900 à 2026 : films au box-office, série
 ## Le journal réglé dans l'appli (14/11/2026)
 
 Titre, sous-titre, lieu (et sa ligne de détail), « chez vous » avec l'article, signature des hôtes, mot par défaut, couleur d'accent et Larousse se règlent dans Réglages › Le journal, gardés dans la base (table `reglages`, clé `journal`). Les variables de la stack ne donnent plus que la valeur de départ.
+
+## La Récidive, journal à scandale (17/11/2026, 0.9.0)
+
+**Demande (17/11/2026)** : un second journal, façon journal à scandale, pour les invités qui reviennent, fait des photos d'Immich où la personne est reconnue entre son dernier séjour et le nouveau.
+
+**Conseil du 17/11/2026** (cinq conseillers, relecture croisée, président). Accord : pas d'IA dans la première version, la chaîne Ollama n'est pas prête ; la relecture est le vrai filtre. Divergences : remplacer ou ajouter, enfants, genre. Angles morts : tag « scandale » jamais compté, aucun essai à blanc, photos de tiers, cas « aucune photo », N° des séjours d'avant Gazette, annulation la veille, mot « Récidive ».
+
+**Arbitrage de Julien après le conseil** :
+- retenu : **pas d'IA en 0.9.0** (légendes de gabarit modifiables ; l'IA locale en 0.9.1 après un essai réussi sur le PC) ; **repli** : aucune photo dans la fenêtre = la Gazette ; **N° corrigeable** à la main ;
+- gardé malgré le conseil : La Récidive **remplace** la Gazette dès le 2e séjour (pas de choix à chaque séjour) ; **enfants inclus**, la relecture est le seul filtre ; titre **« La Récidive »** ; pas d'essai à blanc : coder directement ;
+- genre : **carnet modifié dans le même chantier** (carnet 2.27.0 : `genre` et `immich_id` dans `/gazette/personnes`).
+
+**Règles (0.9.0)** :
+- Premier séjour d'une personne : la Gazette. À partir du 2e : une édition de **La Récidive** par séjour, qui la remplace. **N°** = numéro du séjour = séjours connus de Gazette (passés compris) + « séjours d'avant Gazette » notés sur la fiche ; corrigeable dans l'édition (2 à 99).
+- **Fenêtre** : de l'arrivée du séjour précédent (compris) à l'arrivée du nouveau ; le séjour précédent est le dernier connu de Gazette, sinon la date « arrivée du dernier séjour d'avant Gazette » de la fiche (sans elle : message dans À traiter).
+- **Photos** : Immich, personne liée à la fiche carnet (`immich_id`), photos seulement (pas de vidéo), aperçu « preview » (jamais l'original). **7 places** : la plus récente en une (page 1), six en page 2. Le plus possible de photos récentes, réparties dans le temps ; s'il en manque, photos de la personne taguées **« scandale »** (tag imbriqué accepté), rubrique « Anciens scandales » : jamais parues d'abord, réparties sur les décennies (au hasard dans chaque décennie, tour à tour, années variées), déjà parues seulement s'il n'en reste plus. Une photo « scandale » compte comme parue à l'approbation.
+- **Aucune photo récente** : édition « sans photo », le séjour garde la Gazette (préparée au besoin). **Immich pas réglé** (`GAZETTE_IMMICH_CLE` vide) : jamais de Récidive.
+- **Pas assez de photos et aucune photo « scandale »** (ou tag absent) : tuile « Photos « scandale » à trouver » dans À traiter (« Ignorer » par personne).
+- **Titre** « La Récidive » ; **accroche** selon le genre de la fiche carnet : « Elle est revenue, nous aussi » / « Il est revenu, nous aussi » / « Prénom est de retour, nous aussi » (genre « autre » ou inconnu) ; modifiable. Mot des hôtes (« Droit de réponse ») : « Chère / Cher / Prénom, vous avez lu notre enquête… », modifiable.
+- **Légendes de gabarit**, rien d'inventé : « Cliché du [date], versé au dossier. » ; ancien scandale : « Cliché du [date], ressorti pour l'occasion. » ; modifiables.
+- **Relecture obligatoire** : retirer une photo (elle ne revient pas), « Compléter » (garde photos et légendes, remplit les places libres), « Tout refaire » ; approbation refusée si une page déborde (Chromium). Ligne imprimée : « Une photo vous gêne ? Dites-le, elle sera retirée de l'édition. »
+- **Aucune date de naissance** dans ce journal (ni âge, ni anniversaire).
+
+**Mise en page** (maquette S du 17/11/2026) : même feuille que la Gazette (A4 paysage, recto p4 | p1, verso p2 | p3, recto-verso bord court). P1 bandeau rouge « La Récidive », accroche, « N° n · date d'arrivée », « [Nom] revient ! », photo en une, macaron « Exclusif ! » ; p2 « Les preuves » (pièces à conviction, puis « Anciens scandales » en sépia) ; p3 « Chronologie des faits » (séjour précédent, photos prises, retour) et chiffres (photos récentes, anciens scandales, jours d'absence) ; p4 « Droit de réponse ». Polices embarquées : Anton, Oswald (OFL), Special Elite (Apache 2.0), Source Serif 4.
+
+**Séjours** : un séjour commencé reste en mémoire quand Home Assistant libère la chambre (il finit la veille) : il compte comme une visite. Seuls les séjours pas encore commencés sont oubliés.
+
+**Technique (0.9.0)** : `app/immich.py` (lecture seule : `POST /api/search/metadata`, `GET /api/tags`, `GET /api/assets/{id}/thumbnail?size=preview` ; aperçus gardés dans `/data/photos`), `app/recidive.py` (N°, fenêtre, choix, décennies, accroche, légendes), `app/rendu_recidive.py` (mise en page), tables `recidives` et `scandales_publies`, colonnes `sejours_avant` et `dernier_avant` de `personnes`. Routes `/api/recidives…` (liste, édition, relecture, préparer/compléter, photo, aperçu, PDF, mesure, approuver). `/ha/sejour` rend `journal` (« gazette » ou « recidive »), `numero` et le lien `#/recidive/<id>` ; `/ha/etat` dit « La Récidive N° n à relire ». Variables : `GAZETTE_IMMICH_URL` (défaut `http://immich_server:2283`), `GAZETTE_IMMICH_CLE` (clé d'API dédiée : asset.read, asset.view, tag.read).
+
+**Jamais essayé sur la vraie installation** : la recherche Immich (forme de `search/metadata` avec `tagIds`, permissions de la clé), le tag « scandale », l'impression des photos, carnet 2.27.
+
+**Reste (0.9.1)** : légendes par IA locale (Ollama sur le PC : `qwen2.5vl:7b` décrit, `qwen2.5:7b` propose, filtres, gabarit de secours), seulement si la vision passe 5 photos sur 5 en aperçu et après deux ou trois vrais numéros.

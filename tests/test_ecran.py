@@ -137,3 +137,19 @@ def test_reglages_restaurer(navigateur, adresse, taille):
     page.get_by_role("button", name="Remettre ces réglages").wait_for()
     sans_debordement(page)
     assert erreurs == []
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_la_recidive(navigateur, adresse, taille):
+    """0.9 : Lou Martin revient (démo) : La Récidive N° 2 dans Livrets, puis sa relecture et son aperçu."""
+    page, erreurs = ouvrir(navigateur, adresse, taille)
+    page.get_by_text("La Récidive N° 2").first.wait_for()
+    page.locator("a[href^='#/recidive/']").first.click()
+    page.get_by_role("heading", name="Lou Martin").wait_for()
+    assert page.locator("textarea[aria-label^='Légende']").count() == 7          # 3 récentes + 4 anciens scandales
+    page.locator("button:has-text('Retirer')").first.click()
+    page.get_by_role("button", name="Enregistrer", exact=True).click()
+    page.get_by_text("Enregistré.").wait_for()
+    assert page.frame_locator("iframe[title='Aperçu de La Récidive']").get_by_text("Elle est revenue, nous aussi").first.is_visible()
+    sans_debordement(page)
+    assert erreurs == []

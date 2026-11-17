@@ -9,6 +9,7 @@
   import House from '@lucide/svelte/icons/house'
   import FileText from '@lucide/svelte/icons/file-text'
   import BookUser from '@lucide/svelte/icons/book-user'
+  import Images from '@lucide/svelte/icons/images'
   import { api } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import { dateCourte } from '$lib/format.js'
@@ -34,11 +35,13 @@
     { cle: 'larousse', nom: 'Larousse', icone: Library, cache: e.sources.lar, lit: "Journaux de l'année, chronologie du mois (1966 à 2003). Textes non libres : usage familial, rien ne sort du NAS", ecrit: 'rien' },
     { cle: 'ha', nom: 'Home Assistant', icone: House, cache: null, lit: 'reçoit les séjours sur /ha/sejour (jeton GAZETTE_JETON_HA) ; HA lit /ha/etat', ecrit: 'rien' },
     { cle: 'carnet', nom: 'Carnet', icone: BookUser, cache: null, lit: 'noms et dates de naissance sur /gazette/personnes (jeton commun MAISON_JETON) : fiche créée seule pour un invité connu, saisie assistée, dates comparées', ecrit: 'rien' },
+    { cle: 'immich', nom: 'Immich', icone: Images, cache: null, lit: "La Récidive : photos de l'invité entre deux séjours, photos taguées « scandale », aperçus (clé GAZETTE_IMMICH_CLE : asset.read, asset.view, tag.read)", ecrit: 'rien' },
     { cle: 'rendu', nom: 'Rendu PDF', icone: FileText, cache: null, lit: 'Chromium dans le conteneur, polices embarquées', ecrit: 'rien' },
   ] : [])
   function voyant(s) {
     if (s.cle === 'ha') return e.ha.porte ? (e.ha.dernier_appel ? 'ok' : 'attente') : 'ko'
-    if (s.cle === 'rendu') return e.rendu.polices ? 'ok' : 'ko'
+    if (s.cle === 'rendu') return e.rendu.polices && e.rendu_recidive?.polices ? 'ok' : 'ko'
+    if (s.cle === 'immich' && !sonde?.immich) return !e.immich.regle ? 'coupe' : e.immich.erreur ? 'ko' : 'attente'
     if (s.cle === 'carnet' && !sonde?.carnet) return !e.carnet.regle ? 'coupe' : e.carnet.erreur ? 'ko' : e.carnet.personnes !== null ? 'ok' : 'attente'
     if (s.cle === 'larousse' && !e.larousse) return 'coupe'
     if (sonde?.[s.cle]) return sonde[s.cle].ok ? 'ok' : sonde[s.cle].ok === null ? 'coupe' : 'ko'
@@ -47,7 +50,8 @@
   }
   function detail(s) {
     if (s.cle === 'ha') return e.ha.porte ? (e.ha.dernier_appel ? `dernier séjour reçu ${dateCourte(e.ha.dernier_appel)}` : 'porte ouverte, rien reçu') : 'porte fermée (jeton absent)'
-    if (s.cle === 'rendu') return e.rendu.polices ? 'polices présentes' : 'polices absentes'
+    if (s.cle === 'rendu') return e.rendu.polices && e.rendu_recidive?.polices ? 'polices présentes' : 'polices absentes'
+    if (s.cle === 'immich' && !sonde?.immich) return !e.immich.regle ? 'pas réglé : la Gazette sert à chaque séjour' : e.immich.erreur || 'réglé, pas encore lu'
     if (s.cle === 'carnet' && !sonde?.carnet) return !e.carnet.regle ? 'pas réglé (jeton absent)' : e.carnet.erreur ? e.carnet.erreur
       : e.carnet.personnes !== null ? `${e.carnet.personnes} contacts, ${e.carnet.dates} avec date complète` : 'pas encore lu'
     if (sonde?.[s.cle]) return sonde[s.cle].detail

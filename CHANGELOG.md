@@ -1,5 +1,15 @@
 # Journal des versions
 
+## 0.9.0 — 17 novembre 2026 (La Récidive, journal à scandale)
+- **La Récidive** : à partir du deuxième séjour d'une personne, une édition par séjour remplace la Gazette. Numéro = numéro du séjour (séjours connus + « séjours d'avant Gazette » de la fiche), corrigeable. Photos d'Immich où la personne (liée dans carnet) est reconnue, de l'arrivée du séjour précédent à l'arrivée du nouveau : la plus récente en une, six en page 2 ; s'il en manque, ses photos taguées « scandale » (rubrique « Anciens scandales », jamais parues d'abord, réparties sur les décennies). Aucune photo récente : la Gazette sert. Immich pas réglé : la Gazette sert, comme avant.
+- **Relecture** (`#/recidive/<id>`) : N°, accroche (« Elle est revenue / Il est revenu / Prénom est de retour, nous aussi », d'après le genre de carnet), légendes de gabarit modifiables, retirer une photo, « Compléter », « Tout refaire », mot des hôtes (« Droit de réponse »), aperçu, PDF à imprimer et lecture, approbation refusée si une page déborde. Pas d'IA en 0.9.0.
+- **Mise en page** tabloïd (maquette S) : polices Anton, Oswald, Special Elite embarquées.
+- **Livrets** : le séjour à venir montre « La Récidive N° n » et son état ; liste des éditions. **À traiter** : « Récidives à relire », « Photos « scandale » à trouver », erreurs (Immich, personne non liée, séjour précédent inconnu). **Fiche** : « Séjours d'avant Gazette » (nombre, arrivée du dernier). **Connexion** : tuile Immich.
+- **Home Assistant** : `/ha/sejour` rend `journal`, `numero` et le lien de l'édition ; `/ha/etat` compte les éditions à relire.
+- **Séjours** : un séjour commencé n'est plus oublié quand la chambre est libérée (il compte comme visite) ; seuls les séjours pas commencés le sont.
+- **Variables** : `GAZETTE_IMMICH_URL` (défaut `http://immich_server:2283`), `GAZETTE_IMMICH_CLE` (clé d'API Immich dédiée : asset.read, asset.view, tag.read ; vide : pas de Récidive). Lit `genre` et `immich_id` de carnet ≥ 2.27.
+- Tests : 104 (dont 13 pour La Récidive et l'écran de relecture sur PC et iPhone). **Jamais essayé sur la vraie installation.**
+
 ## 0.8.0 — 16 novembre 2026 (réglages dans l'appli, sauvegarde et restauration ; anciens noms retirés)
 - **Réglages dans l'appli** : le titre du journal, le sous-titre, le lieu, la ligne sous le lieu, « chez vous », la signature des hôtes, le mot par défaut, la couleur d'accent et Larousse sont les réglages de Gazette. Ils restent gardés dans `gazette.db` (Réglages › Le journal) ; `GET /api/reglages` les rend, `PUT /api/reglages` les change (valeur du mauvais type : refus 400 avec un message clair).
 - **Reprise unique** : au premier démarrage de la 0.8, un réglage encore absent de la base prend la valeur de son ancienne variable si elle est posée (`GAZETTE_TITRE`, `GAZETTE_SIGNATURE`, `GAZETTE_LIEU`, `GAZETTE_LAROUSSE`) ; une ligne au journal de l'appli le dit. Ensuite ces variables ne sont plus jamais lues. Un réglage déjà enregistré dans l'appli n'est jamais écrasé.

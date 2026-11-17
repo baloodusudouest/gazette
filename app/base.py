@@ -1,7 +1,8 @@
 """La mémoire de Gazette : un fichier SQLite dans /data.
 
-L'unité est la personne : une fiche (nom, date de naissance) et UN livret, préparé une fois puis réimprimé
-à chaque visite. Les séjours viennent de Home Assistant ; ils retrouvent le livret, ils n'en créent pas.
+L'unité est la personne : une fiche (nom, date de naissance) et UN livret, la Gazette de son premier séjour.
+0.9 : à partir du deuxième séjour, une édition de La Récidive (journal à scandale) par séjour, table `recidives`.
+Les séjours viennent de Home Assistant et restent en mémoire après le départ : ils comptent les visites.
 Le cache des sources (le passé ne change pas) est gardé sans limite de durée."""
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 ETATS = ("a_preparer", "en_preparation", "a_relire", "approuve")
+ETATS_RECIDIVE = (*ETATS, "vide")      # « vide » : aucune photo dans la fenêtre, le séjour garde la Gazette
 
 
 def maintenant() -> str:
@@ -54,7 +56,24 @@ class Base:
             CREATE TABLE IF NOT EXISTS journal (id INTEGER PRIMARY KEY, le TEXT NOT NULL, geste TEXT NOT NULL,
                 personne_id INTEGER, detail TEXT NOT NULL DEFAULT '');
             CREATE TABLE IF NOT EXISTS reglages (cle TEXT PRIMARY KEY, valeur TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS recidives (
+                id INTEGER PRIMARY KEY, personne_id INTEGER NOT NULL REFERENCES personnes(id) ON DELETE CASCADE,
+                sejour_du TEXT NOT NULL, etat TEXT NOT NULL DEFAULT 'a_preparer', numero INTEGER NOT NULL DEFAULT 2,
+                numero_main INTEGER, precedent TEXT NOT NULL DEFAULT '{}', genre TEXT NOT NULL DEFAULT '',
+                immich_id TEXT NOT NULL DEFAULT '', accroche TEXT NOT NULL DEFAULT '', photos TEXT NOT NULL DEFAULT '[]',
+                trouvees INTEGER NOT NULL DEFAULT 0, manque_scandale INTEGER NOT NULL DEFAULT 0, tag_absent INTEGER NOT NULL DEFAULT 0,
+                mot TEXT NOT NULL DEFAULT '', erreur TEXT NOT NULL DEFAULT '', prepare_le TEXT NOT NULL DEFAULT '',
+                approuve_le TEXT NOT NULL DEFAULT '', modifie_le TEXT NOT NULL DEFAULT '', UNIQUE (personne_id, sejour_du));
+            CREATE TABLE IF NOT EXISTS scandales_publies (
+                asset_id TEXT NOT NULL, personne_id INTEGER NOT NULL, le TEXT NOT NULL, PRIMARY KEY (asset_id, personne_id));
         """)
+        # 0.9 : séjours d'avant Gazette notés sur la fiche (nombre et date d'arrivée du dernier)
+        colonnes = {l["name"] for l in self._c.execute("PRAGMA table_info(personnes)")}
+        if "sejours_avant" not in colonnes:
+            self._c.execute("ALTER TABLE personnes ADD COLUMN sejours_avant INTEGER NOT NULL DEFAULT 0")
+        if "dernier_avant" not in colonnes:
+            self._c.execute("ALTER TABLE personnes ADD COLUMN dernier_avant TEXT NOT NULL DEFAULT ''")
+        self._c.commit()
         self._c.execute("PRAGMA foreign_keys=ON")
 
     def fermer(self) -> None:
@@ -85,7 +104,8 @@ class Base:
         return pid
 
     def modifier_personne(self, pid: int, **champs) -> None:
-        autorises = {k: v for k, v in champs.items() if k in ("nom", "prenom", "naissance", "pays", "alias")}
+        autorises = {k: v for k, v in champs.items() if k in ("nom", "prenom", "naissance", "pays", "alias",
+                                                              "sejours_avant", "dernier_avant")}
         if "alias" in autorises:
             autorises["alias"] = json.dumps(autorises["alias"] or [], ensure_ascii=False)
         if not autorises:
@@ -104,6 +124,8 @@ class Base:
         with self._verrou, self._c:
             self._c.execute("UPDATE invites SET personne_id = NULL WHERE personne_id = ?", (pid,))
             self._c.execute("DELETE FROM livrets WHERE personne_id = ?", (pid,))
+            self._c.execute("DELETE FROM recidives WHERE personne_id = ?", (pid,))
+            self._c.execute("DELETE FROM scandales_publies WHERE personne_id = ?", (pid,))
             self._c.execute("DELETE FROM personnes WHERE id = ?", (pid,))
 
     def trouver(self, nom: str) -> dict | None:
@@ -162,9 +184,14 @@ class Base:
         return sid
 
     def retirer_sejours(self, chambre: str) -> None:
-        """La chambre est libre : ses séjours à venir ou en cours sont oubliés."""
+        """La chambre est libre : ses séjours à venir sont oubliés. 0.9 : un séjour commencé reste en mémoire (il
+        compte comme une visite pour La Récidive) ; il finit la veille et sort de la liste des séjours à venir."""
+        aujourd_hui = date.today()
         with self._verrou, self._c:
-            self._c.execute("DELETE FROM sejours WHERE chambre = ? AND jusqu_au >= ?", (chambre, date.today().isoformat()))
+            self._c.execute("DELETE FROM sejours WHERE chambre = ? AND du > ?", (chambre, aujourd_hui.isoformat()))
+            self._c.execute("UPDATE sejours SET jusqu_au = ? WHERE chambre = ? AND du <= ? AND jusqu_au >= ?",
+                            (date.fromordinal(aujourd_hui.toordinal() - 1).isoformat(), chambre,
+                             aujourd_hui.isoformat(), aujourd_hui.isoformat()))
 
     def relier_invites(self) -> None:
         """Après la création ou le renommage d'une fiche : relie les invités restés sans fiche."""
@@ -183,6 +210,68 @@ class Base:
                 s["invites"] = [dict(l) for l in self._c.execute(
                     "SELECT nom, personne_id FROM invites WHERE sejour_id = ? ORDER BY nom", (s["id"],))]
         return ss
+
+    def sejours_de(self, pid: int) -> list[dict]:
+        """0.9 : tous les séjours connus d'une personne (passés compris), par date d'arrivée."""
+        with self._verrou:
+            return [dict(l) for l in self._c.execute(
+                "SELECT DISTINCT s.du, s.jusqu_au, s.chambre FROM sejours s JOIN invites i ON i.sejour_id = s.id "
+                "WHERE i.personne_id = ? ORDER BY s.du", (pid,))]
+
+    # ------------------------------------------------------------ La Récidive (0.9)
+    def _recidive(self, l) -> dict:
+        d = dict(l)
+        d["photos"] = json.loads(d["photos"] or "[]")
+        d["precedent"] = json.loads(d["precedent"] or "{}") or None
+        d["manque_scandale"], d["tag_absent"] = bool(d["manque_scandale"]), bool(d["tag_absent"])
+        return d
+
+    def recidive(self, rid: int) -> dict | None:
+        with self._verrou:
+            l = self._c.execute("SELECT * FROM recidives WHERE id = ?", (rid,)).fetchone()
+        return self._recidive(l) if l else None
+
+    def recidive_de(self, pid: int, du: str) -> dict | None:
+        with self._verrou:
+            l = self._c.execute("SELECT * FROM recidives WHERE personne_id = ? AND sejour_du = ?", (pid, du)).fetchone()
+        return self._recidive(l) if l else None
+
+    def recidives(self, pid: int | None = None) -> list[dict]:
+        with self._verrou:
+            ls = self._c.execute("SELECT * FROM recidives" + (" WHERE personne_id = ?" if pid else "") + " ORDER BY sejour_du DESC",
+                                 (pid,) if pid else ()).fetchall()
+        return [self._recidive(l) for l in ls]
+
+    def creer_recidive(self, pid: int, du: str, numero: int) -> int:
+        with self._verrou, self._c:
+            self._c.execute("INSERT OR IGNORE INTO recidives (personne_id, sejour_du, numero, modifie_le) VALUES (?,?,?,?)",
+                            (pid, du, numero, maintenant()))
+            return self._c.execute("SELECT id FROM recidives WHERE personne_id = ? AND sejour_du = ?", (pid, du)).fetchone()["id"]
+
+    def maj_recidive(self, rid: int, **champs) -> None:
+        for k in ("photos", "precedent"):
+            if k in champs:
+                champs[k] = json.dumps(champs[k] or ({} if k == "precedent" else []), ensure_ascii=False)
+        for k in ("manque_scandale", "tag_absent"):
+            if k in champs:
+                champs[k] = int(bool(champs[k]))
+        champs["modifie_le"] = maintenant()
+        with self._verrou, self._c:
+            self._c.execute(f"UPDATE recidives SET {', '.join(k + ' = ?' for k in champs)} WHERE id = ?", (*champs.values(), rid))
+
+    def supprimer_recidive(self, rid: int) -> None:
+        with self._verrou, self._c:
+            self._c.execute("DELETE FROM recidives WHERE id = ?", (rid,))
+
+    def publies(self, pid: int) -> set[str]:
+        """Photos « scandale » de cette personne déjà parues dans une édition approuvée."""
+        with self._verrou:
+            return {l["asset_id"] for l in self._c.execute("SELECT asset_id FROM scandales_publies WHERE personne_id = ?", (pid,))}
+
+    def publier(self, pid: int, assets: list[str]) -> None:
+        with self._verrou, self._c:
+            for a in assets:
+                self._c.execute("INSERT OR IGNORE INTO scandales_publies VALUES (?,?,?)", (a, pid, maintenant()))
 
     # ------------------------------------------------------------ « Ignorer » (tuiles d'À traiter)
     def ignorer(self, sorte: str, cle: str) -> None:

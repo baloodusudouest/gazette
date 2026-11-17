@@ -6,6 +6,8 @@
   import Cake from '@lucide/svelte/icons/cake'
   import TriangleAlert from '@lucide/svelte/icons/triangle-alert'
   import CalendarClock from '@lucide/svelte/icons/calendar-clock'
+  import Siren from '@lucide/svelte/icons/siren'
+  import ImageOff from '@lucide/svelte/icons/image-off'
   import { api } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import FicheForm from '$lib/FicheForm.svelte'
@@ -20,7 +22,7 @@
   async function lire() {
     try {
       t = await api.get('/api/a-traiter')
-      if (!choisi) choisi = ['fiches', 'dates', 'anniversaires', 'relire', 'erreurs'].find((k) => t[k].length) ?? null
+      if (!choisi) choisi = ['fiches', 'dates', 'anniversaires', 'recidives', 'relire', 'scandales', 'erreurs'].find((k) => t[k].length) ?? null
       onchange?.()
     } catch (err) {
       if (err.statut === 401) ondeconnecte?.()
@@ -57,7 +59,9 @@
     { cle: 'fiches', nom: 'Invités sans fiche', icone: UserPlus, aide: 'annoncés par Home Assistant' },
     { cle: 'dates', nom: 'Dates à vérifier', icone: CalendarClock, aide: 'différentes dans carnet' },
     { cle: 'anniversaires', nom: 'Anniversaires proches', icone: Cake, aide: 'à 14 jours du séjour' },
+    { cle: 'recidives', nom: 'Récidives à relire', icone: Siren, aide: 'journal à scandale, dès le 2e séjour' },
     { cle: 'relire', nom: 'Livrets à relire', icone: BookOpenCheck, aide: 'avant d\'approuver' },
+    { cle: 'scandales', nom: 'Photos « scandale » à trouver', icone: ImageOff, aide: 'à taguer dans Immich' },
     { cle: 'erreurs', nom: 'Préparations en échec', icone: TriangleAlert, aide: 'sources illisibles' },
   ]
   onMount(lire)
@@ -71,7 +75,7 @@
 {#if message}<p class="mb-4 rounded-xl border px-4 py-2 text-sm" role="status">{message}</p>{/if}
 
 {#if t}
-  <div class="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5" role="group" aria-label="Tuiles">
+  <div class="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4" role="group" aria-label="Tuiles">
     {#each tuiles as tu}
       {@const Icone = tu.icone}
       {#if t[tu.cle].length}
@@ -162,12 +166,37 @@
         {/each}
       </ul>
     </section>
+  {:else if choisi === 'recidives' && t.recidives.length}
+    <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Récidives à relire">
+      <h2 class="text-lg font-semibold">La Récidive : éditions à relire</h2>
+      <p class="mt-1 text-sm text-muted-foreground">Relire chaque photo et sa légende, retirer ce qui pourrait gêner, puis approuver.</p>
+      <ul class="mt-3 grid gap-2">
+        {#each t.recidives as r}
+          <li class="flex items-center justify-between gap-2"><a class="underline-offset-4 hover:underline" href={'#/recidive/' + r.id}>{r.nom} · N° {r.numero}</a>
+            <span class="text-xs {r.attendu ? 'text-primary' : 'text-muted-foreground'}">{r.attendu ? 'invité attendu le ' : 'séjour du '}{dateCourte(r.sejour_du)}</span></li>
+        {/each}
+      </ul>
+    </section>
+  {:else if choisi === 'scandales' && t.scandales.length}
+    <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Photos scandale à trouver">
+      <h2 class="text-lg font-semibold">Photos « scandale » à trouver</h2>
+      <p class="mt-1 text-sm text-muted-foreground">Pas assez de photos récentes, et aucune photo de la personne avec le tag « scandale » dans Immich pour compléter. Tague quelques vieilles photos dans Immich, puis « Compléter » dans l'édition.</p>
+      <ul class="mt-3 grid gap-2">
+        {#each t.scandales as s}
+          <li class="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3">
+            <span><a class="font-semibold underline-offset-4 hover:underline" href={'#/recidive/' + s.id}>{s.nom}</a>
+              <span class="block text-sm text-muted-foreground">{s.photos} photo{s.photos > 1 ? 's' : ''} sur {s.places}{s.tag_absent ? ' · le tag « scandale » n\'existe pas encore dans Immich' : ''}</span></span>
+            <Button size="sm" variant="outline" onclick={() => ignorer('scandale', s.cle)}>Ignorer</Button>
+          </li>
+        {/each}
+      </ul>
+    </section>
   {:else if choisi === 'erreurs' && t.erreurs.length}
     <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Préparations en échec">
       <h2 class="text-lg font-semibold">Préparations en échec</h2>
       <ul class="mt-3 grid gap-2">
         {#each t.erreurs as r}
-          <li><a class="underline-offset-4 hover:underline" href={'#/livret/' + r.id}>{r.nom}</a> <span class="text-sm text-destructive">{r.erreur}</span></li>
+          <li><a class="underline-offset-4 hover:underline" href={r.recidive ? '#/recidive/' + r.recidive : '#/livret/' + r.id}>{r.nom}{r.recidive ? ' · La Récidive' : ''}</a> <span class="text-sm text-destructive">{r.erreur}</span></li>
         {/each}
       </ul>
     </section>

@@ -1,5 +1,6 @@
 <script>
   // Écran d'ouverture : les séjours à venir (qui arrive, son livret est-il prêt ?) puis tous les livrets.
+  // 0.9 : à partir du 2e séjour, l'invité reçoit La Récidive (journal à scandale) à la place de sa Gazette.
   import { onMount, onDestroy } from 'svelte'
   import Plus from '@lucide/svelte/icons/plus'
   import Cake from '@lucide/svelte/icons/cake'
@@ -19,7 +20,7 @@
     try {
       d = await api.get('/api/livrets')
       clearTimeout(minuteur)
-      if (d.livrets.some((l) => l.etat === 'en_preparation')) minuteur = setTimeout(lire, 4000)
+      if (d.livrets.some((l) => l.etat === 'en_preparation') || d.recidives.some((r) => r.etat === 'en_preparation')) minuteur = setTimeout(lire, 4000)
     } catch (err) {
       if (err.statut === 401) ondeconnecte?.()
       else erreur = err.message
@@ -69,7 +70,13 @@
               {#each s.invites as i}
                 {@const l = parId[i.personne_id]}
                 <li class="flex items-center justify-between gap-2 text-sm">
-                  {#if l}
+                  {#if l && i.edition}
+                    <a class="underline-offset-4 hover:underline" href={'#/recidive/' + i.edition.id}>{i.nom}</a>
+                    <span class="flex items-center gap-2">
+                      <span class="text-xs font-semibold tracking-wide text-primary uppercase">La Récidive N° {i.edition.numero}</span>
+                      <Etat etat={i.edition.etat} />
+                    </span>
+                  {:else if l}
                     <a class="underline-offset-4 hover:underline" href={'#/livret/' + l.id}>{i.nom}</a>
                     <span class="flex items-center gap-2">
                       {#if l.anniversaire}<Cake class="size-4 text-primary" aria-label="Anniversaire {l.anniversaire.libelle}" />{/if}
@@ -82,6 +89,24 @@
                 </li>
               {/each}
             </ul>
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
+
+  {#if d.recidives.length}
+    <section class="mb-8" aria-label="La Récidive">
+      <h2 class="etiquette mb-3">La Récidive · éditions</h2>
+      <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {#each d.recidives as r}
+          <li>
+            <a href={'#/recidive/' + r.id} class="flex h-full flex-col gap-2 rounded-2xl border bg-card p-4 transition-colors hover:border-primary">
+              <span class="flex items-start justify-between gap-2"><span class="font-medium">{r.nom}</span><Etat etat={r.etat} /></span>
+              <span class="text-sm text-muted-foreground">N° {r.numero} · séjour du {dateLongue(r.sejour_du)}</span>
+              {#if r.photos}<span class="text-sm">{r.photos} photo{r.photos > 1 ? 's' : ''}{r.anciens ? ` dont ${r.anciens} ancien${r.anciens > 1 ? 's' : ''} scandale${r.anciens > 1 ? 's' : ''}` : ''}</span>{/if}
+              {#if r.erreur}<span class="text-xs text-destructive">{r.erreur}</span>{/if}
+            </a>
           </li>
         {/each}
       </ul>

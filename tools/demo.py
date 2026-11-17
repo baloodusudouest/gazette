@@ -4,11 +4,12 @@ Sert aux tests d'écran et aux captures. Usage : python -m tools.demo [port]   (
 """
 from __future__ import annotations
 
+import base64
 import sys
 import tempfile
 import threading
 import time
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import httpx
@@ -33,8 +34,26 @@ CARNET = [  # carnet simulé, personnes inventées
     {"carnet_id": "d2", "nom": "Sacha Exemple", "nom_carnet": "Sacha Exemple", "prenom": "Sacha",
      "naissance": None, "jour": 3, "mois": 5, "annee": None},
     {"carnet_id": "d3", "nom": "Lou MARTIN", "nom_carnet": "Lou Martin", "prenom": "Lou",
-     "naissance": "1988-07-08", "jour": 8, "mois": 7, "annee": 1988},
+     "naissance": "1988-07-08", "jour": 8, "mois": 7, "annee": 1988, "genre": "femme", "immich_id": "10000000-0001"},
 ]
+# 0.9 : Immich simulé pour La Récidive (Lou Martin revient) — une petite image grise pour chaque photo
+GRIS = base64.b64decode("/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAx"
+                        "NDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAI"
+                        "AQEAAD8AKp//2Q==")
+
+
+def immich_simule(methode: str, chemin: str, corps: dict | None = None):
+    auj = date.today()
+    recentes = [{"id": f"20000000-000{i}", "localDateTime": (auj - timedelta(days=25 - i * 6)).isoformat() + "T12:00:00"} for i in range(3)]
+    vieilles = [{"id": f"30000000-{an}", "localDateTime": f"{an}-08-15T12:00:00"} for an in (1994, 2003, 2011, 2017)]
+    if chemin == "/tags":
+        return [{"id": "tag-scandale", "value": "scandale"}]
+    if chemin == "/search/metadata":
+        if "tagIds" in corps:
+            return {"assets": {"items": vieilles, "nextPage": None}}
+        return {"assets": {"items": [a for a in recentes if corps["takenAfter"][:10] <= a["localDateTime"][:10] < corps["takenBefore"][:10]],
+                           "nextPage": None}}
+    return GRIS
 NOTORIETE = [("Gustav Exemple", 90), ("Ringo Exemple", 120), ("Arthur Exemple", 80), ("Henri Exemple", 20)]
 
 
@@ -60,6 +79,7 @@ def configurer(data: Path) -> None:
                               carnet_url="http://carnet.demo", carnet_jeton="jeton-de-demo",
                               sources_actives=False, synchrone=True, jeton_ha=JETON)
     main.ETAT["anneau_lire"] = anneau_simule
+    main.ETAT["immich_lire"] = immich_simule
 
 
 def semer(adresse: str) -> None:
@@ -79,6 +99,11 @@ def semer(adresse: str) -> None:
         c.post("/ha/sejour", headers={"Authorization": f"Bearer {JETON}"},
                json={"chambre": "verte", "noms": ["Camille Fabre", "Dominique Inconnu", "Sacha Exemple"],
                      "du": f"{a}-07-03", "jusqu_au": f"{a}-07-05"})
+        # 0.9 : Lou Martin est venue il y a un mois et revient : La Récidive N° 2
+        auj = date.today()
+        for du, fin in ((auj - timedelta(days=30), auj - timedelta(days=28)), (auj + timedelta(days=12), auj + timedelta(days=14))):
+            c.post("/ha/sejour", headers={"Authorization": f"Bearer {JETON}"},
+                   json={"chambre": "bleue", "noms": ["Lou Martin"], "du": du.isoformat(), "jusqu_au": fin.isoformat()})
 
 
 def lancer(port: int, data: Path) -> None:

@@ -1,5 +1,6 @@
-"""Gazette : « le monde le jour de votre naissance », un livret A5 par proche, préparé une fois et réimprimé
-à chaque visite.
+"""Gazette : « le monde le jour de votre naissance », un livret A5 par proche pour son premier séjour ; 0.9 : à
+partir du deuxième séjour, La Récidive, un journal à scandale fait des photos d'Immich prises depuis le séjour
+précédent (une édition par séjour).
 
 Routes : /health (publique) ; /api/… (session) ; /ha/… (jeton de Home Assistant) ; /externe/sauvegarde (jeton
 commun de la maison, pour l'Anneau) ; puis l'interface.
@@ -18,8 +19,9 @@ from datetime import date, datetime, timedelta
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 
-from . import __version__, anniversaire, culture, journal, maison, rendu
+from . import __version__, anniversaire, culture, journal, maison, recidive as R, rendu, rendu_recidive
 from .carnet import Carnet
+from .immich import Immich
 from .auth import COMMUN, DUREE, Sessions
 from .base import ETATS, Base, cle_nom, maintenant
 from .config import APPLI, Config, charger, racine
@@ -79,13 +81,16 @@ def _preparer(pid: int) -> None:
 def _ouvrier() -> None:
     file: queue.Queue = ETAT["file"]
     while True:
-        pid = file.get()
-        if pid is None:
+        tache = file.get()
+        if tache is None:
             return
         try:
-            _preparer(pid)
+            if isinstance(tache, tuple):          # 0.9 : ("r", id, completer) — une édition de La Récidive
+                _preparer_recidive(tache[1], tache[2])
+            else:
+                _preparer(tache)
         finally:
-            ETAT["en_file"].discard(pid)
+            ETAT["en_file"].discard(tache if not isinstance(tache, tuple) else ("r", tache[1]))
             file.task_done()
 
 
@@ -98,6 +103,119 @@ def demander_preparation(pid: int) -> None:
     ETAT["en_file"].add(pid)
     ETAT["base"].maj_livret(pid, etat="en_preparation", erreur="")
     ETAT["file"].put(pid)
+
+
+# ================================================================ La Récidive (0.9)
+
+def _contact(p: dict) -> dict:
+    """Ce que carnet sait de cette fiche (genre, personne d'Immich) : le contact unique qui porte son nom ou un alias."""
+    if not ETAT["carnet"].actif:
+        return {}
+    trouves = {}
+    for n in [p["nom"], *p["alias"]]:
+        for c in ETAT["carnet"].chercher(n):
+            trouves[c.get("carnet_id") or id(c)] = c
+    return next(iter(trouves.values())) if len(trouves) == 1 else {}
+
+
+def _numero_et_precedent(p: dict, du: str) -> tuple[int, dict | None]:
+    sejours = ETAT["base"].sejours_de(p["id"])
+    n = R.numero([s["du"] for s in sejours], du, p.get("sejours_avant") or 0)
+    return n, R.precedent(sejours, du, p.get("dernier_avant") or "")
+
+
+def _edition_du_sejour(pid: int, du: str) -> dict | None:
+    """L'édition de La Récidive de ce séjour (créée et mise en préparation au besoin), ou None : premier séjour (ou
+    Immich pas réglé), c'est la Gazette. Une édition pas encore approuvée d'un séjour redevenu le premier est retirée."""
+    base: Base = ETAT["base"]
+    p = base.personne(pid)
+    if not p:
+        return None
+    n, prec = _numero_et_precedent(p, du)
+    ed = base.recidive_de(pid, du)
+    if n < 2:
+        if ed and ed["etat"] != "approuve":
+            base.supprimer_recidive(ed["id"])
+        return None
+    if not ETAT["immich"].actif and not (ed and ed["etat"] == "approuve"):
+        return None                     # Immich pas réglé : pas de photos, le séjour garde la Gazette
+    if not ed:
+        rid = base.creer_recidive(pid, du, n)
+        base.maj_recidive(rid, precedent=prec)
+        base.noter("recidive", pid, f"N° {n}, séjour du {du}")
+        demander_recidive(rid)
+        return base.recidive(rid)
+    if ed["numero"] != n or (ed["precedent"] or None) != prec:
+        base.maj_recidive(ed["id"], numero=n, precedent=prec)
+        ed = base.recidive(ed["id"])
+    if ed["etat"] == "a_preparer" and not ed["erreur"]:
+        demander_recidive(ed["id"])
+        ed = base.recidive(ed["id"])
+    return ed
+
+
+def demander_recidive(rid: int, completer: bool = False) -> None:
+    if ETAT["cfg"].synchrone:
+        _preparer_recidive(rid, completer)
+        return
+    if ("r", rid) in ETAT["en_file"]:
+        return
+    ETAT["en_file"].add(("r", rid))
+    ETAT["base"].maj_recidive(rid, etat="en_preparation", erreur="")
+    ETAT["file"].put(("r", rid, completer))
+
+
+def _preparer_recidive(rid: int, completer: bool = False) -> None:
+    """Cherche les photos (Immich) et compose l'édition. `completer` : garde les photos et légendes de la relecture,
+    remplace seulement les photos retirées."""
+    base: Base = ETAT["base"]
+    ed = base.recidive(rid)
+    p = base.personne(ed["personne_id"]) if ed else None
+    if not ed or not p:
+        return
+    base.maj_recidive(rid, etat="en_preparation", erreur="")
+    contact = _contact(p)
+    genre = contact.get("genre") if contact else ed["genre"]
+    immich_id = (contact.get("immich_id") if contact else "") or ed["immich_id"]
+    _, prec = _numero_et_precedent(p, ed["sejour_du"])
+
+    def echec(message: str) -> None:
+        base.maj_recidive(rid, etat="a_preparer", erreur=message[:300], genre=genre or "", immich_id=immich_id or "")
+        base.noter("erreur", p["id"], f"La Récidive : {message}"[:200])
+
+    immich: Immich = ETAT["immich"]
+    if not immich.actif:
+        return echec("Immich n'est pas réglé (GAZETTE_IMMICH_CLE vide) : pas de photos.")
+    if not immich_id:
+        return echec("Pas de personne d'Immich liée à cette fiche dans carnet (ou carnet ne la trouve pas).")
+    if not prec:
+        return echec("Date du séjour précédent inconnue : la noter sur la fiche (séjours d'avant Gazette).")
+    try:
+        recentes = immich.photos(immich_id, prec["du"], ed["sejour_du"])
+        garder = [x for x in ed["photos"] if not x.get("retiree")] if completer else []
+        exclus = {x["id"] for x in ed["photos"] if x.get("retiree")} if completer else set()
+        dispo = [x for x in recentes if x["id"] not in exclus and x["id"] not in {g["id"] for g in garder}]
+        scandales = immich.scandales(immich_id) if len(garder) + len(dispo) < R.PLACES else []
+        choix = R.choisir(recentes, scandales, base.publies(p["id"]), garder=garder, exclus=exclus)
+    except Exception as ex:  # noqa: BLE001 — Immich arrêté, clé refusée : message dans À traiter
+        return echec(f"Immich : {str(ex).splitlines()[0][:200] or type(ex).__name__}")
+    if completer:                        # les photos retirées restent notées (elles ne reviennent pas)
+        choix["photos"] += [x for x in ed["photos"] if x.get("retiree")]
+    for x in choix["photos"]:
+        if not x.get("retiree"):
+            immich.apercu(x["id"])
+    vide = not any(not x.get("retiree") for x in choix["photos"])
+    accroche = ed["accroche"] if (completer and ed["accroche"]) else R.accroche(genre or "", _prenom(p))
+    base.maj_recidive(rid, etat="vide" if vide else "a_relire", photos=choix["photos"], trouvees=choix["trouvees"],
+                      manque_scandale=choix["manque_scandale"], tag_absent=choix["tag_absent"], genre=genre or "",
+                      immich_id=immich_id,
+                      accroche=accroche, precedent=prec, prepare_le=maintenant(), approuve_le="", erreur="")
+    base.noter("recidive", p["id"], "aucune photo dans la fenêtre : la Gazette sert" if vide
+               else f"{sum(1 for x in choix['photos'] if not x.get('retiree'))} photo(s)")
+    if vide:                             # repli : le séjour garde la Gazette, qui doit être prête
+        lv = base.livret(p["id"])
+        if lv and lv["etat"] == "a_preparer" and not lv["erreur"]:
+            demander_preparation(p["id"])
 
 
 @asynccontextmanager
@@ -114,6 +232,7 @@ async def cycle(app: FastAPI):
     ETAT.setdefault("sources", Sources(base, actives=cfg.sources_actives, larousse=larousse))
     ETAT["sources"].larousse_actif = larousse
     ETAT["carnet"] = Carnet(cfg.carnet_url, cfg.carnet_jeton, base, lire=ETAT.get("carnet_lire"))
+    ETAT["immich"] = Immich(cfg.immich_url, cfg.immich_cle, cfg.data / "photos", lire=ETAT.get("immich_lire"))
     ouvrier = threading.Thread(target=_ouvrier, daemon=True, name="preparation")
     ouvrier.start()
     # Livrets restés « en préparation » (redémarrage pendant une lecture) : on reprend
@@ -121,6 +240,9 @@ async def cycle(app: FastAPI):
         lv = base.livret(p["id"])
         if lv and lv["etat"] == "en_preparation":
             demander_preparation(p["id"])
+    for ed in base.recidives():
+        if ed["etat"] == "en_preparation":
+            demander_recidive(ed["id"])
     yield
     ETAT["file"].put(None)
     ETAT["sources"].fermer()
@@ -251,7 +373,8 @@ def _resume(p: dict) -> dict:
     c = lv.get("contenu") or {}
     sej = _sejours_de(p["id"])
     return {"id": p["id"], "nom": p["nom"], "prenom": p["prenom"], "naissance": p["naissance"], "pays": p["pays"],
-            "alias": p["alias"], "etat": lv.get("etat", "a_preparer"), "erreur": lv.get("erreur", ""),
+            "alias": p["alias"], "sejours_avant": p.get("sejours_avant", 0), "dernier_avant": p.get("dernier_avant", ""),
+            "etat": lv.get("etat", "a_preparer"), "erreur": lv.get("erreur", ""),
             "approuve_le": lv.get("approuve_le", ""), "une": (c.get("une") or {}).get("titre", ""),
             "prochain_sejour": ({k: sej[0][k] for k in ("chambre", "du", "jusqu_au")} if sej else None),
             "anniversaire": next((a for a in _anniversaires_de(p) if not a["ignore"]), None)}
@@ -277,6 +400,11 @@ def _lien(pid: int) -> str:
     return f"{adresse}/#/livret/{pid}" if adresse else f"/#/livret/{pid}"
 
 
+def _lien_edition(rid: int) -> str:
+    adresse = _adresse()
+    return f"{adresse}/#/recidive/{rid}" if adresse else f"/#/recidive/{rid}"
+
+
 def _origine_lecture_seule() -> str:
     """« maison » (MAISON_LECTURE_SEULE), « appli » (GAZETTE_LECTURE_SEULE) ou « » : pour l'écran."""
     cfg: Config = ETAT["cfg"]
@@ -285,11 +413,25 @@ def _origine_lecture_seule() -> str:
 
 # ================================================================ fiches et livrets
 
+def _resume_edition(ed: dict, p: dict | None = None) -> dict:
+    p = p or ETAT["base"].personne(ed["personne_id"]) or {"nom": "?"}
+    vues = [x for x in ed["photos"] if not x.get("retiree")]
+    return {"id": ed["id"], "personne_id": ed["personne_id"], "nom": p["nom"], "sejour_du": ed["sejour_du"],
+            "numero": ed["numero_main"] or ed["numero"], "etat": ed["etat"], "erreur": ed["erreur"],
+            "photos": len(vues), "anciens": sum(1 for x in vues if x.get("ancien")), "approuve_le": ed["approuve_le"]}
+
+
 @app.get("/api/livrets")
 def livrets():
+    """0.9 : chaque invité d'un séjour à venir porte `edition` (La Récidive de ce séjour) ou rien (la Gazette)."""
     base: Base = ETAT["base"]
-    return {"livrets": [_resume(p) for p in base.personnes()],
-            "sejours": base.sejours(), "etats": list(ETATS)}
+    sejours = base.sejours()
+    for s in sejours:
+        for i in s["invites"]:
+            ed = _edition_du_sejour(i["personne_id"], s["du"]) if i["personne_id"] else None
+            i["edition"] = _resume_edition(ed) if ed and ed["etat"] != "vide" else None
+    return {"livrets": [_resume(p) for p in base.personnes()], "sejours": sejours, "etats": list(ETATS),
+            "recidives": [_resume_edition(ed) for ed in base.recidives()]}
 
 
 def _champs_personne(corps: dict, exiger: bool) -> dict:
@@ -310,6 +452,22 @@ def _champs_personne(corps: dict, exiger: bool) -> dict:
         champs["pays"] = str(corps.get("pays") or "France")[:40]
     if "alias" in corps:
         champs["alias"] = [" ".join(str(a).split())[:80] for a in (corps.get("alias") or []) if str(a).strip()][:8]
+    if "sejours_avant" in corps:                 # 0.9 : séjours d'avant Gazette (comptent pour le N° de La Récidive)
+        try:
+            n = int(corps.get("sejours_avant") or 0)
+        except (TypeError, ValueError):
+            raise HTTPException(422, "Nombre de séjours d'avant Gazette illisible.")
+        if not 0 <= n <= 99:
+            raise HTTPException(422, "Nombre de séjours d'avant Gazette hors des valeurs possibles (0 à 99).")
+        champs["sejours_avant"] = n
+    if "dernier_avant" in corps:
+        v = str(corps.get("dernier_avant") or "").strip()
+        if v:
+            d = _date(v, "date du dernier séjour d'avant Gazette")
+            if d > date.today():
+                raise HTTPException(422, "Le dernier séjour d'avant Gazette ne peut pas être dans le futur.")
+            v = d.isoformat()
+        champs["dernier_avant"] = v
     return champs
 
 
@@ -330,6 +488,11 @@ def modifier_personne(pid: int, corps: dict = Body(...)):
     ETAT["base"].modifier_personne(pid, **c)
     if c.get("naissance") and c["naissance"] != avant["naissance"]:
         demander_preparation(pid)
+    if "sejours_avant" in c or "dernier_avant" in c:      # le N° et la fenêtre des séjours à venir changent
+        for s in _sejours_de(pid):
+            ed = _edition_du_sejour(pid, s["du"])
+            if ed and ed["etat"] in ("a_preparer", "a_relire", "vide") and "dernier_avant" in c:
+                demander_recidive(ed["id"])
     return {"ok": True}
 
 
@@ -518,6 +681,152 @@ def remplir_culture(pid: int):
     return {"ok": True, "musique": c["musique"], "cinema": c["cinema"]}
 
 
+# ================================================================ La Récidive : relecture, aperçu, PDF, approbation (0.9)
+
+def _edition_ou_404(rid: int) -> tuple[dict, dict]:
+    ed = ETAT["base"].recidive(rid)
+    p = ETAT["base"].personne(ed["personne_id"]) if ed else None
+    if not ed or not p:
+        raise HTTPException(404, "Édition introuvable.")
+    return ed, p
+
+
+def _mot_recidive(ed: dict, p: dict) -> str:
+    return ed["mot"] or R.mot_par_defaut(ed["genre"], _prenom(p))
+
+
+@app.get("/api/recidives")
+def liste_recidives():
+    return {"recidives": [_resume_edition(ed) for ed in ETAT["base"].recidives()]}
+
+
+@app.get("/api/recidives/{rid}")
+def edition(rid: int):
+    ed, p = _edition_ou_404(rid)
+    j = _journal()
+    return {"personne": p, "edition": {**ed, "mot_defaut": R.mot_par_defaut(ed["genre"], _prenom(p)),
+                                       "accroche_defaut": R.accroche(ed["genre"], _prenom(p))},
+            "signature": j["signature"], "places": R.PLACES}
+
+
+@app.put("/api/recidives/{rid}")
+def enregistrer_edition(rid: int, corps: dict = Body(...)):
+    """La relecture : N° corrigé à la main, accroche, mot, légendes, photos retirées ou remises. Une édition approuvée
+    qui change repasse « à relire »."""
+    ed, _ = _edition_ou_404(rid)
+    champs = {}
+    if "numero_main" in corps:
+        v = corps.get("numero_main")
+        if v in (None, "", 0):
+            champs["numero_main"] = None
+        else:
+            try:
+                n = int(v)
+            except (TypeError, ValueError):
+                raise HTTPException(422, "Numéro illisible.")
+            if not 2 <= n <= 99:
+                raise HTTPException(422, "Numéro hors des valeurs possibles (2 à 99).")
+            champs["numero_main"] = n
+    if "accroche" in corps:
+        champs["accroche"] = " ".join(str(corps.get("accroche") or "").split())[:80]
+    if "mot" in corps:
+        champs["mot"] = str(corps.get("mot") or "")[:4000]
+    if isinstance(corps.get("photos"), list):
+        recues = {str(x.get("id")): x for x in corps["photos"] if isinstance(x, dict)}
+        photos = []
+        for x in ed["photos"]:
+            r = recues.get(x["id"])
+            if r:
+                x = {**x, "legende": " ".join(str(r.get("legende", x["legende"])).split())[:220] or R.legende(x),
+                     "retiree": bool(r.get("retiree", x.get("retiree")))}
+            photos.append(x)
+        champs["photos"] = photos
+    if champs:
+        if ed["etat"] == "approuve":
+            champs["etat"], champs["approuve_le"] = "a_relire", ""
+        if "photos" in champs and ed["etat"] in ("a_relire", "approuve") and not any(not x["retiree"] for x in champs["photos"]):
+            raise HTTPException(409, "Toutes les photos seraient retirées : remets-en une, ou « Compléter » pour en chercher d'autres.")
+        ETAT["base"].maj_recidive(rid, **champs)
+    return {"ok": True, "etat": ETAT["base"].recidive(rid)["etat"]}
+
+
+@app.post("/api/recidives/{rid}/preparer")
+def repreparer_edition(rid: int, corps: dict = Body(default={})):
+    """De nouveau depuis Immich. `completer: true` garde les photos et légendes de la relecture et remplace seulement
+    les photos retirées ; sinon tout est refait (le mot, l'accroche et le N° corrigé sont gardés)."""
+    ed, _ = _edition_ou_404(rid)
+    ETAT["base"].maj_recidive(rid, erreur="")
+    demander_recidive(rid, bool(corps.get("completer")))
+    return {"ok": True}
+
+
+@app.get("/api/recidives/{rid}/photos/{asset}")
+def photo_edition(rid: int, asset: str):
+    ed, _ = _edition_ou_404(rid)
+    if asset not in {x["id"] for x in ed["photos"]}:
+        raise HTTPException(404, "Photo introuvable dans cette édition.")
+    octets = ETAT["immich"].gardee(asset) or ETAT["immich"].apercu(asset)
+    if not octets:
+        raise HTTPException(404, "Aperçu indisponible (Immich injoignable ?).")
+    return Response(octets, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
+
+
+def _rendre_edition(rid: int, mode: str) -> tuple[str, dict, dict]:
+    ed, p = _edition_ou_404(rid)
+    ed = {**ed, "mot": _mot_recidive(ed, p), "accroche": ed["accroche"] or R.accroche(ed["genre"], _prenom(p))}
+    return rendu_recidive.document(p, ed, _journal(), ETAT["immich"].gardee, mode=mode), p, ed
+
+
+@app.get("/api/recidives/{rid}/apercu")
+def apercu_edition(rid: int, mode: str = "ecran"):
+    doc, _, _ = _rendre_edition(rid, mode if mode in ("ecran", "impose", "lecture") else "ecran")
+    return HTMLResponse(doc, headers={"Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src data:; img-src data:"})
+
+
+@app.get("/api/recidives/{rid}/pdf")
+def pdf_edition(rid: int, mode: str = "impose"):
+    mode = mode if mode in ("impose", "lecture") else "impose"
+    doc, p, ed = _rendre_edition(rid, mode)
+    try:
+        contenu, deborde = rendu.pdf(doc, mode)
+    except rendu.RenduImpossible as ex:
+        raise HTTPException(503, str(ex))
+    nom = "la-recidive-" + str(ed["numero_main"] or ed["numero"]) + "-" + \
+          "".join(ch if ch.isalnum() else "-" for ch in p["nom"].lower()).strip("-") + f"-{mode}.pdf"
+    return Response(contenu, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{nom}"', "X-Debordements": ",".join(map(str, deborde))})
+
+
+@app.get("/api/recidives/{rid}/mesure")
+def mesure_edition(rid: int):
+    doc, _, _ = _rendre_edition(rid, "lecture")
+    try:
+        return {"pages": rendu.mesurer(doc)}
+    except rendu.RenduImpossible as ex:
+        raise HTTPException(503, str(ex))
+
+
+@app.post("/api/recidives/{rid}/approuver")
+def approuver_edition(rid: int):
+    """Contrôle qu'aucune page ne déborde, puis approuve ; les anciens scandales de l'édition sont notés comme parus
+    (ils ne reviendront qu'une fois tous les autres publiés)."""
+    doc, p, ed = _rendre_edition(rid, "impose")
+    vues = [x for x in ed["photos"] if not x.get("retiree")]
+    if ed["etat"] not in ("a_relire", "approuve") or not vues:
+        raise HTTPException(409, "Édition pas encore prête (aucune photo).")
+    try:
+        _, deborde = rendu.pdf(doc, "impose")
+    except rendu.RenduImpossible:
+        deborde = []                      # sans Chromium (tests), pas de contrôle
+    if deborde:
+        raise HTTPException(409, "Texte trop long : la page " + ", ".join(map(str, deborde))
+                            + " déborde. Raccourcis une légende ou le mot des hôtes.")
+    ETAT["base"].publier(p["id"], [x["id"] for x in vues if x.get("ancien")])
+    ETAT["base"].maj_recidive(rid, etat="approuve", approuve_le=maintenant())
+    ETAT["base"].noter("approuver", p["id"], f"La Récidive N° {ed['numero_main'] or ed['numero']}")
+    return {"ok": True}
+
+
 # ================================================================ Top 5 culturel
 
 @app.get("/api/culture")
@@ -565,7 +874,17 @@ def a_traiter() -> dict:
                 fiches.append({"nom": i["nom"], "chambre": s["chambre"], "du": s["du"], "jusqu_au": s["jusqu_au"],
                                "carnet": _carnet_sur(i["nom"])})
     relire, erreurs, annivs = [], [], []
-    attendus = {i["personne_id"] for s in base.sejours() for i in s["invites"] if i["personne_id"]}
+    # 0.9 : un invité attendu dont le séjour a une Récidive n'attend pas sa Gazette
+    editions_attendues, attendus = {}, set()
+    for s in base.sejours():
+        for i in s["invites"]:
+            if not i["personne_id"]:
+                continue
+            ed = base.recidive_de(i["personne_id"], s["du"])
+            if ed and ed["etat"] != "vide":
+                editions_attendues[ed["id"]] = s
+            else:
+                attendus.add(i["personne_id"])
     for p in base.personnes():
         lv = base.livret(p["id"]) or {}
         if lv.get("etat") == "a_relire":
@@ -576,6 +895,24 @@ def a_traiter() -> dict:
             if not a["ignore"]:
                 annivs.append({"id": p["id"], "nom": p["nom"], **a})
     relire.sort(key=lambda x: not x["attendu"])
+    recidives, scandales = [], []
+    ign_scandales = base.ignores("scandale")
+    for ed in base.recidives():
+        if ed["etat"] == "approuve":
+            continue
+        nom = (base.personne(ed["personne_id"]) or {}).get("nom", "?")
+        attendu = ed["id"] in editions_attendues
+        if ed["erreur"]:
+            erreurs.append({"id": ed["personne_id"], "nom": nom, "erreur": ed["erreur"], "recidive": ed["id"]})
+        if ed["etat"] == "a_relire":
+            recidives.append({"id": ed["id"], "personne_id": ed["personne_id"], "nom": nom, "attendu": attendu,
+                              "numero": ed["numero_main"] or ed["numero"], "sejour_du": ed["sejour_du"]})
+        cle = str(ed["personne_id"])
+        if ed["manque_scandale"] and ed["etat"] == "a_relire" and cle not in ign_scandales:
+            scandales.append({"id": ed["id"], "personne_id": ed["personne_id"], "nom": nom, "cle": cle,
+                              "tag_absent": ed["tag_absent"],
+                              "photos": sum(1 for x in ed["photos"] if not x.get("retiree")), "places": R.PLACES})
+    recidives.sort(key=lambda x: not x["attendu"])
     # Date d'une fiche différente de celle de carnet (contact unique au même nom, date complète)
     dates = []
     if ETAT["carnet"].actif:
@@ -586,7 +923,8 @@ def a_traiter() -> dict:
                 dates.append({"id": p["id"], "nom": p["nom"], "gazette": p["naissance"], "carnet": c["naissance"],
                               "cle": f"{p['id']}:{c['naissance']}"})
     return {"fiches": fiches, "relire": relire, "anniversaires": annivs, "erreurs": erreurs, "dates": dates,
-            "total": len(fiches) + len(relire) + len(annivs) + len(erreurs) + len(dates)}
+            "recidives": recidives, "scandales": scandales,
+            "total": len(fiches) + len(relire) + len(annivs) + len(erreurs) + len(dates) + len(recidives) + len(scandales)}
 
 
 def _carnet_sur(nom: str) -> dict | None:
@@ -607,7 +945,7 @@ def route_a_traiter():
 @app.post("/api/a-traiter/ignorer")
 def ignorer(corps: dict = Body(...)):
     sorte = corps.get("sorte")
-    if sorte not in ("fiche", "anniversaire", "date"):
+    if sorte not in ("fiche", "anniversaire", "date", "scandale"):
         raise HTTPException(422, "Sorte inconnue.")
     ETAT["base"].ignorer(sorte, str(corps.get("cle", ""))[:80])
     return {"ok": True}
@@ -638,7 +976,8 @@ def etat_connexions():
                    "dernier_corps": base.reglage("ha_dernier_resume")},
             "rendu": {"polices": rendu.polices_presentes()},
             "larousse": _journal()["larousse"],
-            "carnet": ETAT["carnet"].etat()}
+            "carnet": ETAT["carnet"].etat(), "immich": ETAT["immich"].etat(),
+            "rendu_recidive": {"polices": rendu_recidive.polices_presentes()}}
 
 
 @app.post("/api/connexion/verifier")
@@ -650,6 +989,7 @@ def verifier_sources():
         r["carnet"] = {"ok": not err, "detail": err or f"{len(liste)} contacts, {sum(1 for p in liste if p.get('naissance'))} avec date complète"}
     else:
         r["carnet"] = {"ok": None, "detail": "pas réglé (MAISON_JETON vide)"}
+    r["immich"] = ETAT["immich"].sonder()
     return r
 
 
@@ -812,6 +1152,13 @@ def ha_sejour(corps: dict = Body(...)):
             invites.append({"nom": i["nom"], "fiche": False, "livret": None, "lien": ""})
             continue
         p = base.personne(i["personne_id"])
+        ed = _edition_du_sejour(p["id"], du.isoformat())
+        if ed and ed["etat"] != "vide":                 # 0.9 : à partir du 2e séjour, La Récidive remplace la Gazette
+            if ed["etat"] != "approuve":
+                relire.append(i["nom"])
+            invites.append({"nom": i["nom"], "fiche": True, "journal": "recidive", "numero": ed["numero_main"] or ed["numero"],
+                            "livret": ed["etat"], "lien": _lien_edition(ed["id"]), "anniversaire": None})
+            continue
         lv = base.livret(p["id"])
         if lv["etat"] == "a_preparer" and not lv["erreur"]:
             demander_preparation(p["id"])
@@ -821,7 +1168,7 @@ def ha_sejour(corps: dict = Body(...)):
             relire.append(i["nom"])
         if cas:
             annivs.append({"nom": i["nom"], **cas})
-        invites.append({"nom": i["nom"], "fiche": True, "livret": lv["etat"], "lien": _lien(p["id"]),
+        invites.append({"nom": i["nom"], "fiche": True, "journal": "gazette", "livret": lv["etat"], "lien": _lien(p["id"]),
                         "anniversaire": cas})
     base.poser_reglage("ha_dernier_resume", f"{chambre} : {', '.join(noms)} ({du.isoformat()} → {fin.isoformat()})")
     return {"chambre": chambre, "invites": invites, "manquants": manquants, "a_relire": relire, "anniversaires": annivs,
@@ -854,9 +1201,11 @@ def ha_etat():
     t = a_traiter()
     lignes = [f"{f['nom']} ({f['chambre']}, {f['du']}) : pas de fiche dans Gazette" for f in t["fiches"]]
     lignes += [f"{r['nom']} : livret à relire" for r in t["relire"] if r["attendu"]]
+    lignes += [f"{r['nom']} : La Récidive N° {r['numero']} à relire" for r in t["recidives"] if r["attendu"]]
     lignes += [f"{a['nom']} : anniversaire {a['libelle']} ({a['anniversaire']})" for a in t["anniversaires"]]
     return {"a_traiter": len(lignes), "fiches_manquantes": len(t["fiches"]),
-            "a_relire": sum(1 for r in t["relire"] if r["attendu"]), "anniversaires": len(t["anniversaires"]),
+            "a_relire": sum(1 for r in t["relire"] if r["attendu"]) + sum(1 for r in t["recidives"] if r["attendu"]),
+            "anniversaires": len(t["anniversaires"]),
             "liste": lignes, "adresse": _adresse()}
 
 

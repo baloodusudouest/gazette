@@ -11,6 +11,7 @@
   import Connexion from './pages/Connexion.svelte'
   import Livrets from './pages/Livrets.svelte'
   import Livret from './pages/Livret.svelte'
+  import Recidive from './pages/Recidive.svelte'
   import ATraiter from './pages/ATraiter.svelte'
   import Services from './pages/Services.svelte'
   import Reglages from './pages/Reglages.svelte'
@@ -31,6 +32,8 @@
     const h = location.hash.replace(/^#\//, '')
     const m = h.match(/^livret\/(\d+)/)
     if (m) return { page: 'livret', id: +m[1] }
+    const r = h.match(/^recidive\/(\d+)/)
+    if (r) return { page: 'recidive', id: +r[1] }
     return { page: onglets.some((o) => o.page === h) ? h : 'livrets' }
   }
 
@@ -51,7 +54,7 @@
     try { await api.post('/api/deconnexion') } catch { /* déjà déconnecté */ }
     connecte = false
   }
-  const actif = (o) => route.page === o.page || (route.page === 'livret' && o.page === 'livrets')
+  const actif = (o) => route.page === o.page || (['livret', 'recidive'].includes(route.page) && o.page === 'livrets')
 
   onMount(verifier)
 </script>
@@ -101,6 +104,8 @@
         <div in:fly={{ y: 6, duration: 180 }}>
           {#if route.page === 'livret'}
             <Livret id={route.id} onchange={compter} ondeconnecte={() => (connecte = false)} />
+          {:else if route.page === 'recidive'}
+            <Recidive id={route.id} onchange={compter} ondeconnecte={() => (connecte = false)} />
           {:else if route.page === 'a-traiter'}
             <ATraiter onchange={compter} ondeconnecte={() => (connecte = false)} />
           {:else if route.page === 'connexion'}

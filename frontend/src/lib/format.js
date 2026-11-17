@@ -17,5 +17,6 @@ export const ETATS = {
   en_preparation: { nom: 'en préparation…', ton: 'muted' },
   a_relire: { nom: 'à relire', ton: 'primary' },
   approuve: { nom: 'approuvé', ton: 'valide' },
+  vide: { nom: 'sans photo : la Gazette sert', ton: 'muted' },
 }
 export const PORTEES = { jour: 'le jour même', veille: 'la veille', semaine: 'la semaine', mois: 'le mois', autour: 'autour', annee: "l'année", vide: 'aucune' }
