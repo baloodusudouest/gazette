@@ -24,7 +24,7 @@ services:
       - GAZETTE_JETON_HA=${GAZETTE_JETON_HA:-}         # jeton de Home Assistant pour /ha/… ; vide : porte fermée
       - GAZETTE_CARNET_URL=${GAZETTE_CARNET_URL:-http://carnet:8096}   # adresse de carnet vue depuis le conteneur
       - GAZETTE_IMMICH_URL=http://immich_server:2283   # 0.9 : Immich vu depuis le conteneur (La Récidive)
-      - GAZETTE_IMMICH_CLE=${GAZETTE_IMMICH_CLE:-}     # 0.9 : clé d'API dédiée (asset.read, asset.view, tag.read) ; vide : pas de Récidive
+      - GAZETTE_IMMICH_CLE=${GAZETTE_IMMICH_CLE:-}     # 0.9 : clé d'API dédiée (asset.read, asset.view, tag.read ; 0.12 : album.read, person.read) ; vide : pas de Récidive
       - GAZETTE_OLLAMA_URL=${GAZETTE_OLLAMA_URL:-}     # 0.9.1 : Ollama du PC (http://<adresse du PC>:11434) ; vide : pas de titres proposés
       # - GAZETTE_OLLAMA_MODELE=qwen2.5:7b             # 0.9.6 : facultative, autre modèle installé sur le PC
     volumes:

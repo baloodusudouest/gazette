@@ -2,7 +2,7 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
-## État (17/11/2026) — 0.11.4 (La Récidive + titres par l'IA du PC + macaron et cadrage) sur 0.8.0, temps 1 livré + top 5 culturel + journal réglé dans l'appli + texte complet + aide à la place + carnet + réglages sauvegardés par l'Anneau, installé sur le NAS le 14/11 (pas encore de vrai livret)
+## État (17/11/2026) — 0.12.0 (La Récidive + IA du PC pour les deux journaux + albums Immich + macaron et cadrage) sur 0.8.0, temps 1 livré + top 5 culturel + journal réglé dans l'appli + texte complet + aide à la place + carnet + réglages sauvegardés par l'Anneau, installé sur le NAS le 14/11 (pas encore de vrai livret)
 - Appli complète : fiches, livrets, relecture, aperçu, PDF à imprimer et lecture, À traiter, Connexion, Réglages, porte HA (`/ha/sejour`, `/ha/etat`).
 - Moteur essayé en vrai (réseau) sur trois dates maigres du banc (1964, 1983, 1997) : une, brèves, semaine, chronologie, nés et disparus remplis ; rendu PDF contrôlé à l'œil (aucun débordement).
 - Top 5 culturel : fichier livré dans `app/donnees/`, remplaçable depuis Réglages (fichier importé gardé dans `/data/culture.csv`) ; prompt de mise à jour annuelle dans `app/donnees/prompt_culture.md` (il nomme les années 2026 et 2027 : à adapter chaque année).
@@ -39,6 +39,8 @@
 - Package HA `chambres/gazette.yaml` v1.0 : pas dans ce dépôt (il nomme les chambres et le téléphone de la maison) ; sa copie de référence est décrite dans le master doc Home Assistant (§ 6.1 et § 10). Contrat de la porte : `docs/dossier.md`, section « Temps 1 tel que construit ».
 
 ## Prochaine étape
+
+- 0.12.0 : ajouter **album.read** et **person.read** à la clé Immich « gazette » ; à la relecture, vérifier la ligne « Immich · Album : … · Avec : … » sous une photo (jamais essayé sur la vraie photothèque) ; essayer les aides de l'IA sur une Gazette (Titres, Raccourcir sur un bloc rouge).
 0. 0.9.0 : déployer carnet 2.27.0 d'abord, puis Gazette 0.9.0 avec `GAZETTE_IMMICH_CLE` (clé Immich dédiée « gazette » : asset.read, asset.view, tag.read) ; Connexion › Vérifier (tuile Immich : tag « scandale » trouvé ?) ; noter les séjours d'avant Gazette sur les fiches des habitués ; taguer quelques vieilles photos « scandale » dans Immich ; à la première Récidive, relire puis imprimer un exemplaire pour contrôler les photos sur papier.
 0. 0.9.1 : sur le PC, `setx OLLAMA_HOST 0.0.0.0`, rouvrir Ollama, ouvrir le port 11434 ; poser `GAZETTE_OLLAMA_URL` dans la stack ; Connexion › Vérifier (tuile « IA du PC ») ; essayer « 5 titres » sur une vraie édition.
 0. 0.8.0 : déploiement en deux temps (ci-dessus) ; puis Réglages › Restaurer les réglages, une fois que l'Anneau a fait sa première collecte de nuit.

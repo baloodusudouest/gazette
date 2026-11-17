@@ -75,8 +75,17 @@
   const corps = () => ({ numero_main: numero === '' ? null : +numero, accroche, mot, titre_une: titreUne, description_une: descriptionUne, macaron, rumeurs, indices_rumeurs: indices, courrier, horoscope, code_barres: codeBarres,
                          photos: photos.map((p) => ({ id: p.id, legende: p.legende, retiree: p.retiree, description: p.description ?? '', cadrage: p.cadrage ?? 'haut' })) })
   // « IA » en haut : 5 titres pour chaque texte décrit (la une et chaque photo gardée), l'un après l'autre
-  const cibles = () => [...(descriptionUne.trim().length >= 3 ? ['une'] : []),
-                        ...photos.filter((p) => !p.retiree && (p.description ?? '').trim().length >= 3).map((p) => p.id)]
+  // 0.12 : ce qu'Immich dit d'une photo (albums parlants, personnes) — l'IA s'en sert, même sans description
+  const ctxTexte = (p) => {
+    const c = p?.contexte
+    if (!c) return ''
+    return [c.albums?.length ? `Album : ${c.albums.join(', ')}` : '', c.personnes?.length ? `Avec : ${c.personnes.join(', ')}` : '']
+      .filter(Boolean).join(' · ')
+  }
+  const photoUne = () => photos.find((p) => !p.retiree)
+  const pret = (description, p) => description.trim().length >= 3 || ctxTexte(p) !== ''
+  const cibles = () => [...(pret(descriptionUne, photoUne()) ? ['une'] : []),
+                        ...photos.filter((p) => !p.retiree && pret(p.description ?? '', p)).map((p) => p.id)]
   async function proposerRumeurs() {
     demande = 'rumeurs'
     message = ''
@@ -112,7 +121,7 @@
   }
   async function proposerTout() {
     const liste = cibles()
-    if (!liste.length) { message = 'Décris d\'abord au moins une photo (case « Décris… » sous la une ou sous une photo).'; return }
+    if (!liste.length) { message = 'Décris d\'abord au moins une photo (case « Décris… » sous la une ou sous une photo) : aucun album parlant ni personne connue dans Immich.'; return }
     lot = { fait: 0, total: liste.length }
     let echecs = 0
     for (const c of liste) {
@@ -165,16 +174,17 @@
   onDestroy(() => clearTimeout(minuteur))
 </script>
 
-{#snippet ia(cible, description, props, ecrire, choisir)}
+{#snippet ia(cible, description, props, ecrire, choisir, photo)}
   <div class="mt-2 grid min-w-0 gap-1.5 rounded-lg border border-dashed p-2">
     <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Pour l'IA (non imprimé)</span>
     <div class="flex min-w-0 flex-wrap items-center justify-end gap-2">
       <input class="w-full min-w-0 rounded-lg border bg-background px-2 py-1 text-sm" maxlength="400" value={description}
              oninput={(e) => ecrire(e.currentTarget.value)} placeholder={cible === 'une' ? "Décris la photo de la une (l'IA proposera 5 gros titres)" : "Décris cette photo (l'IA proposera 5 légendes)"}
              aria-label={cible === 'une' ? 'Description de la photo de la une' : 'Description de la photo'} />
-      <Button size="sm" variant="outline" class="shrink-0" onclick={() => proposer(cible)} disabled={demande !== '' || description.trim().length < 3}>
+      <Button size="sm" variant="outline" class="shrink-0" onclick={() => proposer(cible)} disabled={demande !== '' || !pret(description, photo)}>
         <Sparkles class="size-3.5" aria-hidden="true" />{demande === cible ? '…' : '5 titres'}</Button>
     </div>
+    {#if ctxTexte(photo)}<p class="text-[0.7rem] break-words text-muted-foreground">Immich · {ctxTexte(photo)}</p>{/if}
     {#if props.length}
       <ul class="grid gap-1" aria-label="Propositions de l'IA">
         {#each props as t}
@@ -238,7 +248,7 @@
             {/each}
           </div>
         </fieldset>
-        {@render ia('une', descriptionUne, propsUne, (v) => { descriptionUne = v; toucher() }, (t) => { titreUne = t; toucher() })}
+        {@render ia('une', descriptionUne, propsUne, (v) => { descriptionUne = v; toucher() }, (t) => { titreUne = t; toucher() }, photoUne())}
       </section>
 
       <section class="min-w-0 rounded-2xl border bg-card p-4" aria-label="Photos">
@@ -271,7 +281,7 @@
               <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Légende imprimée</span>
               <textarea rows="2" class="min-w-0 rounded-lg border bg-background px-2 py-1 font-mono text-sm" maxlength="220" bind:value={p.legende}
                         oninput={toucher} aria-label="Légende de la photo du {dateLongue(p.date)}" disabled={p.retiree}></textarea>
-              {#if !p.retiree}{@render ia(p.id, p.description ?? '', p.propositions ?? [], (v) => { p.description = v; toucher() }, (t) => { p.legende = t; toucher() })}{/if}
+              {#if !p.retiree}{@render ia(p.id, p.description ?? '', p.propositions ?? [], (v) => { p.description = v; toucher() }, (t) => { p.legende = t; toucher() }, p)}{/if}
               <button type="button" class="inline-flex items-center gap-1 self-start text-xs text-muted-foreground hover:text-foreground" onclick={() => basculer(p)}>
                 {#if p.retiree}<Eye class="size-3.5" aria-hidden="true" />Remettre{:else}<EyeOff class="size-3.5" aria-hidden="true" />Retirer{/if}
               </button>

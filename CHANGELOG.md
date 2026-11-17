@@ -1,5 +1,11 @@
 # Journal des versions
 
+## 0.12.0 — 17 novembre 2026 (l'IA du PC aide aussi la Gazette ; La Récidive lit les albums)
+- **Gazette classique : aides de l'IA du PC** (choix de Julien du 17/11), sous chaque bloc de la relecture (une, brèves, page 2, chronologie, mot des hôtes) : **Titres** (5 titres dans le style des journaux de l'année de naissance), **Raccourcir** (3 versions qui tiennent : vise ce qu'il faut retirer quand le bloc déborde), **Version journal** (3 réécritures façon presse de l'époque, mêmes faits), **Traduire** (un extrait Wikipédia anglais en français journalistique), **3 mots** (mot des hôtes personnalisé d'après les indices de carnet). Rien n'est changé sans un toucher sur une proposition ; rien d'inventé hors du mot des hôtes. Route `POST /api/livrets/{id}/ia`.
+- **La Récidive : albums et personnes d'Immich** (demande de Julien du 17/11) : pour chaque photo, Gazette lit les albums où elle se trouve et les personnes reconnues sur la photo et dans ces albums, et les donne à l'IA (titres, légendes, rumeurs). Les albums génériques sont écartés (une année seule, « Photos 2019 », un mois, « Divers », « Pense-bête », « À trier », captures, WhatsApp…). Les prénoms de ces personnes sont permis dans les propositions (complices, témoins, rivaux). Affiché sous la case « Pour l'IA » (« Immich · Album : … · Avec : … ») ; avec un album parlant ou une personne connue, la description devient facultative. Jamais imprimé.
+- **Clé Immich** : ajouter les permissions **album.read** et **person.read** à la clé « gazette ». Sans elles, le contexte reste vide et tout marche comme avant.
+- Tests : 127.
+
 ## 0.11.4 — 17 novembre 2026
 - **Code-barres clin d'œil** (page 4 seulement, choix de Julien) : un vrai Code 128, lisible par n'importe quelle appli de scan, qui cache un message réglable dans l'édition (« Reviens vite, {prénom} ! » par défaut, 30 caractères, accents retirés à l'encodage). Aucun texte sous les barres : c'est la surprise. Le faux code-barres de la page 3 est retiré.
 

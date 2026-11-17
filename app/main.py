@@ -22,7 +22,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from . import __version__, anniversaire, code_barres, culture, journal, maison, recidive as R, rendu, rendu_recidive
 from .carnet import Carnet
 from .immich import Immich
-from .ollama import MAXI as MAXI_TITRE, Ollama, sans_numero
+from .ollama import ACTIONS_GAZETTE, MAXI as MAXI_TITRE, Ollama, sans_numero, texte_contexte
 from .auth import COMMUN, DUREE, Sessions
 from .base import ETATS, Base, cle_nom, maintenant
 from .config import APPLI, Config, charger, racine
@@ -205,6 +205,8 @@ def _preparer_recidive(rid: int, completer: bool = False) -> None:
     for x in choix["photos"]:
         if not x.get("retiree"):
             immich.apercu(x["id"])
+            if "contexte" not in x:      # 0.12 : albums et personnes, pour l'IA (vide si Immich ne le dit pas)
+                x["contexte"] = immich.contexte(x["id"], immich_id)
     vide = not any(not x.get("retiree") for x in choix["photos"])
     accroche = ed["accroche"] if (completer and ed["accroche"]) else R.accroche(genre or "", _prenom(p))
     base.maj_recidive(rid, etat="vide" if vide else "a_relire", photos=choix["photos"], trouvees=choix["trouvees"],
@@ -593,6 +595,31 @@ def repreparer(pid: int, corps: dict = Body(default={})):
     return {"ok": True}
 
 
+@app.post("/api/livrets/{pid}/ia")
+def ia_livret(pid: int, corps: dict = Body(...)):
+    """0.12 : aides de l'IA du PC pour la Gazette classique, sur le texte affiché (même pas enregistré) :
+    {action: titres | raccourcir | journal | traduire | mot, texte, signes?}. Rend des propositions ; rien n'est
+    changé dans le livret (Julien choisit, puis enregistre)."""
+    p = _personne_ou_404(pid)
+    action = str(corps.get("action") or "")
+    if action not in ACTIONS_GAZETTE:
+        raise HTTPException(422, "Aide inconnue.")
+    try:
+        signes = int(corps["signes"]) if corps.get("signes") else None
+    except (TypeError, ValueError):
+        signes = None
+    contact = _contact(p) if action == "mot" else {}
+    try:
+        props = ETAT["ollama"].gazette(action, str(corps.get("texte") or ""), int(p["naissance"][:4]), signes,
+                                       _prenom(p), contact.get("genre", ""), contact.get("journaux", ""), _journal()["chez"])
+    except ValueError as ex:
+        raise HTTPException(422, str(ex))
+    except RuntimeError as ex:
+        raise HTTPException(503, str(ex))
+    ETAT["base"].noter("ia", pid, f"{action} : {len(props)} proposition(s)")
+    return {"propositions": props}
+
+
 @app.post("/api/livrets/{pid}/mot/ajouter")
 def ajouter_au_mot(pid: int, corps: dict = Body(...)):
     """Ajoute une phrase (anniversaire) à la fin du mot des hôtes."""
@@ -796,6 +823,19 @@ def enregistrer_edition(rid: int, corps: dict = Body(...)):
     return {"ok": True, "etat": ETAT["base"].recidive(rid)["etat"]}
 
 
+def _contexte_photo(ed: dict, photo: dict | None) -> dict:
+    """0.12 : le contexte Immich d'une photo (albums parlants, personnes), lu une fois puis gardé dans l'édition."""
+    if not photo:
+        return {"albums": [], "personnes": []}
+    if "contexte" not in photo and ETAT["immich"].actif:
+        ctx = ETAT["immich"].contexte(photo["id"], ed.get("immich_id") or "")
+        photos = [{**x, "contexte": ctx} if x["id"] == photo["id"] else x for x in ed["photos"]]
+        ETAT["base"].maj_recidive(ed["id"], photos=photos)
+        photo["contexte"] = ctx
+        ed["photos"] = photos
+    return photo.get("contexte") or {"albums": [], "personnes": []}
+
+
 @app.post("/api/recidives/{rid}/proposer")
 def proposer_titres(rid: int, corps: dict = Body(...)):
     """0.9.1 : {cible: « une » ou l'id d'une photo, description} → 5 titres de 60 caractères au plus, proposés par
@@ -807,9 +847,11 @@ def proposer_titres(rid: int, corps: dict = Body(...)):
     photo = next((x for x in ed["photos"] if x["id"] == cible), None)
     if cible != "une" and not photo:
         raise HTTPException(404, "Photo introuvable dans cette édition.")
+    une = next((x for x in ed["photos"] if not x.get("retiree")), None)      # la photo de la une : la première gardée
+    contexte = _contexte_photo(ed, une if cible == "une" else photo)
     try:
         props = ETAT["ollama"].proposer(description, "une" if cible == "une" else "photo", ed["genre"], _prenom(p),
-                                        deja=_deja_paru(p["id"], rid))
+                                        deja=_deja_paru(p["id"], rid), contexte=contexte)
     except ValueError as ex:
         raise HTTPException(422, str(ex))
     except RuntimeError as ex:
@@ -829,9 +871,13 @@ def proposer_rumeurs(rid: int, corps: dict = Body(default={})):
     rubrique « Les rumeurs de la rédaction » (page 3). Rien n'est choisi à la place de Julien."""
     ed, p = _edition_ou_404(rid)
     indices = " ".join(str(corps.get("indices") or "").split())[:400]
-    vues = [x.get("description", "") for x in ed["photos"] if not x.get("retiree")] + [ed.get("description_une", "")]
+    gardees = [x for x in ed["photos"] if not x.get("retiree")]
+    ctxs = [_contexte_photo(ed, x) for x in gardees]          # 0.12 : albums et personnes des photos
+    vues = [" — ".join(t for t in (x.get("description", ""), texte_contexte(c)) if t) for x, c in zip(gardees, ctxs)]
+    vues.append(ed.get("description_une", ""))
+    gens = list(dict.fromkeys(g for c in ctxs for g in c.get("personnes") or []))
     try:
-        props = ETAT["ollama"].rumeurs(indices, ed["genre"], _prenom(p), vues, deja=_deja_paru(p["id"], rid))
+        props = ETAT["ollama"].rumeurs(indices, ed["genre"], _prenom(p), vues, deja=_deja_paru(p["id"], rid), personnes=gens)
     except RuntimeError as ex:
         raise HTTPException(503, str(ex))
     ETAT["base"].maj_recidive(rid, indices_rumeurs=indices, propositions_rumeurs=props)

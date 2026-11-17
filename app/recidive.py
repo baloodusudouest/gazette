@@ -187,6 +187,8 @@ def choisir(recentes: list[dict], scandales: list[dict] | None, publies: set[str
         q["cadrage"] = p.get("cadrage") or "haut"
         q["description"] = p.get("description", "")          # 0.9.1 : ce que Julien voit sur la photo (pour l'IA)
         q["propositions"] = list(p.get("propositions") or [])
+        if "contexte" in p:                                    # 0.12 : albums et personnes d'Immich, déjà lus
+            q["contexte"] = p["contexte"]
         sortie.append(q)
     return {"photos": sortie, "manque_scandale": manque, "tag_absent": scandales is None, "trouvees": len(recentes)}
 

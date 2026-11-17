@@ -86,7 +86,24 @@ def proche_de(texte: str, deja: list[str], seuil: float = 0.82) -> bool:
     return any(difflib.SequenceMatcher(None, t, re.sub(r"\W+", " ", d.casefold()).strip()).ratio() >= seuil for d in deja)
 
 
-def consigne(description: str, sorte: str, genre: str, prenom: str, deja: list[str] | None = None) -> str:
+def texte_contexte(ctx: dict | None) -> str:
+    """0.12 : « album « Noël 2023 » ; avec Bastien, Léa » — ce qu'Immich dit d'une photo, pour l'IA (jamais imprimé)."""
+    ctx = ctx or {}
+    morceaux = []
+    if ctx.get("albums"):
+        morceaux.append("album " + ", ".join(f"« {a} »" for a in ctx["albums"]))
+    if ctx.get("personnes"):
+        morceaux.append("avec " + ", ".join(ctx["personnes"]))
+    return " ; ".join(morceaux)
+
+
+def _prenoms_permis(prenom: str, ctx_personnes: list[str]) -> str:
+    autres = [x for x in ctx_personnes if x and x.casefold() != (prenom or "").casefold()]
+    return (f"aucun autre prénom que {prenom}" + (f" et ceux des personnes citées ({', '.join(autres)})" if autres else ""))
+
+
+def consigne(description: str, sorte: str, genre: str, prenom: str, deja: list[str] | None = None,
+             contexte: dict | None = None) -> str:
     accord = {"femme": f"{prenom} est une femme (accorde au féminin)", "homme": f"{prenom} est un homme (accorde au masculin)"}.get(
         genre, f"le genre de {prenom} est inconnu : formule sans accord féminin ni masculin, sans « il » ni « elle »")
     quoi = (f"le GROS TITRE de la une, qui annonce le retour de {prenom} chez nous" if sorte == "une"
@@ -94,9 +111,12 @@ def consigne(description: str, sorte: str, genre: str, prenom: str, deja: list[s
     exemples = "\n".join(f"- « {d} » → {t}" for d, t in EXEMPLES)
     return (f"Exemples du ton voulu (description → titre) :\n{exemples}\n\n" + _feuilleton(deja or []) +
             f"Écris {NOMBRE} propositions pour {quoi}. {accord}.\n"
-            f"Ce que montre la photo, d'après l'hôte : « {description} »\n"
-            f"Ne décris pas la photo : transforme-la en scandale ou en faux scoop. Cinq angles différents. "
-            f"{MAXI} caractères au plus chacune ; n'invente aucun fait grave ; aucun autre prénom que {prenom} ; "
+            + (f"Ce que montre la photo, d'après l'hôte : « {description} »\n" if description else "")
+            + (f"D'après la photothèque : {texte_contexte(contexte)} (le nom de l'album dit l'occasion ; les personnes "
+               "peuvent devenir complices, témoins ou rivaux)\n" if texte_contexte(contexte) else "")
+            + f"Ne décris pas la photo : transforme-la en scandale ou en faux scoop. Cinq angles différents. "
+            f"{MAXI} caractères au plus chacune ; n'invente aucun fait grave ; "
+            f"{_prenoms_permis(prenom, (contexte or {}).get('personnes') or [])} ; "
             "pas de guillemets autour du titre, pas d'emoji.\n"
             f"Réponds seulement par les {NOMBRE} propositions, une par ligne, numérotées 1. à {NOMBRE}.")
 
@@ -105,7 +125,8 @@ MAXI_RUMEUR = 130       # 0.9.7 : une rumeur loufoque de la page 3
 NOMBRE_RUMEURS = 8
 
 
-def consigne_rumeurs(indices: str, genre: str, prenom: str, photos: list[str], deja: list[str] | None = None) -> str:
+def consigne_rumeurs(indices: str, genre: str, prenom: str, photos: list[str], deja: list[str] | None = None,
+                     personnes: list[str] | None = None) -> str:
     accord = {"femme": f"{prenom} est une femme (accorde au féminin)", "homme": f"{prenom} est un homme (accorde au masculin)"}.get(
         genre, f"le genre de {prenom} est inconnu : formule sans accord féminin ni masculin, sans « il » ni « elle »")
     vu = "; ".join(p for p in photos if p)[:600]
@@ -119,7 +140,7 @@ def consigne_rumeurs(indices: str, genre: str, prenom: str, photos: list[str], d
             + (f"Ce que montrent les photos du journal : {vu}\n" if vu else "")
             + "Absurde, drôle et affectueux, style « Selon nos sources… », « Il se murmure que… », « Exclusif : … » ; "
               "jamais méchant, aucune moquerie du physique, rien de grave (santé, argent, couple, crime), rien de vulgaire. "
-              f"{MAXI_RUMEUR} caractères au plus chacune, une seule phrase, aucun autre prénom que {prenom}.\n"
+              f"{MAXI_RUMEUR} caractères au plus chacune, une seule phrase, {_prenoms_permis(prenom, personnes or [])}.\n"
               f"Réponds seulement par les {NOMBRE_RUMEURS} rumeurs, une par ligne, numérotées.")
 
 
@@ -216,6 +237,61 @@ def lettres(texte: str, genre: str) -> list[dict]:
     return res
 
 
+SYSTEME_GAZETTE = ("Tu es secrétaire de rédaction d'un journal français. Tu écris un français soigné et vivant. Tu ne gardes "
+                   "que les faits du texte donné : jamais de date, de nom, de chiffre ou de détail ajouté. Tu ne commentes "
+                   "pas ce que tu fais.")
+ACTIONS_GAZETTE = ("titres", "raccourcir", "journal", "traduire", "mot")
+SEPARATEUR = "---"
+
+
+def consigne_gazette(action: str, texte: str, annee: int | None, signes: int | None, prenom: str, genre: str,
+                     indices: str, chez: str) -> tuple[str, int, int]:
+    """(consigne, nombre de propositions, longueur maximale) pour une aide de la Gazette."""
+    epoque = f"de {annee}" if annee else "de l'époque"
+    sep = f"Sépare les versions par une ligne contenant seulement {SEPARATEUR}. Rien d'autre que les versions."
+    if action == "titres":
+        return (f"Texte d'un article :\n« {texte} »\n\nPropose 5 titres pour cet article, dans le style des journaux "
+                f"{epoque} : courts, accrocheurs, 70 caractères au plus, sans rien ajouter au texte. "
+                "Un titre par ligne, numérotés, sans guillemets.", 5, 70)
+    if action == "raccourcir":
+        n = max(60, int(signes or len(texte) * 0.75))
+        return (f"Texte :\n« {texte} »\n\nÉcris 3 versions plus courtes de ce texte, de {n} caractères au plus chacune "
+                f"(espaces compris), en gardant l'essentiel et les mêmes faits. {sep}", 3, n + 15)
+    if action == "journal":
+        n = int(len(texte) * 1.15) + 20
+        return (f"Texte :\n« {texte} »\n\nRéécris ce texte en 3 versions façon article de presse {epoque} (ton, "
+                f"vocabulaire et rythme d'un quotidien de l'époque), mêmes faits exactement, environ la même longueur "
+                f"({n} caractères au plus). {sep}", 3, n)
+    if action == "traduire":
+        return (f"Texte en anglais :\n« {texte} »\n\nTraduis-le en français journalistique, en 2 versions, sans rien "
+                f"ajouter ni retirer. {sep}", 2, int(len(texte) * 1.4) + 40)
+    if action == "mot":
+        accord = {"femme": "au féminin", "homme": "au masculin"}.get(genre, "sans accord de genre")
+        return (f"Écris 3 versions du mot d'accueil des hôtes, imprimé en dernière page d'un journal offert à {prenom} "
+                f"(né{'e' if genre == 'femme' else ''} en {annee or '…'}), qui vient dormir {chez or 'chez nous'}. "
+                f"Accorde {accord}. Chaleureux, un brin d'humour, 3 à 5 phrases, 500 caractères au plus, au « vous ». "
+                + (f"Ce qu'on sait de {prenom} : « {indices} ». " if indices else "")
+                + (f"Mot actuel, à améliorer : « {texte} ». " if texte else "")
+                + "Ne signe pas (la signature est ajoutée). " + sep, 3, 520)
+    raise ValueError("Aide inconnue.")
+
+
+def versions(brut: str, action: str, maxi: int) -> list[str]:
+    """Découpe la réponse : une ligne par titre ; sinon des versions séparées par « --- » (ou des numéros)."""
+    if action == "titres":
+        return nettoyer(brut, "x", maxi)
+    blocs = re.split(r"(?m)^\s*-{3,}\s*$", brut or "")
+    if len(blocs) == 1:                                  # pas de séparateur : versions numérotées « 1. … »
+        blocs = re.split(r"(?m)^\s*(?:version\s*)?\d+\s*[.):\-–]\s*", brut or "", flags=re.I)
+    res = []
+    for b in blocs:
+        b = re.sub(r"(?im)^\s*(version\s*\d+\s*[:.)-]?)\s*", "", b.replace("**", "")).strip().strip('"«»“”').strip()
+        b = "\n\n".join(" ".join(p.split()) for p in re.split(r"\n\s*\n", b) if p.strip())
+        if len(b) >= 10 and len(b) <= maxi and not REFUS.search(b) and b.casefold() not in {x.casefold() for x in res}:
+            res.append(b)
+    return res
+
+
 def nettoyer(texte: str, genre: str, maxi: int = MAXI) -> list[str]:
     """Les lignes qui tiennent : numéro retiré, sans refus, sans anglais, sans genre deviné, `maxi` caractères au plus."""
     res = []
@@ -272,22 +348,24 @@ class Ollama:
         return props[:nombre]
 
     def proposer(self, description: str, sorte: str = "photo", genre: str = "", prenom: str = "",
-                 deja: list[str] | None = None) -> list[str]:
+                 deja: list[str] | None = None, contexte: dict | None = None) -> list[str]:
         """Jusqu'à 5 titres. RuntimeError (avec la marche à suivre) si l'IA n'est pas joignable ou ne rend rien d'utile."""
         if not self.actif:
             raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
         description = " ".join((description or "").split())[:400]
-        if len(description) < 3:
+        if len(description) < 3 and not texte_contexte(contexte):
             raise ValueError("Écris d'abord en quelques mots ce qu'on voit sur la photo.")
-        return self._demander(consigne(description, sorte, genre, prenom, deja), NOMBRE, MAXI, genre, deja)
+        if len(description) < 3:
+            description = ""
+        return self._demander(consigne(description, sorte, genre, prenom, deja, contexte), NOMBRE, MAXI, genre, deja)
 
     def rumeurs(self, indices: str, genre: str = "", prenom: str = "", photos: list[str] | None = None,
-                deja: list[str] | None = None) -> list[str]:
+                deja: list[str] | None = None, personnes: list[str] | None = None) -> list[str]:
         """0.9.7 : jusqu'à 8 rumeurs loufoques (130 caractères au plus) pour la page 3. Indices facultatifs."""
         if not self.actif:
             raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
         indices = " ".join((indices or "").split())[:400]
-        return self._demander(consigne_rumeurs(indices, genre, prenom, photos or [], deja), NOMBRE_RUMEURS, MAXI_RUMEUR,
+        return self._demander(consigne_rumeurs(indices, genre, prenom, photos or [], deja, personnes), NOMBRE_RUMEURS, MAXI_RUMEUR,
                               genre, deja)
 
     def _brut(self, prompt: str, nombre: int) -> str:
@@ -332,6 +410,38 @@ class Ollama:
         indices = " ".join((indices or "").split())[:400]
         return self._demander(consigne_horoscope(signe_, indices, genre, prenom, deja), NOMBRE_HOROSCOPES, MAXI_HOROSCOPE,
                               genre, deja)
+
+    # ------------------------------------------------------------ 0.12 : aides pour la Gazette classique
+    def gazette(self, action: str, texte: str, annee: int | None = None, signes: int | None = None, prenom: str = "",
+                genre: str = "", indices: str = "", chez: str = "") -> list[str]:
+        """Propositions à choisir pour un bloc de la Gazette : « titres » (5), « raccourcir » (3, `signes` au plus),
+        « journal » (3 réécritures façon presse de l'époque), « traduire » (2), « mot » (3 mots d'accueil). Mêmes faits
+        que le texte donné : rien d'inventé (sauf le mot des hôtes, écrit d'après les indices)."""
+        if not self.actif:
+            raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
+        texte = (texte or "").strip()[:3000]
+        if action != "mot" and len(texte) < 10:
+            raise ValueError("Pas assez de texte dans ce bloc.")
+        prompt, nombre, maxi = consigne_gazette(action, texte, annee, signes, prenom, genre, indices, chez)
+        brut = ""
+        for _ in range(ESSAIS):
+            try:
+                r = self._lire("/api/generate", {"model": MODELE, "prompt": prompt, "system": SYSTEME_GAZETTE, "stream": False,
+                                                 "options": {"temperature": 0.7, "top_p": 0.9, "repeat_penalty": 1.1,
+                                                             "num_predict": min(1600, max(300, (maxi // 2) * nombre))}})
+            except ErreurOllama as ex:
+                self.erreur = ex.detail[:160]
+                raise RuntimeError(f"Ollama a refusé la demande ({ex.detail}).") from ex
+            except Exception as ex:  # noqa: BLE001
+                self.erreur = str(ex).splitlines()[0][:160] or type(ex).__name__
+                raise RuntimeError(f"IA du PC injoignable ({self.erreur}). " + MARCHE) from ex
+            self.erreur = ""
+            brut = str((r or {}).get("response", ""))
+            props = versions(brut, action, maxi)
+            if props:
+                return props[:nombre]
+        raise RuntimeError("L'IA n'a rien proposé d'utilisable : relance, ou écris le texte toi-même. "
+                           f"Début de sa réponse (pour Claude) : « {' '.join(brut.split())[:200] or 'vide'} »")
 
     def sonder(self) -> dict:
         if not self.actif:

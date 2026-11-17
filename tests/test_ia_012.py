@@ -1,0 +1,93 @@
+"""0.12 : aides de l'IA pour la Gazette classique ; contexte Immich (albums parlants, personnes) pour La Récidive."""
+from app import immich as I
+from app import main
+from app import ollama as O
+from tests.test_recidive import IMMICH_CAMILLE, _deux_sejours, _faux_immich, _faux_ollama, _photos_camille, monter  # noqa: F401
+
+
+def test_versions_separateur_ou_numeros():
+    brut = "Version 1 : Le maire inaugure le pont.\n---\n**Le pont est ouvert, dit le maire.**\n---\nJe ne peux pas écrire cela\n---\nx"
+    assert O.versions(brut, "journal", 200) == ["Le maire inaugure le pont.", "Le pont est ouvert, dit le maire."]
+    assert O.versions("1. Premier texte assez long\n2. Second texte assez long", "raccourcir", 100) == [
+        "Premier texte assez long", "Second texte assez long"]
+    assert O.versions("1. Un titre\n2. Un titre beaucoup trop long pour tenir", "titres", 20) == ["Un titre"]
+    prompt, n, maxi = O.consigne_gazette("raccourcir", "a" * 400, 1988, 120, "Camille", "femme", "", "")
+    assert n == 3 and maxi == 135 and "120 caractères au plus" in prompt
+    assert "de 1988" in O.consigne_gazette("journal", "Un texte.", 1988, None, "", "", "", "")[0]
+
+
+def test_route_ia_du_livret(monter):
+    c = monter()
+    pid, _ = _deux_sejours(c)
+    assert c.post(f"/api/livrets/{pid}/ia", json={"action": "titres", "texte": "Un long texte d'article."}).status_code == 503
+    main.ETAT["ollama"] = O.Ollama("http://pc:11434", lire=_faux_ollama(["1. Le pont inauguré\n2. Fête au village"]))
+    r = c.post(f"/api/livrets/{pid}/ia", json={"action": "titres", "texte": "Le maire a inauguré le pont du village."})
+    assert r.json()["propositions"] == ["Le pont inauguré", "Fête au village"]
+    assert c.post(f"/api/livrets/{pid}/ia", json={"action": "autre", "texte": "xxxxxxxxxxxx"}).status_code == 422
+    assert c.post(f"/api/livrets/{pid}/ia", json={"action": "journal", "texte": "court"}).status_code == 422
+
+
+def test_albums_generiques():
+    for nom in ("2019", "Photos 2019", "Divers", "Pense-bête", "Pense bêtes", "Août 2021", "À trier", "WhatsApp Images", "  "):
+        assert I.album_generique(nom), nom
+    for nom in ("Noël 2019", "Mariage de Léa", "Vendanges 2023", "Week-end à Biarritz"):
+        assert not I.album_generique(nom), nom
+
+
+def _immich_albums(base, albums, gens):
+    """Immich simulé avec albums (/albums?assetId=) et personnes (/assets/{id})."""
+    def lire(methode, chemin, corps=None):
+        if chemin.startswith("/albums?assetId="):
+            return albums.get(chemin.split("=", 1)[1], [])
+        if chemin == "/search/metadata" and corps and "albumIds" in corps:
+            return {"assets": {"items": [{"id": "cccccccc-0001"}, {"id": "cccccccc-0002"}], "nextPage": None}}
+        if chemin.startswith("/assets/") and "/thumbnail" not in chemin:
+            return {"people": gens.get(chemin.rsplit("/", 1)[1], [])}
+        return base(methode, chemin, corps)
+    return lire
+
+
+def test_contexte_d_une_photo(tmp_path):
+    albums = {"aaaaaaaa-0001": [{"id": "al-1", "albumName": "Vendanges 2023"}, {"id": "al-2", "albumName": "2023"},
+                                {"id": "al-3", "albumName": "Divers"}]}
+    gens = {"aaaaaaaa-0001": [{"id": IMMICH_CAMILLE, "name": "Camille Fabre"}, {"id": "p-yves", "name": "Bastien Martin"},
+                              {"id": "p-x", "name": ""}],
+            "cccccccc-0001": [{"id": "p-lea", "name": "Léa"}], "cccccccc-0002": [{"id": "p-yves", "name": "Bastien Martin"}]}
+    im = I.Immich("http://immich", "cle", tmp_path, lire=_immich_albums(lambda *a: None, albums, gens))
+    assert im.contexte("aaaaaaaa-0001", IMMICH_CAMILLE) == {"albums": ["Vendanges 2023"], "personnes": ["Bastien", "Léa"]}
+    assert im.contexte("aaaaaaaa-0009", IMMICH_CAMILLE) == {"albums": [], "personnes": []}
+
+    def refus(methode, chemin, corps=None):
+        raise RuntimeError("clé refusée")
+    assert I.Immich("http://immich", "cle", tmp_path, lire=refus).contexte("aaaaaaaa-0001") == {"albums": [], "personnes": []}
+    texte = O.texte_contexte({"albums": ["Vendanges 2023"], "personnes": ["Bastien", "Léa"]})
+    assert texte == "album « Vendanges 2023 » ; avec Bastien, Léa"
+    prompt = O.consigne("", "photo", "femme", "Camille", contexte={"albums": ["Vendanges 2023"], "personnes": ["Bastien"]})
+    assert "Vendanges 2023" in prompt and "ceux des personnes citées (Bastien)" in prompt and "Ce que montre" not in prompt
+
+
+def test_proposer_avec_le_contexte_sans_description(monter):
+    c = monter()
+    pid, r = _deux_sejours(c)
+    rid = int(r["invites"][0]["lien"].rsplit("/", 1)[1])
+    ed = c.get(f"/api/recidives/{rid}").json()["edition"]
+    photo = ed["photos"][1]["id"]
+    assert ed["photos"][1]["contexte"] == {"albums": [], "personnes": []}         # Immich simulé sans albums
+    main.ETAT["ollama"] = O.Ollama("http://pc:11434", lire=_faux_ollama([]))
+    assert c.post(f"/api/recidives/{rid}/proposer", json={"cible": photo, "description": ""}).status_code == 422
+    # Un album parlant et une personne : la description devient facultative
+    albums = {photo: [{"id": "al-1", "albumName": "Vendanges 2023"}]}
+    main.ETAT["immich"]._lire = _immich_albums(_faux_immich(_photos_camille()), albums, {photo: [{"id": "p-y", "name": "Bastien"}]})
+    eds = main.ETAT["base"].recidive(rid)
+    main.ETAT["base"].maj_recidive(rid, photos=[{k: v for k, v in x.items() if k != "contexte"} for x in eds["photos"]])
+    faux = _faux_ollama(["1. Bastien et Camille, complices aux vendanges"])
+    main.ETAT["ollama"] = O.Ollama("http://pc:11434", lire=faux)
+    props = c.post(f"/api/recidives/{rid}/proposer", json={"cible": photo, "description": ""}).json()["propositions"]
+    assert props == ["Bastien et Camille, complices aux vendanges"]
+    assert "Vendanges 2023" in faux.appels[-1][1]["prompt"]
+    gardee = next(x for x in c.get(f"/api/recidives/{rid}").json()["edition"]["photos"] if x["id"] == photo)
+    assert gardee["contexte"] == {"albums": ["Vendanges 2023"], "personnes": ["Bastien"]}
+    # Les rumeurs reçoivent albums et prénoms permis
+    main.ETAT["ollama"] = O.Ollama("http://pc:11434", lire=(f2 := _faux_ollama(["1. Selon nos sources, Camille parle aux ceps."])))
+    c.post(f"/api/recidives/{rid}/rumeurs", json={"indices": ""})
+    assert "Vendanges 2023" in f2.appels[-1][1]["prompt"] and "(Bastien)" in f2.appels[-1][1]["prompt"]

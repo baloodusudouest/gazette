@@ -16,6 +16,7 @@
   import Etat from '$lib/Etat.svelte'
   import FicheForm from '$lib/FicheForm.svelte'
   import Propositions from '$lib/Propositions.svelte'
+  import IaBloc from '$lib/IaBloc.svelte'
   import { dateCourte, dateLongue, PORTEES } from '$lib/format.js'
   import { etatPlace } from '$lib/place.js'
 
@@ -134,6 +135,8 @@
     return !x ? '' : x.rouge ? '!border-destructive' : '!border-valide'
   }
   const tient = (cle) => (f) => place.tient(cle, f)
+  // 0.12 : « Raccourcir » vise ce qui fait tenir la page (bloc en rouge), sinon les trois quarts du texte
+  const cible = (cle, t) => { const x = place.blocs[cle]; return x?.rouge && x.aRetirer ? Math.max(60, x.compte - x.aRetirer) : Math.round((t || '').length * 0.75) }
 
   onMount(lire)
   onDestroy(() => clearTimeout(minuteur))
@@ -222,6 +225,8 @@
         <input class="mb-2 w-full rounded-lg border bg-background px-3 py-2 font-serif text-lg font-semibold {bord('une')}" bind:value={contenu.une.titre} oninput={toucher} aria-label="Gros titre" />
         <textarea class="w-full rounded-lg border bg-background px-3 py-2 text-sm {bord('une')}" rows="3" bind:value={contenu.une.chapo} oninput={toucher} aria-label="Chapeau"></textarea>
         {@render compteur('une')}
+        <IaBloc pid={id} texte={() => contenu.une.chapo} actions={['titres', 'raccourcir', 'journal', 'traduire']} signes={cible('une', contenu.une.chapo)}
+                onapply={(a, t) => { if (a === 'titres') contenu.une.titre = t; else contenu.une.chapo = t; toucher() }} />
         <div class="mt-2 grid grid-cols-3 gap-2 text-sm">
           <input class="min-w-0 rounded-lg border bg-background px-2 py-1" bind:value={contenu.une.encart.k} oninput={toucher} aria-label="Encart : rubrique" />
           <input class="min-w-0 rounded-lg border bg-background px-2 py-1 font-semibold" bind:value={contenu.une.encart.v} oninput={toucher} aria-label="Encart : nombre" />
@@ -243,6 +248,8 @@
               </div>
               <textarea class="rounded-lg border bg-background px-2 py-1 text-sm [field-sizing:content] min-h-14" rows="2" bind:value={b.texte} oninput={toucher} aria-label="Texte de la brève {i + 1}"></textarea>
               {@render compteur(`breve:${i}`)}
+              <IaBloc pid={id} texte={() => b.texte} actions={['titres', 'raccourcir', 'journal', 'traduire']} signes={cible(`breve:${i}`, b.texte)}
+                      onapply={(a, t) => { if (a === 'titres') b.titre = t; else b.texte = t; toucher() }} />
               {#if ouvert?.bloc === 'breve' && ouvert.index === i}<Propositions liste={evts} choisis={pris} tient={tient(`breve:${i}`)} onchoisir={(f) => choisir('breve', f, i)} onfermer={() => (ouvert = null)} />{/if}
             </li>
           {/each}
@@ -263,6 +270,8 @@
               </div>
               <textarea class="rounded-lg border bg-background px-2 py-1 text-sm [field-sizing:content] min-h-14" rows="2" bind:value={it.texte} oninput={toucher} aria-label="Texte {i + 1}"></textarea>
               {@render compteur(`p2:${i}`)}
+              <IaBloc pid={id} texte={() => it.texte} actions={['titres', 'raccourcir', 'journal', 'traduire']} signes={cible(`p2:${i}`, it.texte)}
+                      onapply={(a, t) => { if (a === 'titres') it.titre = t; else it.texte = t; toucher() }} />
               {#if ouvert?.bloc === 'p2' && ouvert.index === i}<Propositions liste={evts} choisis={pris} tient={tient(`p2:${i}`)} onchoisir={(f) => choisir('p2', f, i)} onfermer={() => (ouvert = null)} />{/if}
             </li>
           {/each}
@@ -282,6 +291,8 @@
                 {@render bouton('chrono', i)}{@render masquer(c)}
               </div>
               {@render compteur(`chrono:${i}`)}
+              <IaBloc pid={id} texte={() => c.texte} actions={['raccourcir', 'journal', 'traduire']} signes={cible(`chrono:${i}`, c.texte)}
+                      onapply={(a, t) => { c.texte = t; toucher() }} />
               {#if ouvert?.bloc === 'chrono' && ouvert.index === i}<Propositions liste={annee} choisis={pris} tient={tient(`chrono:${i}`)} onchoisir={(f) => choisir('chrono', f, i)} onfermer={() => (ouvert = null)} />{/if}
             </li>
           {/each}
@@ -344,6 +355,7 @@
         <h2 class="etiquette mb-2">Page 4 · le mot des hôtes</h2>
         <textarea class="w-full rounded-lg border bg-background px-3 py-2 font-serif {bord('mot')}" rows="8" bind:value={mot} oninput={toucher} aria-label="Mot des hôtes"></textarea>
         {@render compteur('mot')}
+        <IaBloc pid={id} texte={() => mot} actions={['mot', 'raccourcir']} signes={cible('mot', mot)} onapply={(a, t) => { mot = t; toucher() }} />
         <p class="mt-1 text-xs text-muted-foreground">Une ligne vide sépare les paragraphes. Signature : « {d.signature} » (Réglages › Le journal).</p>
       </section>
 

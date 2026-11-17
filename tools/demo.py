@@ -48,7 +48,13 @@ def immich_simule(methode: str, chemin: str, corps: dict | None = None):
     vieilles = [{"id": f"30000000-{an}", "localDateTime": f"{an}-08-15T12:00:00"} for an in (1994, 2003, 2011, 2017)]
     if chemin == "/tags":
         return [{"id": "tag-scandale", "value": "scandale"}]
+    if chemin.startswith("/albums?assetId="):          # 0.12 : un album parlant, un générique (écarté)
+        return [{"id": "album-vendanges", "albumName": "Vendanges 2026"}, {"id": "album-an", "albumName": "2026"}]
+    if chemin.startswith("/assets/") and "/thumbnail" not in chemin:
+        return {"people": [{"id": "10000000-0001", "name": "Lou Martin"}, {"id": "p-yves", "name": "Bastien"}]}
     if chemin == "/search/metadata":
+        if "albumIds" in corps:
+            return {"assets": {"items": recentes[:2], "nextPage": None}}
         if "tagIds" in corps:
             return {"assets": {"items": vieilles, "nextPage": None}}
         return {"assets": {"items": [a for a in recentes if corps["takenAfter"][:10] <= a["localDateTime"][:10] < corps["takenBefore"][:10]],
