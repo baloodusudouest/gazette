@@ -190,3 +190,18 @@ def test_photo_page_4_de_la_gazette(navigateur, adresse, taille):
     page.get_by_placeholder("Bienvenue, Lou !").wait_for()
     sans_debordement(page)
     assert erreurs == []
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_bouton_ia_de_la_gazette(navigateur, adresse, taille):
+    """0.14 : le bouton « IA » du haut demande les aides de tous les blocs ; les propositions s'affichent sous chacun."""
+    page, erreurs = ouvrir(navigateur, adresse, taille, "#/livret/1")
+    page.get_by_role("heading", name="Camille Fabre").wait_for()
+    page.get_by_role("button", name="IA", exact=True).click()
+    page.get_by_text("Propositions prêtes").wait_for(timeout=60000)
+    titres = page.get_by_role("list", name="Propositions de l'IA : Titres").first
+    titres.wait_for()
+    titres.get_by_role("button").nth(1).click()                 # la première ligne est « Fermer »
+    page.get_by_role("button", name="Enregistrer", exact=True).wait_for()
+    sans_debordement(page)
+    assert erreurs == []

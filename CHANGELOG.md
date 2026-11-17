@@ -1,5 +1,11 @@
 # Journal des versions
 
+## 0.14.0 — 17 novembre 2026 (bouton « IA » en haut de la Gazette)
+- **Bouton « IA » à côté d'Enregistrer et Approuver** dans la relecture de la Gazette classique (demande de Julien du 17/11, choix « Tout ») : l'IA du PC relit tous les textes et propose, sous chaque bloc, des titres, une version journal et une version raccourcie (une, brèves, page 2), version journal et raccourcie (chronologie), 3 mots des hôtes et une version raccourcie (mot), et 5 légendes pour la photo de la page 4 si elle est choisie. « Traduire » seulement pour un texte qui a l'air anglais. Avancement « IA 3/14 » ; arrêt net si le PC est injoignable. Compter une à deux minutes.
+- Les propositions de chaque aide restent affichées ensemble sous le bloc (Titres, Version journal, Raccourcir…), chacune avec « Fermer ». Rien n'est appliqué sans un toucher ; rien n'est enregistré sans Enregistrer.
+- L'en-tête de la relecture reste en haut de l'écran au défilement (comme La Récidive).
+- Tests : 136.
+
 ## 0.13.0 — 17 novembre 2026 (une photo d'Immich en page 4 de la Gazette)
 - **Photo en page 4 de la Gazette classique** (choix de Julien du 17/11) : Gazette propose 6 photos d'Immich où l'invité est reconnu, réparties dans le temps (cherchées à la préparation, ou « Chercher dans Immich »). Julien en choisit une à la relecture (ou aucune) ; elle est imprimée **en noir et blanc au-dessus du mot des hôtes**, cadrage réglable (haut, centre, bas, entière), légende en italique dessous. Toucher la photo choisie la retire.
 - **Légende proposée par l'IA du PC**, façon presse de l'année de naissance (« Mlle…, photographiée lors de… », 90 caractères au plus) : d'après la description de Julien, l'album parlant et les personnes d'Immich (comme La Récidive 0.12) ; 5 propositions, rien choisi à sa place.

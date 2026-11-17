@@ -31,6 +31,9 @@
   let propsLegende = $state([])
   let ctxPhoto = $state(null)
   let demande = $state('')
+  // 0.14 : bouton « IA » du haut — toutes les aides de tous les blocs, une après l'autre
+  const ias = {}                   // composants IaBloc par bloc (bind:this)
+  let lot = $state(null)           // {fait, total} pendant le tour complet
   let modifie = $state(false)
   let message = $state('')
   let attente = $state('')
@@ -78,7 +81,26 @@
     catch (err) { message = err.message }
     demande = ''
   }
-  async function proposerLegende() {
+  async function proposerTout() {
+    const liste = Object.entries(ias).filter(([, c]) => c)
+    lot = { fait: 0, total: liste.length + (photo.id ? 1 : 0) }
+    message = ''
+    let faites = 0, echec = ''
+    for (const [, c] of liste) {
+      const r = await c.tout()
+      faites += r.faites
+      if (r.erreur) { echec = r.erreur; if (/injoignable|pas réglée|refusé/.test(r.erreur)) break }
+      lot = { ...lot, fait: lot.fait + 1 }
+    }
+    if (photo.id && !/injoignable|pas réglée|refusé/.test(echec)) {
+      await proposerLegende(true)
+      lot = { ...lot, fait: lot.fait + 1 }
+    }
+    lot = null
+    message = echec && !faites ? echec
+      : `Propositions prêtes${echec ? ' (une partie seulement : ' + echec + ')' : ''} : touche celles qui te plaisent sous chaque bloc, puis Enregistrer.`
+  }
+  async function proposerLegende(silencieux = false) {
     demande = 'legende'
     message = ''
     try {
@@ -86,7 +108,7 @@
       const r = await api.post(`/api/livrets/${id}/photo/proposer`, { description: photo.description ?? '' })
       propsLegende = r.propositions
       ctxPhoto = r.contexte
-    } catch (err) { message = err.message }
+    } catch (err) { if (!silencieux) message = err.message }
     demande = ''
   }
   async function mesurer() {
@@ -209,7 +231,7 @@
 </a>
 
 {#if d && contenu}
-  <header class="mb-5 flex flex-wrap items-end justify-between gap-3">
+  <header class="sticky top-0 z-10 -mx-2 mb-5 flex flex-wrap items-end justify-between gap-3 bg-background/90 px-2 py-2 backdrop-blur">
     <div>
       <p class="etiquette">né·e le {dateLongue(d.personne.naissance)}</p>
       <h1 class="titre">{d.personne.nom}</h1>
@@ -219,6 +241,9 @@
       </p>
     </div>
     <div class="flex flex-wrap gap-2">
+      <Button variant="outline" onclick={proposerTout} disabled={!!attente || lot !== null || demande !== '' || d.livret.etat === 'en_preparation'}
+              title="L'IA du PC relit tous les textes et fait ses propositions sous chaque bloc">
+        <Sparkles class="size-4" aria-hidden="true" />{lot ? `IA ${lot.fait}/${lot.total}` : 'IA'}</Button>
       {#if modifie}<Button variant="outline" onclick={enregistrer} disabled={!!attente}>Enregistrer</Button>{/if}
       <Button onclick={approuver} disabled={!!attente || d.livret.etat === 'en_preparation' || d.livret.etat === 'approuve' && !modifie}>
         {attente === 'approuver' ? 'Contrôle…' : d.livret.etat === 'approuve' && !modifie ? 'Approuvé' : 'Approuver'}
@@ -262,7 +287,7 @@
         <input class="mb-2 w-full rounded-lg border bg-background px-3 py-2 font-serif text-lg font-semibold {bord('une')}" bind:value={contenu.une.titre} oninput={toucher} aria-label="Gros titre" />
         <textarea class="w-full rounded-lg border bg-background px-3 py-2 text-sm {bord('une')}" rows="3" bind:value={contenu.une.chapo} oninput={toucher} aria-label="Chapeau"></textarea>
         {@render compteur('une')}
-        <IaBloc pid={id} texte={() => contenu.une.chapo} actions={['titres', 'raccourcir', 'journal', 'traduire']} signes={cible('une', contenu.une.chapo)}
+        <IaBloc bind:this={ias.une} pid={id} texte={() => contenu.une.chapo} actions={['titres', 'raccourcir', 'journal', 'traduire']} signes={cible('une', contenu.une.chapo)}
                 onapply={(a, t) => { if (a === 'titres') contenu.une.titre = t; else contenu.une.chapo = t; toucher() }} />
         <div class="mt-2 grid grid-cols-3 gap-2 text-sm">
           <input class="min-w-0 rounded-lg border bg-background px-2 py-1" bind:value={contenu.une.encart.k} oninput={toucher} aria-label="Encart : rubrique" />
@@ -285,7 +310,7 @@
               </div>
               <textarea class="rounded-lg border bg-background px-2 py-1 text-sm [field-sizing:content] min-h-14" rows="2" bind:value={b.texte} oninput={toucher} aria-label="Texte de la brève {i + 1}"></textarea>
               {@render compteur(`breve:${i}`)}
-              <IaBloc pid={id} texte={() => b.texte} actions={['titres', 'raccourcir', 'journal', 'traduire']} signes={cible(`breve:${i}`, b.texte)}
+              <IaBloc bind:this={ias[`breve:${i}`]} pid={id} texte={() => b.texte} actions={['titres', 'raccourcir', 'journal', 'traduire']} signes={cible(`breve:${i}`, b.texte)}
                       onapply={(a, t) => { if (a === 'titres') b.titre = t; else b.texte = t; toucher() }} />
               {#if ouvert?.bloc === 'breve' && ouvert.index === i}<Propositions liste={evts} choisis={pris} tient={tient(`breve:${i}`)} onchoisir={(f) => choisir('breve', f, i)} onfermer={() => (ouvert = null)} />{/if}
             </li>
@@ -307,7 +332,7 @@
               </div>
               <textarea class="rounded-lg border bg-background px-2 py-1 text-sm [field-sizing:content] min-h-14" rows="2" bind:value={it.texte} oninput={toucher} aria-label="Texte {i + 1}"></textarea>
               {@render compteur(`p2:${i}`)}
-              <IaBloc pid={id} texte={() => it.texte} actions={['titres', 'raccourcir', 'journal', 'traduire']} signes={cible(`p2:${i}`, it.texte)}
+              <IaBloc bind:this={ias[`p2:${i}`]} pid={id} texte={() => it.texte} actions={['titres', 'raccourcir', 'journal', 'traduire']} signes={cible(`p2:${i}`, it.texte)}
                       onapply={(a, t) => { if (a === 'titres') it.titre = t; else it.texte = t; toucher() }} />
               {#if ouvert?.bloc === 'p2' && ouvert.index === i}<Propositions liste={evts} choisis={pris} tient={tient(`p2:${i}`)} onchoisir={(f) => choisir('p2', f, i)} onfermer={() => (ouvert = null)} />{/if}
             </li>
@@ -328,7 +353,7 @@
                 {@render bouton('chrono', i)}{@render masquer(c)}
               </div>
               {@render compteur(`chrono:${i}`)}
-              <IaBloc pid={id} texte={() => c.texte} actions={['raccourcir', 'journal', 'traduire']} signes={cible(`chrono:${i}`, c.texte)}
+              <IaBloc bind:this={ias[`chrono:${i}`]} pid={id} texte={() => c.texte} actions={['raccourcir', 'journal', 'traduire']} signes={cible(`chrono:${i}`, c.texte)}
                       onapply={(a, t) => { c.texte = t; toucher() }} />
               {#if ouvert?.bloc === 'chrono' && ouvert.index === i}<Propositions liste={annee} choisis={pris} tient={tient(`chrono:${i}`)} onchoisir={(f) => choisir('chrono', f, i)} onfermer={() => (ouvert = null)} />{/if}
             </li>
@@ -392,7 +417,7 @@
         <h2 class="etiquette mb-2">Page 4 · le mot des hôtes</h2>
         <textarea class="w-full rounded-lg border bg-background px-3 py-2 font-serif {bord('mot')}" rows="8" bind:value={mot} oninput={toucher} aria-label="Mot des hôtes"></textarea>
         {@render compteur('mot')}
-        <IaBloc pid={id} texte={() => mot} actions={['mot', 'raccourcir']} signes={cible('mot', mot)} onapply={(a, t) => { mot = t; toucher() }} />
+        <IaBloc bind:this={ias.mot} pid={id} texte={() => mot} actions={['mot', 'raccourcir']} signes={cible('mot', mot)} onapply={(a, t) => { mot = t; toucher() }} />
         <p class="mt-1 text-xs text-muted-foreground">Une ligne vide sépare les paragraphes. Signature : « {d.signature} » (Réglages › Le journal).</p>
 
         <!-- 0.13 : photo d'Immich, imprimée en noir et blanc au-dessus du mot -->
@@ -434,7 +459,7 @@
               <div class="flex min-w-0 flex-wrap items-center justify-end gap-2">
                 <input class="w-full min-w-0 rounded-lg border bg-background px-2 py-1 text-sm" maxlength="400" bind:value={photo.description} oninput={toucher}
                        placeholder="Décris la photo (l'IA proposera 5 légendes façon journal de l'époque)" aria-label="Description de la photo" />
-                <Button size="sm" variant="outline" class="shrink-0" onclick={proposerLegende} disabled={demande !== ''}>
+                <Button size="sm" variant="outline" class="shrink-0" onclick={() => proposerLegende()} disabled={demande !== ''}>
                   <Sparkles class="size-3.5" aria-hidden="true" />{demande === 'legende' ? '…' : '5 légendes'}</Button>
               </div>
               {#if ctxTexte(ctxPhoto)}<p class="text-[0.7rem] break-words text-muted-foreground">Immich · {ctxTexte(ctxPhoto)}</p>{/if}
