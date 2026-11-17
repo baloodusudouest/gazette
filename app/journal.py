@@ -25,15 +25,27 @@ CHAMPS = {
     "signature": ("Signature des hôtes", "au bas du mot des hôtes", 60),
     "mot_modele": ("Mot des hôtes par défaut", "{date}, {prenom} et {chez} sont remplacés ; une ligne vide sépare les paragraphes", 1500),
     "accent": ("Couleur d'accent", "titres de rubrique, chiffres, lettrine (#RRGGBB)", 7),
+    # 0.18 : La Récidive (journal à scandale dès le 2e séjour) — réglages généraux (demande de Julien du 17/11)
+    "r_titre": ("Titre du magazine", "le grand titre de la une de La Récidive", 40),
+    "r_accroche_femme": ("Accroche sous le titre (femme)", "{prenom} est remplacé ; modifiable dans chaque édition", 80),
+    "r_accroche_homme": ("Accroche sous le titre (homme)", "{prenom} est remplacé ; modifiable dans chaque édition", 80),
+    "r_accroche_autre": ("Accroche sous le titre (genre inconnu)", "{prenom} est remplacé ; sans « il » ni « elle »", 80),
+    "r_mot_modele": ("Droit de réponse par défaut", "le mot des hôtes de la page 4 ; {salut} (« Chère Camille », « Cher Paul ») et {prenom} sont remplacés ; une ligne vide sépare les paragraphes", 1500),
 }
 LIBELLES = {**{k: v[0] for k, v in CHAMPS.items()}, "larousse": "Larousse, Journaux de l'année"}
 MOT = ("Le {date}, le monde tournait comme le racontent ces pages. Ce soir, c'est {chez} que l'on vous attend.\n\n"
        "Ce petit journal est à vous, {prenom} : il raconte le monde tel qu'il était le jour de votre naissance. "
        "Gardez-le, glissez-le dans un livre, ou relisez-le au petit-déjeuner.\n\n"
        "Installez-vous, reposez-vous, et surtout faites comme chez vous.")
+R_MOT = ("{salut}, vous avez lu notre enquête : nous assumons tout. Les hôtes n'ont qu'un seul démenti à faire valoir : "
+         "vous nous avez manqué.\n\n"
+         "Votre chambre est prête. Rien ne sortira de la maison, hormis ce journal, et il est à vous.")
 DEFAUTS = {"titre": "La Gazette", "sous_titre": "Le monde tel qu'il était le jour de votre naissance",
            "lieu": "La maison", "lieu_detail": "", "chez": "à la maison", "signature": "Vos hôtes",
-           "mot_modele": MOT, "accent": "#9E1B1B", "larousse": True}
+           "mot_modele": MOT, "accent": "#9E1B1B", "larousse": True,
+           "r_titre": "La Récidive", "r_accroche_femme": "Elle est revenue, nous aussi",
+           "r_accroche_homme": "Il est revenu, nous aussi", "r_accroche_autre": "{prenom} est de retour, nous aussi",
+           "r_mot_modele": R_MOT}
 # Anciennes variables de la stack, lues une seule fois (premier démarrage) pour une clé absente de la base
 VARIABLES = {"titre": "GAZETTE_TITRE", "signature": "GAZETTE_SIGNATURE", "lieu": "GAZETTE_LIEU",
              "larousse": "GAZETTE_LAROUSSE"}
@@ -94,10 +106,11 @@ def valider(corps: dict, actuel: dict) -> dict:
         if not isinstance(brut, str):
             raise ValueError(f"{libelle} : texte attendu.")
         v = brut.replace("\r", "")
-        v = v.strip() if cle == "mot_modele" else " ".join(v.split())
+        v = v.strip() if cle in ("mot_modele", "r_mot_modele") else " ".join(v.split())
         if len(v) > maxi:
             raise ValueError(f"{libelle} : {maxi} caractères au plus.")
-        if cle in ("titre", "lieu", "chez", "signature", "mot_modele") and not v:
+        if cle in ("titre", "lieu", "chez", "signature", "mot_modele", "r_titre", "r_accroche_femme", "r_accroche_homme",
+                   "r_accroche_autre", "r_mot_modele") and not v:
             raise ValueError(f"{libelle} : à remplir.")
         if cle == "accent" and not re.fullmatch(r"#[0-9a-fA-F]{6}", v):
             raise ValueError("Couleur d'accent : au format #RRGGBB.")
@@ -112,3 +125,18 @@ def valider(corps: dict, actuel: dict) -> dict:
 def mot(j: dict, prenom: str, naissance: date) -> str:
     valeurs = {"date": f"{jour_mois(naissance)} {naissance.year}", "prenom": prenom, "chez": j["chez"]}
     return re.sub(r"\{(date|prenom|chez)\}", lambda m: valeurs[m.group(1)], j["mot_modele"])
+
+
+# ================================================================ 0.18 : La Récidive
+
+def r_accroche(j: dict, genre: str, prenom: str) -> str:
+    """L'accroche sous le titre de La Récidive, selon le genre de la fiche carnet (Réglages › La Récidive)."""
+    modele = j.get({"femme": "r_accroche_femme", "homme": "r_accroche_homme"}.get(genre, "r_accroche_autre")) \
+        or DEFAUTS["r_accroche_autre"]
+    return modele.replace("{prenom}", prenom or "Notre invité·e")
+
+
+def r_mot(j: dict, salut: str, prenom: str) -> str:
+    """Le droit de réponse par défaut de La Récidive."""
+    return re.sub(r"\{(salut|prenom)\}", lambda m: {"salut": salut, "prenom": prenom}[m.group(1)],
+                  j.get("r_mot_modele") or R_MOT)

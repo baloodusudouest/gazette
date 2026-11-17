@@ -117,6 +117,25 @@
           <span>Utiliser Larousse, Journaux de l'année (1966-2003)</span>
         </label>
       </div>
+
+      <!-- 0.18 : réglages généraux de La Récidive (journal à scandale dès le 2e séjour) -->
+      <h3 class="mt-6 text-base font-semibold">La Récidive</h3>
+      <p class="mt-1 text-sm text-muted-foreground">Le journal à scandale qui remplace la Gazette à partir du deuxième séjour. Valeurs par défaut des nouvelles éditions ; chaque édition reste modifiable.</p>
+      <div class="mt-3 grid gap-3 sm:grid-cols-2">
+        {#each ['r_titre', 'r_accroche_femme', 'r_accroche_homme', 'r_accroche_autre'] as cle}
+          {@const ch = r.champs[cle]}
+          <label class="grid gap-1 text-sm">
+            <span class="text-muted-foreground">{ch.libelle}</span>
+            <input class="h-10 rounded-lg border bg-background px-3" maxlength={ch.maxi} bind:value={j[cle]} oninput={() => (modifie = true)} />
+            <span class="text-xs text-muted-foreground">{ch.aide}</span>
+          </label>
+        {/each}
+        <label class="grid gap-1 text-sm sm:col-span-2">
+          <span class="text-muted-foreground">{r.champs.r_mot_modele.libelle}</span>
+          <textarea rows="5" class="rounded-lg border bg-background px-3 py-2 font-serif" maxlength={r.champs.r_mot_modele.maxi} bind:value={j.r_mot_modele} oninput={() => (modifie = true)}></textarea>
+          <span class="text-xs text-muted-foreground">{r.champs.r_mot_modele.aide}</span>
+        </label>
+      </div>
       <div class="mt-4 flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={!modifie || envoiJ}>Enregistrer</Button>
         {#if !modifie && !messageJ}<span class="text-xs text-muted-foreground">rien à enregistrer</span>{/if}

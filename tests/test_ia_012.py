@@ -163,3 +163,22 @@ def test_approuver_envoie_tout_a_carnet(monter):
     main.ETAT["carnet"]._paru = panne
     r = c.post(f"/api/recidives/{rid}/approuver").json()
     assert r["ok"] and r["carnet"].startswith("pas envoyé à carnet")
+
+
+def test_reglages_de_la_recidive(monter):
+    """0.18 : titre du magazine, accroches et droit de réponse par défaut réglables (Réglages › La Récidive)."""
+    c = monter()
+    pid, r = _deux_sejours(c)
+    rid = int(r["invites"][0]["lien"].rsplit("/", 1)[1])
+    reg = c.get("/api/reglages").json()
+    assert reg["journal"]["r_titre"] == "La Récidive" and "r_mot_modele" in reg["champs"]
+    assert c.put("/api/reglages/journal", json={"r_titre": ""}).status_code == 422
+    r = c.put("/api/reglages/journal", json={"r_titre": "Le Fouineur", "r_accroche_femme": "{prenom} a encore frappé",
+                                              "r_mot_modele": "{salut}, on recommence quand vous voulez."})
+    assert r.status_code == 200
+    ed = c.get(f"/api/recidives/{rid}").json()["edition"]
+    assert ed["accroche_defaut"] == "Camille a encore frappé"
+    assert ed["mot_defaut"] == "Chère Camille, on recommence quand vous voulez."
+    c.put(f"/api/recidives/{rid}", json={"accroche": "", "mot": ""})
+    html = c.get(f"/api/recidives/{rid}/apercu").text
+    assert "Le Fouineur</h1>" in html and "Camille a encore frappé" in html and "on recommence quand vous voulez" in html

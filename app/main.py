@@ -232,7 +232,7 @@ def _preparer_recidive(rid: int, completer: bool = False) -> None:
             if "contexte" not in x:      # 0.12 : albums et personnes, pour l'IA (vide si Immich ne le dit pas)
                 x["contexte"] = immich.contexte(x["id"], immich_id)
     vide = not any(not x.get("retiree") for x in choix["photos"])
-    accroche = ed["accroche"] if (completer and ed["accroche"]) else R.accroche(genre or "", _prenom(p))
+    accroche = ed["accroche"] if (completer and ed["accroche"]) else R.accroche(genre or "", _prenom(p), _journal())
     base.maj_recidive(rid, etat="vide" if vide else "a_relire", photos=choix["photos"], trouvees=choix["trouvees"],
                       manque_scandale=choix["manque_scandale"], tag_absent=choix["tag_absent"], genre=genre or "",
                       immich_id=immich_id,
@@ -873,7 +873,7 @@ def _deja_paru(pid: int, sauf: int) -> list[str]:
 
 
 def _mot_recidive(ed: dict, p: dict) -> str:
-    return ed["mot"] or R.mot_par_defaut(ed["genre"], _prenom(p))
+    return ed["mot"] or R.mot_par_defaut(ed["genre"], _prenom(p), _journal())
 
 
 @app.get("/api/recidives")
@@ -885,8 +885,8 @@ def liste_recidives():
 def edition(rid: int):
     ed, p = _edition_ou_404(rid)
     j = _journal()
-    return {"personne": p, "edition": {**ed, "mot_defaut": R.mot_par_defaut(ed["genre"], _prenom(p)),
-                                       "accroche_defaut": R.accroche(ed["genre"], _prenom(p))},
+    return {"personne": p, "edition": {**ed, "mot_defaut": R.mot_par_defaut(ed["genre"], _prenom(p), _journal()),
+                                       "accroche_defaut": R.accroche(ed["genre"], _prenom(p), _journal())},
             "signature": j["signature"], "places": R.PLACES, "titre_defaut": R.titre_une(p["nom"]),
             "code_barres_defaut": R.code_barres(_prenom(p)), "code_barres_maxi": code_barres.MAXI,
             "indices_carnet": _contact(p).get("journaux") or "", "deja_paru": _deja_paru(p["id"], rid), "macarons": R.MACARONS, "rumeurs_maxi": R.RUMEURS, "lettres_maxi": R.LETTRES,
@@ -1100,7 +1100,7 @@ def photo_edition(rid: int, asset: str):
 
 def _rendre_edition(rid: int, mode: str) -> tuple[str, dict, dict]:
     ed, p = _edition_ou_404(rid)
-    ed = {**ed, "mot": _mot_recidive(ed, p), "accroche": ed["accroche"] or R.accroche(ed["genre"], _prenom(p))}
+    ed = {**ed, "mot": _mot_recidive(ed, p), "accroche": ed["accroche"] or R.accroche(ed["genre"], _prenom(p), _journal())}
     return rendu_recidive.document(p, ed, _journal(), ETAT["immich"].gardee, mode=mode), p, ed
 
 

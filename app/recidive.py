@@ -63,13 +63,11 @@ def precedent(sejours: list[dict], du: str, dernier_avant: str = "") -> dict | N
     return None
 
 
-def accroche(genre: str, prenom: str) -> str:
-    """Le sous-titre de « La Récidive », accordé au genre de la fiche carnet (inconnu : avec le prénom)."""
-    if genre == "femme":
-        return "Elle est revenue, nous aussi"
-    if genre == "homme":
-        return "Il est revenu, nous aussi"
-    return f"{prenom or 'Notre invité·e'} est de retour, nous aussi"
+def accroche(genre: str, prenom: str, j: dict | None = None) -> str:
+    """Le sous-titre de « La Récidive », accordé au genre de la fiche carnet (inconnu : avec le prénom).
+    0.18 : modèles réglables (Réglages › La Récidive)."""
+    from . import journal
+    return journal.r_accroche(j or journal.DEFAUTS, genre, prenom)
 
 
 def titre_une(nom: str) -> str:
@@ -86,10 +84,10 @@ def salut(genre: str, prenom: str) -> str:
     return {"femme": f"Chère {prenom}", "homme": f"Cher {prenom}"}.get(genre, prenom)
 
 
-def mot_par_defaut(genre: str, prenom: str) -> str:
-    return (f"{salut(genre, prenom)}, vous avez lu notre enquête : nous assumons tout. Les hôtes n'ont qu'un seul "
-            "démenti à faire valoir : vous nous avez manqué.\n\n"
-            "Votre chambre est prête. Rien ne sortira de la maison, hormis ce journal, et il est à vous.")
+def mot_par_defaut(genre: str, prenom: str, j: dict | None = None) -> str:
+    """0.18 : modèle réglable (Réglages › La Récidive, « Droit de réponse par défaut »)."""
+    from . import journal
+    return journal.r_mot(j or journal.DEFAUTS, salut(genre, prenom), prenom)
 
 
 def date_photo(iso: str) -> str:

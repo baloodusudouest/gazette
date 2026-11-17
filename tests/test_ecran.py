@@ -150,7 +150,7 @@ def test_la_recidive(navigateur, adresse, taille):
     page.locator("button[aria-label^='Refuser : Photo']").first.click()           # 0.17 : geste « Refuser »
     page.get_by_role("button", name="Enregistrer", exact=True).click()
     page.get_by_text("Enregistré.").wait_for()
-    assert page.frame_locator("iframe[title='Aperçu de La Récidive']").get_by_text("Elle est revenue, nous aussi").first.is_visible()
+    page.frame_locator("iframe[title='Aperçu de La Récidive']").get_by_text("Elle est revenue, nous aussi").first.wait_for()   # l'aperçu se recharge
     sans_debordement(page)
     assert erreurs == []
 

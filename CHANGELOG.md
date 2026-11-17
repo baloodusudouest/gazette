@@ -1,5 +1,11 @@
 # Journal des versions
 
+## 0.18.0 — 17 novembre 2026 (réglages généraux de La Récidive)
+- **Réglages › Le journal › La Récidive** (demande de Julien du 17/11) : titre du magazine (« La Récidive » par défaut ; un titre plus long s'imprime plus petit pour tenir dans le bandeau), accroche sous le titre en trois versions selon le genre de la fiche carnet (femme, homme, inconnu ; {prenom} remplacé), droit de réponse par défaut ({salut} et {prenom} remplacés).
+- Ce sont des valeurs par défaut : chaque édition reste modifiable. L'accroche est fixée à la préparation d'une édition ; vider la case de l'édition reprend le réglage.
+- Réglages d'usage comme les autres : sauvegardés chaque nuit par l'Anneau, remis par « Restaurer les réglages ».
+- Tests : 142.
+
 ## 0.17.0 — 17 novembre 2026 (relecture élément par élément, la même pour la Gazette et La Récidive)
 - **Quatre gestes sur chaque élément** (paragraphe, photo, rumeur, lettre, horoscope, mot, code-barres, culture…), pareils dans les deux journaux (demande de Julien du 17/11) :
   - **Valider** : l'élément disparaît (la validation est enregistrée ; il revient s'il change ensuite) ;

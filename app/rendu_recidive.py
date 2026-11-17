@@ -72,7 +72,7 @@ body{font-family:'Serif',Georgia,serif;color:#111;-webkit-print-color-adjust:exa
 .page + .page{border-left:1px dashed #999}
 p,h1,h2,h3{margin:0}
 .mast{background:var(--a);color:#fff;padding:14px 30px 8px;border-bottom:6px solid #111}
-.mast h1{font-family:'Anton',Impact,sans-serif;font-weight:400;font-size:80px;line-height:.95;letter-spacing:.01em;text-transform:uppercase;transform:skewX(-6deg)}
+.mast h1{font-family:'Anton',Impact,sans-serif;font-weight:400;font-size:var(--tm,80px);line-height:.95;letter-spacing:.01em;text-transform:uppercase;transform:skewX(-6deg)}
 .mast .acc{font-family:'Oswald',sans-serif;font-weight:500;font-size:var(--ta,19px);line-height:1.2;color:#FFE600;letter-spacing:.02em;margin-top:2px}
 .strip{display:flex;justify-content:space-between;background:#111;color:#FFE600;font-family:'Oswald',sans-serif;font-weight:500;font-size:13px;letter-spacing:.1em;text-transform:uppercase;padding:6px 30px}
 .main{padding:16px 30px 18px;display:flex;flex-direction:column;gap:12px;flex:1 1 auto;min-height:0;position:relative}
@@ -195,7 +195,7 @@ def page1(g: dict) -> str:
     place = g.get("macaron") or "hd"
     macaron = f'<div class="burst {place}">Exclusif !</div>' if place in ("hg", "hd", "bg", "bd") else ""
     return f"""<section class="page" data-page="1">
-<div class="mast"><h1>La Récidive</h1><p class="acc" style="--ta:{'19px' if len(g['accroche']) <= 42 else '15px'}">« {e(g['accroche'])} »</p></div>
+<div class="mast"><h1 style="--tm:{_taille_mast(g['titre'])}">{e(g['titre'])}</h1><p class="acc" style="--ta:{'19px' if len(g['accroche']) <= 42 else '15px'}">« {e(g['accroche'])} »</p></div>
 <div class="strip"><span>N° {g['numero']} · {e(g['arrivee_longue'])}</span><span>Prix : offert par la maison</span></div>
 <div class="main">
 <span class="kick">Exclusif · Photos accablantes</span>
@@ -329,6 +329,12 @@ def page4(g: dict) -> str:
 </div></section>"""
 
 
+def _taille_mast(titre: str) -> str:
+    """0.18 : le titre du magazine est réglable : plus long, plus petit, pour tenir sur une ligne du bandeau."""
+    n = len(titre)
+    return "80px" if n <= 12 else "64px" if n <= 16 else "52px" if n <= 20 else "42px" if n <= 26 else "32px"
+
+
 def document(personne: dict, edition: dict, j: dict, image: Callable[[str], bytes | None], mode: str = "impose") -> str:
     """`edition` : une ligne de la table recidives (photos, numéro, accroche, mot, précédent…) ; `image(id)` : les
     octets de l'aperçu gardé (None : case hachurée)."""
@@ -348,6 +354,7 @@ def document(personne: dict, edition: dict, j: dict, image: Callable[[str], byte
         "code_barres": edition.get("code_barres") or message_defaut(prenom),
         "courrier": edition.get("courrier") or [], "horoscope": edition.get("horoscope") or "",
         "signe": signe(personne.get("naissance") or "")[0], "macaron": edition.get("macaron") or "hd",
+        "titre": (j.get("r_titre") or "La Récidive").strip() or "La Récidive",      # 0.18 : Réglages › La Récidive
     }
     if mode == "impose":
         corps = f'<div class="feuille">{page4(g)}{page1(g)}</div><div class="feuille">{page2(g)}{page3(g)}</div>'
@@ -356,5 +363,5 @@ def document(personne: dict, edition: dict, j: dict, image: Callable[[str], byte
         corps = "".join(f'<div class="feuille">{p(g)}</div>' for p in (page1, page2, page3, page4))
         page = "@page{size:148.5mm 210mm;margin:0}"
     return (f'<!doctype html><html lang="fr" class="{"lecture" if mode != "impose" else "impose"} {"ecran" if mode == "ecran" else ""}">'
-            f'<head><meta charset="utf-8"><title>La Récidive N° {g["numero"]} — {e(personne["nom"])}</title>'
+            f'<head><meta charset="utf-8"><title>{e(g["titre"])} N° {g["numero"]} — {e(personne["nom"])}</title>'
             f'<style>{font_face()}{CSS}{page}:root{{--a:{ACCENT}}}</style></head><body>{corps}<script>{rendu.AJUSTER}</script></body></html>')
