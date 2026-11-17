@@ -115,6 +115,7 @@
 
 {#snippet ia(cible, description, props, ecrire, choisir)}
   <div class="mt-2 grid min-w-0 gap-1.5 rounded-lg border border-dashed p-2">
+    <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Pour l'IA (non imprimé)</span>
     <div class="flex min-w-0 flex-wrap items-center justify-end gap-2">
       <input class="w-full min-w-0 rounded-lg border bg-background px-2 py-1 text-sm" maxlength="400" value={description}
              oninput={(e) => ecrire(e.currentTarget.value)} placeholder={cible === 'une' ? "Décris la photo de la une (l'IA proposera 5 gros titres)" : "Décris cette photo (l'IA proposera 5 légendes)"}
@@ -174,7 +175,7 @@
             <input class="rounded-lg border bg-background px-2 py-1" maxlength="80" bind:value={accroche} oninput={toucher} /></label>
         </div>
         <p class="mt-1 text-xs text-muted-foreground">N° vide : celui du séjour ({ed.numero}). Accroche proposée d'après le genre de la fiche carnet : « {ed.accroche_defaut} ».</p>
-        <label class="mt-3 grid gap-1 text-sm"><span class="etiquette">Gros titre de la une</span>
+        <label class="mt-3 grid gap-1 text-sm"><span class="etiquette">Gros titre de la une (imprimé)</span>
           <input class="rounded-lg border bg-background px-2 py-1" maxlength="90" placeholder={d.titre_defaut} bind:value={titreUne} oninput={toucher} /></label>
         <fieldset class="mt-3 grid gap-1 text-sm">
           <legend class="etiquette mb-1">Macaron « Exclusif ! » sur la photo</legend>
@@ -215,6 +216,7 @@
                   {/each}
                 </div>
               {/if}
+              <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Légende imprimée</span>
               <textarea rows="2" class="min-w-0 rounded-lg border bg-background px-2 py-1 font-mono text-sm" maxlength="220" bind:value={p.legende}
                         oninput={toucher} aria-label="Légende de la photo du {dateLongue(p.date)}" disabled={p.retiree}></textarea>
               {#if !p.retiree}{@render ia(p.id, p.description ?? '', p.propositions ?? [], (v) => { p.description = v; toucher() }, (t) => { p.legende = t; toucher() })}{/if}

@@ -1,5 +1,8 @@
 # Journal des versions
 
+## 0.9.5 — 17 novembre 2026
+- Édition de La Récidive : petits titres « Légende imprimée » et « Pour l'IA (non imprimé) » au-dessus des deux cadres de chaque photo ; « Gros titre de la une (imprimé) ». Demande de Julien.
+
 ## 0.9.4 — 17 novembre 2026
 - **IA du PC** : quand Ollama répond par une erreur, Gazette affiche son message (ex. « model 'qwen2.5:7b' not found ») et la marche à suivre qui va avec, au lieu de « injoignable ». Vu chez Julien le 17/11 : 404 sur `/api/generate`.
 
