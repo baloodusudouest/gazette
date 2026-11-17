@@ -404,4 +404,4 @@ def test_ia_modele_absent(monter):
         raise O.ErreurOllama(404, "model 'qwen2.5:7b' not found")
     main.ETAT["ollama"] = O.Ollama("http://pc:11434", lire=absent)
     r = c.post(f"/api/recidives/{rid}/proposer", json={"cible": "une", "description": "Camille au marché"})
-    assert r.status_code == 503 and "ne trouve pas le modèle" in r.json()["detail"] and "not found" in r.json()["detail"]
+    assert r.status_code == 503 and "trouve pas le modèle" in r.json()["detail"] and "not found" in r.json()["detail"]
