@@ -2,7 +2,7 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
-## État (17/11/2026) — 0.14.0 (La Récidive + IA du PC pour les deux journaux + albums Immich + photo et code-barres en page 4 de la Gazette) sur 0.8.0, temps 1 livré + top 5 culturel + journal réglé dans l'appli + texte complet + aide à la place + carnet + réglages sauvegardés par l'Anneau, installé sur le NAS le 14/11 (pas encore de vrai livret)
+## État (17/11/2026) — 0.15.0 (La Récidive + IA du PC pour les deux journaux + albums Immich + photo et code-barres en page 4 de la Gazette) sur 0.8.0, temps 1 livré + top 5 culturel + journal réglé dans l'appli + texte complet + aide à la place + carnet + réglages sauvegardés par l'Anneau, installé sur le NAS le 14/11 (pas encore de vrai livret)
 - Appli complète : fiches, livrets, relecture, aperçu, PDF à imprimer et lecture, À traiter, Connexion, Réglages, porte HA (`/ha/sejour`, `/ha/etat`).
 - Moteur essayé en vrai (réseau) sur trois dates maigres du banc (1964, 1983, 1997) : une, brèves, semaine, chronologie, nés et disparus remplis ; rendu PDF contrôlé à l'œil (aucun débordement).
 - Top 5 culturel : fichier livré dans `app/donnees/`, remplaçable depuis Réglages (fichier importé gardé dans `/data/culture.csv`) ; prompt de mise à jour annuelle dans `app/donnees/prompt_culture.md` (il nomme les années 2026 et 2027 : à adapter chaque année).
@@ -40,6 +40,7 @@
 
 ## Prochaine étape
 
+- 0.15.0 : essayer l'événement du séjour sur l'horoscope avec la vraie IA du PC.
 - 0.14.0 : essayer le bouton « IA » du haut sur une vraie Gazette, PC allumé (durée, qualité des versions journal).
 - 0.13.0 : à la prochaine Gazette, choisir une photo en page 4, imprimer un exemplaire (noir et blanc sur papier, taille du mot) et scanner le code-barres avec le téléphone (jamais essayé).
 - 0.12.0 : ajouter **album.read** et **person.read** à la clé Immich « gazette » ; à la relecture, vérifier la ligne « Immich · Album : … · Avec : … » sous une photo (jamais essayé sur la vraie photothèque) ; essayer les aides de l'IA sur une Gazette (Titres, Raccourcir sur un bloc rouge).

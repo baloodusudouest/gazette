@@ -75,6 +75,8 @@ class Base:
             self._c.execute("ALTER TABLE personnes ADD COLUMN dernier_avant TEXT NOT NULL DEFAULT ''")
         # 0.9.1 : gros titre de la une choisi ou écrit, description et propositions de l'IA
         colonnes = {l["name"] for l in self._c.execute("PRAGMA table_info(recidives)")}
+        if "evenement" not in colonnes:          # 0.15 : événement du séjour (pour l'horoscope, gardé pour les suivants)
+            self._c.execute("ALTER TABLE recidives ADD COLUMN evenement TEXT NOT NULL DEFAULT ''")
         if "code_barres" not in colonnes:        # 0.11.4 : message du code-barres de la page 4
             self._c.execute("ALTER TABLE recidives ADD COLUMN code_barres TEXT NOT NULL DEFAULT ''")
         if "macaron" not in colonnes:            # 0.9.2 : place du macaron « Exclusif ! » sur la photo de la une

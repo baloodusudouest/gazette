@@ -100,3 +100,25 @@ def test_chiffres_en_emoji_retires():
     assert O.sans_numero("3. Le nombre 3 est votre sésame") == "Le nombre 3 est votre sésame"
     assert O.nettoyer("1️⃣ Camille encore prise la main dans le sac\n2️⃣ Scandale au barbecue", "femme") == [
         "Camille encore prise la main dans le sac", "Scandale au barbecue"]
+
+
+def test_horoscope_brode_sur_l_evenement(monter):
+    """0.15 : l'événement du séjour (case de l'édition, jamais imprimé) est donné à l'IA pour l'horoscope, et gardé pour
+    les séjours suivants."""
+    c = monter()
+    pid, r = _deux_sejours(c)
+    rid = int(r["invites"][0]["lien"].rsplit("/", 1)[1])
+    faux = _faux_ollama(["1. Les astres prédisent une victoire de la Suède grâce à votre costume de tigre."])
+    main.ETAT["ollama"] = O.Ollama("http://pc:11434", lire=faux)
+    ev = "soirée Eurovision, dort à la maison pour ne pas rentrer trop tard"
+    props = c.post(f"/api/recidives/{rid}/horoscope", json={"evenement": ev}).json()["propositions"]
+    assert props and "costume de tigre" in props[0]
+    prompt = faux.appels[-1][1]["prompt"]
+    assert ev in prompt and "brode dessus" in prompt and "Séjours précédents" not in prompt
+    ed = c.get(f"/api/recidives/{rid}").json()["edition"]
+    assert ed["evenement"] == ev
+    c.put(f"/api/recidives/{rid}", json={"horoscope": props[0]})
+    assert ev not in c.get(f"/api/recidives/{rid}/apercu").text                 # jamais imprimé
+    # Sans événement : consigne d'avant
+    assert "brode dessus" not in O.consigne_horoscope("Cancer", "", "femme", "Camille")
+    assert "2025 : mariage" in O.consigne_horoscope("Cancer", "", "femme", "Camille", avant=["2025 : mariage"])

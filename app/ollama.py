@@ -187,12 +187,23 @@ def consigne_courrier(indices: str, genre: str, prenom: str, deja: list[str] | N
               "« Réponse : … » (une phrase). Une ligne vide entre deux lettres. Rien d'autre.")
 
 
-def consigne_horoscope(signe_: str, indices: str, genre: str, prenom: str, deja: list[str] | None = None) -> str:
+def consigne_horoscope(signe_: str, indices: str, genre: str, prenom: str, deja: list[str] | None = None,
+                       evenement: str = "", avant: list[str] | None = None) -> str:
+    """0.15 : `evenement` — l'événement du séjour qui arrive (« soirée Eurovision, dort à la maison pour ne pas rentrer
+    tard ») : chaque horoscope brode dessus. `avant` — les événements des séjours précédents, pour un clin d'œil."""
+    exemple_ev = ("Exemples pour un séjour lié à un événement (soirée Eurovision, dort chez ses hôtes pour ne pas rentrer "
+                  "tard) : « Mercure en paillettes : les astres prédisent une victoire de la Suède, grâce à votre costume "
+                  "de tigre. » ; « Pluton percute le Cancer vers 2 h du matin : migraine carabinée garantie au "
+                  "petit-déjeuner. »\n\n") if evenement else ""
     return ("Exemple du ton voulu : « Vénus s'installe dans votre chambre d'amis : évitez les décisions importantes avant "
-            "le deuxième café. Chiffre de chance : le nombre de croissants restants. »\n\n" + _feuilleton(deja or [])
+            "le deuxième café. Chiffre de chance : le nombre de croissants restants. »\n\n" + exemple_ev + _feuilleton(deja or [])
             + f"Écris {NOMBRE_HOROSCOPES} horoscopes loufoques pour {prenom}, signe {signe_ or 'inconnu'}, pendant son "
               f"séjour chez ses hôtes, pour un faux journal à scandale. {_accord(genre, prenom)}.\n"
             + (f"Ce que les hôtes savent de {prenom} : « {indices} »\n" if indices else "")
+            + (f"Ce séjour est lié à un événement : « {evenement} ». Chaque horoscope brode dessus (prédictions loufoques sur "
+               "l'événement, ses suites, le lendemain), chacun sous un angle différent.\n" if evenement else "")
+            + (f"Séjours précédents de {prenom} : {' ; '.join(avant)} (un clin d'œil est permis, sans s'y attarder).\n"
+               if avant else "")
             + "Style horoscope de magazine (planètes, chiffre ou couleur de chance), absurde et affectueux, jamais méchant, "
               f"rien de grave (santé, argent, couple). {MAXI_HOROSCOPE} caractères au plus chacun, sur une seule ligne, "
               "sans répéter le nom du signe. Un horoscope par ligne, numérotés.")
@@ -417,12 +428,14 @@ class Ollama:
                                f"Début de sa réponse (pour Claude) : « {extrait or 'vide'} »")
         return res[:NOMBRE_LETTRES]
 
-    def horoscope(self, signe_: str, indices: str, genre: str = "", prenom: str = "", deja: list[str] | None = None) -> list[str]:
+    def horoscope(self, signe_: str, indices: str, genre: str = "", prenom: str = "", deja: list[str] | None = None,
+                  evenement: str = "", avant: list[str] | None = None) -> list[str]:
         """0.11 : jusqu'à 3 horoscopes loufoques du séjour (page 4)."""
         if not self.actif:
             raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
         indices = " ".join((indices or "").split())[:400]
-        return self._demander(consigne_horoscope(signe_, indices, genre, prenom, deja), NOMBRE_HOROSCOPES, MAXI_HOROSCOPE,
+        evenement = " ".join((evenement or "").split())[:200]
+        return self._demander(consigne_horoscope(signe_, indices, genre, prenom, deja, evenement, avant), NOMBRE_HOROSCOPES, MAXI_HOROSCOPE,
                               genre, deja)
 
     # ------------------------------------------------------------ 0.12 : aides pour la Gazette classique

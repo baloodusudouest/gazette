@@ -1,5 +1,10 @@
 # Journal des versions
 
+## 0.15.0 — 17 novembre 2026 (l'horoscope brode sur l'événement du séjour)
+- **Événement du séjour** (choix de Julien du 17/11) : une case dans l'encart « Pour l'IA » de l'horoscope de La Récidive (« soirée Eurovision, dort à la maison pour ne pas rentrer trop tard »). Quand elle est remplie, les 3 horoscopes brodent dessus, chacun sous un angle différent (« les astres prédisent une victoire de la Suède grâce à votre costume de tigre », « Pluton percute le Cancer : migraine carabinée le lendemain »). Jamais imprimé : seul l'horoscope choisi l'est.
+- **Gardé pour les séjours suivants** : l'événement reste dans l'édition ; les horoscopes des éditions suivantes reçoivent les événements des séjours précédents (« 2026 : soirée Eurovision ») pour un clin d'œil.
+- Tests : 136.
+
 ## 0.14.1 — 17 novembre 2026
 - **Chiffres en émoji retirés** : l'IA numérotait l'horoscope avec « 1️⃣ 2️⃣ 3️⃣ » (vu chez Julien le 17/11) et le chiffre restait dans le texte imprimé. Les chiffres en émoji et tous les émojis (interdits par la consigne) sont retirés des propositions, de ce qui est enregistré, de ce qui était déjà gardé et de l'impression (horoscope, rumeurs, courrier, titres). Tests : 135.
 

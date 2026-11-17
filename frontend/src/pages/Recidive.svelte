@@ -33,6 +33,7 @@
   let courrier = $state([])         // 0.11 : page 4
   let propsCourrier = $state([])
   let horoscope = $state('')
+  let evenement = $state('')        // 0.15 : événement du séjour (pour l'horoscope, jamais imprimé)
   let codeBarres = $state('')       // 0.11.4 : message caché dans le code-barres
   let propsHoroscope = $state([])
   let modifie = $state(false)
@@ -60,6 +61,7 @@
       courrier = (ed.courrier || []).map((x) => ({ ...x }))
       propsCourrier = ed.propositions_courrier || []
       horoscope = ed.horoscope || ''
+      evenement = ed.evenement || ''
       codeBarres = ed.code_barres || ''
       propsHoroscope = ed.propositions_horoscope || []
       modifie = false
@@ -72,7 +74,7 @@
     }
   }
   function toucher() { modifie = true; message = '' }
-  const corps = () => ({ numero_main: numero === '' ? null : +numero, accroche, mot, titre_une: titreUne, description_une: descriptionUne, macaron, rumeurs, indices_rumeurs: indices, courrier, horoscope, code_barres: codeBarres,
+  const corps = () => ({ numero_main: numero === '' ? null : +numero, accroche, mot, titre_une: titreUne, description_une: descriptionUne, macaron, rumeurs, indices_rumeurs: indices, courrier, horoscope, evenement, code_barres: codeBarres,
                          photos: photos.map((p) => ({ id: p.id, legende: p.legende, retiree: p.retiree, description: p.description ?? '', cadrage: p.cadrage ?? 'haut' })) })
   // « IA » en haut : 5 titres pour chaque texte décrit (la une et chaque photo gardée), l'un après l'autre
   // 0.12 : ce qu'Immich dit d'une photo (albums parlants, personnes) — l'IA s'en sert, même sans description
@@ -102,7 +104,7 @@
     demande = quoi
     message = ''
     try {
-      const r = await api.post(`/api/recidives/${id}/${quoi}`, { indices })
+      const r = await api.post(`/api/recidives/${id}/${quoi}`, quoi === 'horoscope' ? { indices, evenement } : { indices })
       if (quoi === 'courrier') propsCourrier = r.propositions
       else propsHoroscope = r.propositions
       toucher()
@@ -380,6 +382,13 @@
         <div class="mt-2 grid min-w-0 gap-1.5 rounded-lg border border-dashed p-2">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Pour l'IA (non imprimé)</span>
+          </div>
+          <label class="grid gap-1 text-sm">
+            <span class="text-xs text-muted-foreground">Événement du séjour (facultatif) : l'horoscope brode dessus ; gardé pour les séjours suivants</span>
+            <input class="w-full min-w-0 rounded-lg border bg-background px-2 py-1 text-sm" maxlength="200" bind:value={evenement} oninput={toucher}
+                   placeholder="Ex. : soirée Eurovision, dort à la maison pour ne pas rentrer trop tard" aria-label="Événement du séjour" />
+          </label>
+          <div class="flex flex-wrap items-center justify-end gap-2">
             <Button size="sm" variant="outline" class="shrink-0" onclick={() => proposerPage4('horoscope')} disabled={demande !== '' || lot !== null || !d.signe}>
               <Sparkles class="size-3.5" aria-hidden="true" />{demande === 'horoscope' ? '…' : '3 horoscopes'}</Button>
           </div>

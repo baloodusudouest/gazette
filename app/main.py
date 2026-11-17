@@ -814,6 +814,16 @@ def _edition_ou_404(rid: int) -> tuple[dict, dict]:
     return ed, p
 
 
+def _evenements_avant(pid: int, ed: dict) -> list[str]:
+    """0.15 : les événements notés pour les séjours précédents de la personne (« 2025 : soirée Eurovision »), les plus
+    récents d'abord, pour un clin d'œil de l'horoscope."""
+    res = []
+    for x in ETAT["base"].recidives(pid):
+        if x["id"] != ed["id"] and x["sejour_du"] < ed["sejour_du"] and (x.get("evenement") or "").strip():
+            res.append(f"{x['sejour_du'][:4]} : {x['evenement'].strip()}")
+    return res[:5]
+
+
 def _deja_paru(pid: int, sauf: int) -> list[str]:
     """0.10 : les textes imprimés dans les éditions approuvées précédentes de cette personne (gros titre, légendes
     écrites ou choisies, rumeurs) : l'IA ne les reprend pas, mais peut y faire un clin d'œil."""
@@ -891,6 +901,8 @@ def enregistrer_edition(rid: int, corps: dict = Body(...)):
         champs["code_barres"] = " ".join(str(corps.get("code_barres") or "").split())[:60]
     if "horoscope" in corps:
         champs["horoscope"] = sans_numero(" ".join(str(corps.get("horoscope") or "").split()))[:280]
+    if "evenement" in corps:                   # 0.15 : événement du séjour, pour l'IA seulement (jamais imprimé)
+        champs["evenement"] = " ".join(str(corps.get("evenement") or "").split())[:200]
     if "indices_rumeurs" in corps:
         champs["indices_rumeurs"] = " ".join(str(corps.get("indices_rumeurs") or "").split())[:400]
     if "description_une" in corps:
@@ -1014,12 +1026,14 @@ def proposer_horoscope(rid: int, corps: dict = Body(default={})):
     """0.11 : 3 horoscopes loufoques du séjour, d'après le signe (calculé de la date de naissance, jamais imprimée)."""
     ed, p = _edition_ou_404(rid)
     indices = " ".join(str(corps.get("indices") or ed.get("indices_rumeurs") or "").split())[:400]
+    evenement = " ".join(str(corps.get("evenement") if "evenement" in corps else ed.get("evenement") or "").split())[:200]
     try:
         props = ETAT["ollama"].horoscope(R.signe(p.get("naissance", ""))[0], indices, ed["genre"], _prenom(p),
-                                         deja=_deja_paru(p["id"], rid))
+                                         deja=_deja_paru(p["id"], rid), evenement=evenement,
+                                         avant=_evenements_avant(p["id"], ed))
     except RuntimeError as ex:
         raise HTTPException(503, str(ex))
-    ETAT["base"].maj_recidive(rid, propositions_horoscope=props)
+    ETAT["base"].maj_recidive(rid, propositions_horoscope=props, evenement=evenement)
     return {"propositions": props}
 
 
