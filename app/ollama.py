@@ -9,6 +9,7 @@ trois fois. PC éteint ou Ollama injoignable : aucune proposition, un message av
 gabarit reste et Julien peut toujours écrire la sienne. Adresse : GAZETTE_OLLAMA_URL (vide : pas d'IA)."""
 from __future__ import annotations
 
+import difflib
 import os
 import re
 from typing import Callable
@@ -72,13 +73,26 @@ EXEMPLES = [  # description de l'hôte → titre (0.9.6 : le modèle imite le to
 ]
 
 
-def consigne(description: str, sorte: str, genre: str, prenom: str) -> str:
+def _feuilleton(deja: list[str]) -> str:
+    if not deja:
+        return ""
+    return ("Déjà parus dans les numéros précédents (ne les reprends pas mot pour mot ; un clin d'œil façon feuilleton "
+            "est bienvenu) :\n" + "\n".join(f"- {d}" for d in deja[:20]) + "\n\n")
+
+
+def proche_de(texte: str, deja: list[str], seuil: float = 0.82) -> bool:
+    """0.10 : trop proche d'un texte déjà imprimé (casse et ponctuation ignorées)."""
+    t = re.sub(r"\W+", " ", texte.casefold()).strip()
+    return any(difflib.SequenceMatcher(None, t, re.sub(r"\W+", " ", d.casefold()).strip()).ratio() >= seuil for d in deja)
+
+
+def consigne(description: str, sorte: str, genre: str, prenom: str, deja: list[str] | None = None) -> str:
     accord = {"femme": f"{prenom} est une femme (accorde au féminin)", "homme": f"{prenom} est un homme (accorde au masculin)"}.get(
         genre, f"le genre de {prenom} est inconnu : formule sans accord féminin ni masculin, sans « il » ni « elle »")
     quoi = (f"le GROS TITRE de la une, qui annonce le retour de {prenom} chez nous" if sorte == "une"
             else "la LÉGENDE choc d'une photo volée")
     exemples = "\n".join(f"- « {d} » → {t}" for d, t in EXEMPLES)
-    return (f"Exemples du ton voulu (description → titre) :\n{exemples}\n\n"
+    return (f"Exemples du ton voulu (description → titre) :\n{exemples}\n\n" + _feuilleton(deja or []) +
             f"Écris {NOMBRE} propositions pour {quoi}. {accord}.\n"
             f"Ce que montre la photo, d'après l'hôte : « {description} »\n"
             f"Ne décris pas la photo : transforme-la en scandale ou en faux scoop. Cinq angles différents. "
@@ -91,15 +105,15 @@ MAXI_RUMEUR = 130       # 0.9.7 : une rumeur loufoque de la page 3
 NOMBRE_RUMEURS = 8
 
 
-def consigne_rumeurs(indices: str, genre: str, prenom: str, photos: list[str]) -> str:
+def consigne_rumeurs(indices: str, genre: str, prenom: str, photos: list[str], deja: list[str] | None = None) -> str:
     accord = {"femme": f"{prenom} est une femme (accorde au féminin)", "homme": f"{prenom} est un homme (accorde au masculin)"}.get(
         genre, f"le genre de {prenom} est inconnu : formule sans accord féminin ni masculin, sans « il » ni « elle »")
     vu = "; ".join(p for p in photos if p)[:600]
     return ("Exemples du ton voulu :\n"
             "- Selon nos informations, Marc aurait tenté d'adopter un rond-point en Lot-et-Garonne.\n"
             "- Des voisins affirment que Sophie parle aux tomates du jardin, et qu'elles répondent.\n"
-            "- Exclusif : Paul détiendrait le record départemental de siestes en position assise.\n\n"
-            f"Écris {NOMBRE_RUMEURS} rumeurs LOUFOQUES et totalement inventées sur {prenom}, pour la rubrique "
+            "- Exclusif : Paul détiendrait le record départemental de siestes en position assise.\n\n" + _feuilleton(deja or [])
+            + f"Écris {NOMBRE_RUMEURS} rumeurs LOUFOQUES et totalement inventées sur {prenom}, pour la rubrique "
             f"« Les rumeurs de la rédaction » d'un faux journal à scandale offert par ses hôtes. {accord}.\n"
             + (f"Ce que les hôtes savent de {prenom} : « {indices} »\n" if indices else "")
             + (f"Ce que montrent les photos du journal : {vu}\n" if vu else "")
@@ -143,7 +157,7 @@ class Ollama:
     def actif(self) -> bool:
         return self._lire is not None
 
-    def _demander(self, prompt: str, nombre: int, maxi: int, genre: str) -> list[str]:
+    def _demander(self, prompt: str, nombre: int, maxi: int, genre: str, deja: list[str] | None = None) -> list[str]:
         props: list[str] = []
         for _ in range(ESSAIS):
             try:
@@ -162,6 +176,8 @@ class Ollama:
                 raise RuntimeError(f"IA du PC injoignable ({self.erreur}). " + MARCHE) from ex
             self.erreur = ""
             for p in nettoyer(str((r or {}).get("response", "")), genre, maxi):
+                if proche_de(p, deja or []):            # 0.10 : déjà imprimé dans un numéro précédent
+                    continue
                 if p.casefold() not in {x.casefold() for x in props}:
                     props.append(p)
             if len(props) >= nombre:
@@ -170,21 +186,24 @@ class Ollama:
             raise RuntimeError("L'IA n'a rien proposé d'utilisable : reformule, ou écris le texte toi-même.")
         return props[:nombre]
 
-    def proposer(self, description: str, sorte: str = "photo", genre: str = "", prenom: str = "") -> list[str]:
+    def proposer(self, description: str, sorte: str = "photo", genre: str = "", prenom: str = "",
+                 deja: list[str] | None = None) -> list[str]:
         """Jusqu'à 5 titres. RuntimeError (avec la marche à suivre) si l'IA n'est pas joignable ou ne rend rien d'utile."""
         if not self.actif:
             raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
         description = " ".join((description or "").split())[:400]
         if len(description) < 3:
             raise ValueError("Écris d'abord en quelques mots ce qu'on voit sur la photo.")
-        return self._demander(consigne(description, sorte, genre, prenom), NOMBRE, MAXI, genre)
+        return self._demander(consigne(description, sorte, genre, prenom, deja), NOMBRE, MAXI, genre, deja)
 
-    def rumeurs(self, indices: str, genre: str = "", prenom: str = "", photos: list[str] | None = None) -> list[str]:
+    def rumeurs(self, indices: str, genre: str = "", prenom: str = "", photos: list[str] | None = None,
+                deja: list[str] | None = None) -> list[str]:
         """0.9.7 : jusqu'à 8 rumeurs loufoques (130 caractères au plus) pour la page 3. Indices facultatifs."""
         if not self.actif:
             raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
         indices = " ".join((indices or "").split())[:400]
-        return self._demander(consigne_rumeurs(indices, genre, prenom, photos or []), NOMBRE_RUMEURS, MAXI_RUMEUR, genre)
+        return self._demander(consigne_rumeurs(indices, genre, prenom, photos or [], deja), NOMBRE_RUMEURS, MAXI_RUMEUR,
+                              genre, deja)
 
     def sonder(self) -> dict:
         if not self.actif:

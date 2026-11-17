@@ -33,10 +33,22 @@ def _lire_http(url: str, jeton: str) -> list[dict]:
     return list(r.json().get("personnes") or [])
 
 
+def _ecrire_http(url: str, jeton: str, personne_id: str, texte: str) -> None:
+    r = httpx.put(f"{url}/gazette/personnes/{personne_id}/journaux", json={"texte": texte},
+                  headers={"Authorization": f"Bearer {jeton}"}, timeout=DELAI)
+    if r.status_code == 401:
+        raise RuntimeError("jeton refusé par carnet (MAISON_JETON différent de celui de carnet)")
+    if r.status_code == 404:
+        raise RuntimeError("carnet ne connaît pas cette adresse (carnet 2.29 nécessaire)")
+    r.raise_for_status()
+
+
 class Carnet:
-    def __init__(self, url: str, jeton: str, base: Base, lire: Callable[[str, str], list[dict]] | None = None):
+    def __init__(self, url: str, jeton: str, base: Base, lire: Callable[[str, str], list[dict]] | None = None,
+                 ecrire: Callable[[str, str, str, str], None] | None = None):
         self.url, self.jeton, self.base = url.rstrip("/"), jeton, base
         self._lire = lire or _lire_http
+        self._ecrire = ecrire or _ecrire_http
         self._liste: list[dict] | None = None
         self._lu_a = 0.0
         self.erreur = ""
@@ -99,6 +111,16 @@ class Carnet:
                             "jour": p.get("jour"), "mois": p.get("mois"), "annee": p.get("annee")})
         res.sort(key=lambda x: (not cle_nom(x["nom"]).startswith(c), x["nom"].casefold()))
         return res[:n]
+
+    def ecrire_journaux(self, personne_id: str, texte: str) -> None:
+        """0.10 : garde dans carnet (≥ 2.29) ce que Julien a écrit sur une personne pour les rumeurs. Seule écriture
+        de Gazette chez carnet ; refusée en lecture seule par l'appelant."""
+        if not self.actif or not personne_id:
+            raise RuntimeError("carnet pas réglé ou personne inconnue de carnet")
+        self._ecrire(self.url, self.jeton, personne_id, texte)
+        for p in self._liste or []:                     # la liste en mémoire suit, sans relire carnet
+            if p.get("personne_id") == personne_id:
+                p["journaux"] = texte
 
     def etat(self) -> dict:
         liste = self._liste if self._liste is not None else None

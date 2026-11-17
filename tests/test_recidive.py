@@ -436,3 +436,41 @@ def test_numeros_de_l_ia_retires():
                                              "Selon nos sources, Camille vole.", "Camille et le rond-point"]
     assert O.sans_numero("2 - Il se murmure que…") == "Il se murmure que…"
     assert O.sans_numero("Camille 2 fois plus drôle") == "Camille 2 fois plus drôle"
+
+
+
+def test_indices_gardes_dans_carnet_et_deja_paru(monter):
+    c = monter()
+    ecrits = []
+    main.ETAT["carnet"]._ecrire = lambda url, jeton, pid, texte: ecrits.append((pid, texte))
+    for p in main.ETAT["carnet"].personnes(forcer=True):
+        p["personne_id"], p["journaux"] = "p-camille0001", "aime le jardin"
+    a = "1. Selon nos sources, Camille parle aux tomates.\n2. Camille aurait adopté un rond-point."
+    b = "1. Selon nos sources, Camille parle aux tomates !\n2. Camille dresse des escargots de course."
+    lire = _faux_ollama([a, a, a, a, a, a, b, b, b])          # 3 essais par demande (moins de 8 rumeurs)
+    main.ETAT["ollama"] = O.Ollama("http://pc:11434", lire=lire)
+    pid, r = _deux_sejours(c)
+    rid = int(r["invites"][0]["lien"].rsplit("/", 1)[1])
+    assert c.get(f"/api/recidives/{rid}").json()["indices_carnet"] == "aime le jardin"
+    r = c.post(f"/api/recidives/{rid}/rumeurs", json={"indices": "aime le jardin, fan de pétanque"}).json()
+    assert r["carnet"] == "gardé dans carnet" and ecrits == [("p-camille0001", "aime le jardin, fan de pétanque")]
+    assert c.post(f"/api/recidives/{rid}/rumeurs", json={"indices": "aime le jardin, fan de pétanque"}).json()["carnet"] == "déjà dans carnet"
+    # Une rumeur imprimée dans le N° 2 n'est plus reproposée au N° 3 (même presque identique)
+    c.put(f"/api/recidives/{rid}", json={"rumeurs": ["Selon nos sources, Camille parle aux tomates."]})
+    c.post(f"/api/recidives/{rid}/approuver")
+    deja = main._deja_paru(pid, 0)
+    assert "Selon nos sources, Camille parle aux tomates." in deja
+    props = main.ETAT["ollama"].rumeurs("", "femme", "Camille", [], deja=deja)
+    assert props == ["Camille dresse des escargots de course."] and "Déjà parus" in lire.appels[-1][1]["prompt"]
+    assert O.proche_de("SELON NOS SOURCES, Camille parle aux tomates !", deja)
+
+
+def test_indices_pas_gardes_en_lecture_seule(monter):
+    c = monter()
+    main.ETAT["cfg"] = main.ETAT["cfg"].__class__(**{**main.ETAT["cfg"].__dict__, "lecture_seule": True})
+    for p in main.ETAT["carnet"].personnes(forcer=True):
+        p["personne_id"] = "p-camille0001"
+    main.ETAT["ollama"] = O.Ollama("http://pc:11434", lire=_faux_ollama(["1. Camille aurait adopté un rond-point."]))
+    pid, r = _deux_sejours(c)
+    rid = int(r["invites"][0]["lien"].rsplit("/", 1)[1])
+    assert c.post(f"/api/recidives/{rid}/rumeurs", json={"indices": "fan de pétanque"}).json()["carnet"] == "pas gardé : lecture seule"

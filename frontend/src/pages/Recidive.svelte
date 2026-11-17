@@ -50,7 +50,7 @@
       descriptionUne = ed.description_une || ''
       propsUne = ed.propositions_une || []
       rumeurs = (ed.rumeurs || []).map((r) => r.replace(/^\s*(\d+\s*[.)\-:–—/]+|[-•*–—])\s*/, ''))   // 0.9.8 : numéros de l'IA
-      indices = ed.indices_rumeurs || ''
+      indices = ed.indices_rumeurs || d.indices_carnet || ''      // 0.10 : repris de carnet (« Pour les journaux »)
       propsRumeurs = ed.propositions_rumeurs || []
       modifie = false
       tampon = Date.now()
@@ -70,7 +70,12 @@
   async function proposerRumeurs() {
     demande = 'rumeurs'
     message = ''
-    try { propsRumeurs = (await api.post(`/api/recidives/${id}/rumeurs`, { indices })).propositions; toucher() }
+    try {
+      const r = await api.post(`/api/recidives/${id}/rumeurs`, { indices })
+      propsRumeurs = r.propositions
+      if (indices.trim() && r.carnet) message = `Indices : ${r.carnet}.`
+      toucher()
+    }
     catch (err) { message = err.message }
     demande = ''
   }
@@ -273,6 +278,7 @@
             <Button size="sm" variant="outline" class="shrink-0" onclick={proposerRumeurs} disabled={demande !== '' || lot !== null}>
               <Sparkles class="size-3.5" aria-hidden="true" />{demande === 'rumeurs' ? '…' : '8 rumeurs'}</Button>
           </div>
+          <p class="text-[0.7rem] text-muted-foreground">Gardé dans carnet (fiche › Pour les journaux), repris au prochain séjour.</p>
           {#if propsRumeurs.length}
             <ul class="grid gap-1" aria-label="Rumeurs proposées par l'IA">
               {#each propsRumeurs as t}
@@ -283,6 +289,14 @@
           {/if}
         </div>
       </section>
+
+      {#if d.deja_paru?.length}
+        <details class="min-w-0 rounded-2xl border bg-card p-4 text-sm">
+          <summary class="etiquette cursor-pointer">Déjà paru dans les numéros précédents ({d.deja_paru.length})</summary>
+          <p class="mt-1 text-xs text-muted-foreground">L'IA ne les repropose pas, mais peut y faire un clin d'œil.</p>
+          <ul class="mt-2 grid gap-1">{#each d.deja_paru as t}<li>« {t} »</li>{/each}</ul>
+        </details>
+      {/if}
 
       <section class="min-w-0 rounded-2xl border bg-card p-4" aria-label="Droit de réponse">
         <h2 class="etiquette mb-2">Page 4 · droit de réponse (le mot des hôtes)</h2>

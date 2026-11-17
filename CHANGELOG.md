@@ -1,5 +1,10 @@
 # Journal des versions
 
+## 0.10.0 — 17 novembre 2026 (indices gardés dans carnet, l'IA se souvient des numéros précédents)
+- **Indices des rumeurs gardés dans carnet** (choix de Julien du 17/11) : ce que tu écris sur la personne pour les rumeurs est enregistré dans carnet (fiche › « Pour les journaux », carnet ≥ 2.29) quand tu demandes les rumeurs, et repris tout seul à l'édition suivante. carnet le recopie dans la note de la personne de son coffre « Contacts ». Seule écriture de Gazette chez carnet ; pas en lecture seule ; carnet injoignable : un message, rien de bloqué.
+- **Ce qui a déjà paru** : les gros titres, légendes écrites ou choisies et rumeurs des éditions approuvées précédentes de la personne sont donnés à l'IA (« ne les reprends pas, un clin d'œil façon feuilleton est bienvenu ») ; une proposition trop proche d'un texte déjà imprimé est écartée. Liste « Déjà paru dans les numéros précédents » dans l'édition.
+- Tests : 116.
+
 ## 0.9.8 — 17 novembre 2026
 - **Numéros retirés** : l'IA numérotait ses propositions à sa façon (« 2 - Il se murmure… ») et le numéro restait dans le texte. Toutes les formes (« 2 - », « 3) », « 4 – », « - ») sont retirées des propositions, des rumeurs enregistrées et de l'impression (les rumeurs déjà choisies sont corrigées à l'affichage). Vu chez Julien le 17/11.
 

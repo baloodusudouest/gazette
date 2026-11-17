@@ -232,7 +232,8 @@ async def cycle(app: FastAPI):
     larousse = journal.charger(base)["larousse"]
     ETAT.setdefault("sources", Sources(base, actives=cfg.sources_actives, larousse=larousse))
     ETAT["sources"].larousse_actif = larousse
-    ETAT["carnet"] = Carnet(cfg.carnet_url, cfg.carnet_jeton, base, lire=ETAT.get("carnet_lire"))
+    ETAT["carnet"] = Carnet(cfg.carnet_url, cfg.carnet_jeton, base, lire=ETAT.get("carnet_lire"),
+                            ecrire=ETAT.get("carnet_ecrire"))
     ETAT["immich"] = Immich(cfg.immich_url, cfg.immich_cle, cfg.data / "photos", lire=ETAT.get("immich_lire"))
     ETAT["ollama"] = Ollama(cfg.ollama_url, lire=ETAT.get("ollama_lire"))
     ouvrier = threading.Thread(target=_ouvrier, daemon=True, name="preparation")
@@ -693,6 +694,18 @@ def _edition_ou_404(rid: int) -> tuple[dict, dict]:
     return ed, p
 
 
+def _deja_paru(pid: int, sauf: int) -> list[str]:
+    """0.10 : les textes imprimés dans les éditions approuvées précédentes de cette personne (gros titre, légendes
+    écrites ou choisies, rumeurs) : l'IA ne les reprend pas, mais peut y faire un clin d'œil."""
+    res = []
+    for ed in ETAT["base"].recidives(pid):
+        if ed["id"] == sauf or ed["etat"] != "approuve":
+            continue
+        res += [ed.get("titre_une") or ""] + list(ed.get("rumeurs") or [])
+        res += [x.get("legende", "") for x in ed["photos"] if not x.get("retiree") and x.get("legende") != R.legende(x)]
+    return [x for x in dict.fromkeys(t.strip() for t in res) if x][:40]
+
+
 def _mot_recidive(ed: dict, p: dict) -> str:
     return ed["mot"] or R.mot_par_defaut(ed["genre"], _prenom(p))
 
@@ -708,7 +721,8 @@ def edition(rid: int):
     j = _journal()
     return {"personne": p, "edition": {**ed, "mot_defaut": R.mot_par_defaut(ed["genre"], _prenom(p)),
                                        "accroche_defaut": R.accroche(ed["genre"], _prenom(p))},
-            "signature": j["signature"], "places": R.PLACES, "titre_defaut": R.titre_une(p["nom"]), "macarons": R.MACARONS, "rumeurs_maxi": R.RUMEURS, "cadrages": R.CADRAGES,
+            "signature": j["signature"], "places": R.PLACES, "titre_defaut": R.titre_une(p["nom"]),
+            "indices_carnet": _contact(p).get("journaux") or "", "deja_paru": _deja_paru(p["id"], rid), "macarons": R.MACARONS, "rumeurs_maxi": R.RUMEURS, "cadrages": R.CADRAGES,
             "ia": {**ETAT["ollama"].etat(), "maxi": MAXI_TITRE}}
 
 
@@ -779,7 +793,8 @@ def proposer_titres(rid: int, corps: dict = Body(...)):
     if cible != "une" and not photo:
         raise HTTPException(404, "Photo introuvable dans cette édition.")
     try:
-        props = ETAT["ollama"].proposer(description, "une" if cible == "une" else "photo", ed["genre"], _prenom(p))
+        props = ETAT["ollama"].proposer(description, "une" if cible == "une" else "photo", ed["genre"], _prenom(p),
+                                        deja=_deja_paru(p["id"], rid))
     except ValueError as ex:
         raise HTTPException(422, str(ex))
     except RuntimeError as ex:
@@ -801,12 +816,30 @@ def proposer_rumeurs(rid: int, corps: dict = Body(default={})):
     indices = " ".join(str(corps.get("indices") or "").split())[:400]
     vues = [x.get("description", "") for x in ed["photos"] if not x.get("retiree")] + [ed.get("description_une", "")]
     try:
-        props = ETAT["ollama"].rumeurs(indices, ed["genre"], _prenom(p), vues)
+        props = ETAT["ollama"].rumeurs(indices, ed["genre"], _prenom(p), vues, deja=_deja_paru(p["id"], rid))
     except RuntimeError as ex:
         raise HTTPException(503, str(ex))
     ETAT["base"].maj_recidive(rid, indices_rumeurs=indices, propositions_rumeurs=props)
     ETAT["base"].noter("recidive", p["id"], f"{len(props)} rumeur(s) proposée(s) par l'IA")
-    return {"propositions": props}
+    return {"propositions": props, "carnet": _garder_indices(p, indices)}
+
+
+def _garder_indices(p: dict, indices: str) -> str:
+    """0.10 : les indices écrits dans l'édition sont gardés dans carnet (« Pour les journaux »), pour le séjour suivant.
+    Rend ce qui s'est passé, pour l'écran ; jamais une erreur de page."""
+    contact = _contact(p)
+    if not contact.get("personne_id"):
+        return "pas gardé : carnet ne trouve pas cette personne"
+    if (contact.get("journaux") or "") == indices:
+        return "déjà dans carnet"
+    if ETAT["cfg"].lecture_seule:
+        return "pas gardé : lecture seule"
+    try:
+        ETAT["carnet"].ecrire_journaux(contact["personne_id"], indices)
+    except Exception as ex:  # noqa: BLE001 — carnet arrêté, ancienne version, jeton
+        return f"pas gardé dans carnet ({str(ex).splitlines()[0][:120]})"
+    ETAT["base"].noter("carnet", p["id"], "« Pour les journaux » gardé dans carnet")
+    return "gardé dans carnet"
 
 
 @app.post("/api/recidives/{rid}/preparer")
