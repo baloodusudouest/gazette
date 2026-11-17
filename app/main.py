@@ -77,6 +77,30 @@ def _preparer(pid: int) -> None:
                     prepare_le=maintenant(), approuve_le="",
                     erreur=("Aucune source lisible : " + "; ".join(r["notes"])[:250]) if vide else "")
     base.noter("preparation", pid, ", ".join(r["sources"]))
+    if not (base.livret(pid) or {}).get("photos_choix"):      # 0.13 : 6 photos d'Immich au choix pour la page 4
+        _chercher_photos_gazette(pid, p)
+
+
+PHOTOS_GAZETTE = 6
+
+
+def _chercher_photos_gazette(pid: int, p: dict) -> str:
+    """0.13 : 6 photos d'Immich où l'invité est reconnu, réparties dans le temps, pour la page 4 de la Gazette
+    classique. Rend un message pour l'écran ; jamais une erreur (sans Immich ni personne liée : page 4 inchangée)."""
+    immich: Immich = ETAT["immich"]
+    if not immich.actif:
+        return "Immich n'est pas réglé (GAZETTE_IMMICH_CLE vide) : pas de photo."
+    immich_id = (_contact(p) or {}).get("immich_id") or ""
+    if not immich_id:
+        return "Pas de personne d'Immich liée à cette fiche dans carnet : pas de photo."
+    try:
+        toutes = immich.toutes(immich_id)
+    except Exception as ex:  # noqa: BLE001
+        return f"Immich : {str(ex).splitlines()[0][:160] or type(ex).__name__}"
+    choix = R.etaler(toutes, PHOTOS_GAZETTE)
+    choix = [{"id": x["id"], "date": x["date"]} for x in choix if immich.apercu(x["id"])]
+    ETAT["base"].maj_livret(pid, photos_choix=choix)
+    return f"{len(choix)} photo(s) proposée(s)." if choix else "Aucune photo de cette personne dans Immich."
 
 
 def _ouvrier() -> None:
@@ -515,7 +539,9 @@ def livret(pid: int):
     lv = ETAT["base"].livret(pid)
     naissance = date.fromisoformat(p["naissance"])
     j = _journal()
-    return {"personne": p, "livret": {**lv, "mot_defaut": rendu.mot_par_defaut(p, naissance, j)},
+    return {"personne": p, "livret": {**lv, "mot_defaut": rendu.mot_par_defaut(p, naissance, j),
+                                      "code_barres_defaut": rendu.message_code_barres(_prenom(p)), "cadrages": R.CADRAGES,
+                                      "immich": ETAT["immich"].actif},
             "sejours": _sejours_de(pid), "anniversaires": _anniversaires_de(p), "signature": j["signature"]}
 
 
@@ -538,6 +564,20 @@ def enregistrer_livret(pid: int, corps: dict = Body(...)):
         champs["mot"] = str(corps["mot"] or "")[:4000]
     if "accent" in corps:
         champs["accent"] = str(corps["accent"] or "#9E1B1B")[:7]
+    if "photo" in corps:                       # 0.13 : photo de la page 4 (une des photos proposées, ou aucune)
+        ph = corps["photo"] if isinstance(corps["photo"], dict) else {}
+        permis = {x["id"] for x in lv["photos_choix"]}
+        if ph.get("id") in permis:
+            ancienne = lv["photo"] if lv["photo"].get("id") == ph["id"] else {}
+            date_ = next(x["date"] for x in lv["photos_choix"] if x["id"] == ph["id"])
+            champs["photo"] = {**ancienne, "id": ph["id"], "date": date_,
+                               "cadrage": ph.get("cadrage") if ph.get("cadrage") in R.CADRAGES else "haut",
+                               "legende": " ".join(str(ph.get("legende") or "").split())[:160],
+                               "description": " ".join(str(ph.get("description") or "").split())[:400]}
+        else:
+            champs["photo"] = {}
+    if "code_barres" in corps:                 # 0.13 : vide = « Bienvenue, {prénom} ! »
+        champs["code_barres"] = " ".join(str(corps.get("code_barres") or "").split())[:code_barres.MAXI]
     if champs:
         if lv["etat"] == "approuve":
             champs["etat"], champs["approuve_le"] = "a_relire", ""
@@ -595,6 +635,59 @@ def repreparer(pid: int, corps: dict = Body(default={})):
     return {"ok": True}
 
 
+@app.post("/api/livrets/{pid}/photos")
+def chercher_photos_livret(pid: int):
+    """0.13 : (re)cherche les 6 photos d'Immich proposées pour la page 4. La photo choisie reste choisie si elle en fait
+    encore partie."""
+    p = _personne_ou_404(pid)
+    message = _chercher_photos_gazette(pid, p)
+    lv = ETAT["base"].livret(pid)
+    if lv["photo"].get("id") and lv["photo"]["id"] not in {x["id"] for x in lv["photos_choix"]}:
+        ETAT["base"].maj_livret(pid, photos_choix=lv["photos_choix"] + [{"id": lv["photo"]["id"], "date": lv["photo"].get("date", "")}])
+    return {"message": message, "photos_choix": ETAT["base"].livret(pid)["photos_choix"]}
+
+
+@app.get("/api/livrets/{pid}/photos/{asset}")
+def photo_livret(pid: int, asset: str):
+    _personne_ou_404(pid)
+    if asset not in {x["id"] for x in ETAT["base"].livret(pid)["photos_choix"]}:
+        raise HTTPException(404, "Photo introuvable pour ce livret.")
+    octets = ETAT["immich"].gardee(asset) or ETAT["immich"].apercu(asset)
+    if not octets:
+        raise HTTPException(404, "Aperçu indisponible (Immich injoignable ?).")
+    return Response(octets, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
+
+
+@app.post("/api/livrets/{pid}/photo/proposer")
+def proposer_legende_livret(pid: int, corps: dict = Body(default={})):
+    """0.13 : {description} → 5 légendes façon presse de l'année de naissance pour la photo choisie, d'après la
+    description de Julien, l'album parlant et les personnes d'Immich. Rien n'est choisi à sa place."""
+    p = _personne_ou_404(pid)
+    lv = ETAT["base"].livret(pid)
+    ph = dict(lv["photo"])
+    if not ph.get("id"):
+        raise HTTPException(409, "Choisis d'abord une photo.")
+    if "contexte" not in ph and ETAT["immich"].actif:
+        ph["contexte"] = ETAT["immich"].contexte(ph["id"], (_contact(p) or {}).get("immich_id") or "")
+    description = " ".join(str(corps.get("description") or "").split())[:400]
+    ctx = texte_contexte(ph.get("contexte"))
+    if len(description) < 3 and not ctx:
+        raise HTTPException(422, "Décris d'abord la photo en quelques mots (aucun album parlant ni personne connue dans Immich).")
+    texte = "\n".join(t for t in (f"Ce que montre la photo, d'après l'hôte : « {description} »" if len(description) >= 3 else "",
+                                    f"D'après la photothèque : {ctx}" if ctx else "",
+                                    f"Prise le {ph['date']}" if ph.get("date") else "") if t)
+    contact = _contact(p) or {}
+    try:
+        props = ETAT["ollama"].gazette("legende", texte, int(p["naissance"][:4]), None, _prenom(p), contact.get("genre", ""))
+    except ValueError as ex:
+        raise HTTPException(422, str(ex))
+    except RuntimeError as ex:
+        raise HTTPException(503, str(ex))
+    ETAT["base"].maj_livret(pid, photo={**ph, "description": description, "propositions": props})
+    ETAT["base"].noter("ia", pid, f"légende de la photo : {len(props)} proposition(s)")
+    return {"propositions": props, "contexte": ph.get("contexte") or {}}
+
+
 @app.post("/api/livrets/{pid}/ia")
 def ia_livret(pid: int, corps: dict = Body(...)):
     """0.12 : aides de l'IA du PC pour la Gazette classique, sur le texte affiché (même pas enregistré) :
@@ -640,7 +733,7 @@ def ajouter_au_mot(pid: int, corps: dict = Body(...)):
 def _rendre(pid: int, mode: str) -> tuple[str, dict, dict]:
     p = _personne_ou_404(pid)
     lv = ETAT["base"].livret(pid)
-    return rendu.document(p, lv, _journal(), mode=mode), p, lv
+    return rendu.document(p, lv, _journal(), mode=mode, image=ETAT["immich"].gardee), p, lv
 
 
 @app.get("/api/livrets/{pid}/apercu")

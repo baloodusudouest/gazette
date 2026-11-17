@@ -211,6 +211,8 @@ Titre, sous-titre, lieu (et sa ligne de détail), « chez vous » avec l'article
 
 **0.12.0** : contexte Immich d'une photo pour l'IA (`GET /api/albums?assetId=`, `GET /api/assets/{id}` → `people`, échantillon de 12 photos par album via `albumIds`), albums génériques écartés (`album_generique`), gardé dans la photo de l'édition (`contexte`). Gazette classique : `POST /api/livrets/{id}/ia` (titres, raccourcir, journal, traduire, mot), composant `IaBloc`.
 
+**0.13.0** : photo d'Immich en page 4 de la Gazette classique — colonnes `photo`, `photos_choix`, `code_barres` de `livrets` ; `Immich.toutes(personne)` ; 6 photos étalées (`R.etaler`) cherchées à la préparation ou par `POST /api/livrets/{id}/photos` ; aperçu `GET /api/livrets/{id}/photos/{asset}` ; choix, cadrage, légende et message par `PUT /api/livrets/{id}` ; légendes façon presse de l'époque par `POST /api/livrets/{id}/photo/proposer` (action « legende » d'`Ollama.gazette`). Rendu : figure `.cliche` en niveaux de gris (filtre CSS) au-dessus du mot, code-barres dans le colophon (0,25 mm par barre).
+
 **Jamais essayé sur la vraie installation** : la recherche Immich (forme de `search/metadata` avec `tagIds`, permissions de la clé), le tag « scandale », l'impression des photos, carnet 2.27.
 
 **Reste (0.9.1)** : légendes par IA locale (Ollama sur le PC : `qwen2.5vl:7b` décrit, `qwen2.5:7b` propose, filtres, gabarit de secours), seulement si la vision passe 5 photos sur 5 en aperçu et après deux ou trois vrais numéros.

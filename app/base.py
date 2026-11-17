@@ -83,6 +83,11 @@ class Base:
                     "courrier", "propositions_courrier", "horoscope", "propositions_horoscope"):
             if col not in colonnes:
                 self._c.execute(f"ALTER TABLE recidives ADD COLUMN {col} TEXT NOT NULL DEFAULT '{'' if col in ('titre_une', 'description_une', 'indices_rumeurs', 'horoscope') else '[]'}'")
+        # 0.13 : Gazette classique — photo d'Immich en page 4 (6 au choix) et message du code-barres
+        colonnes = {l["name"] for l in self._c.execute("PRAGMA table_info(livrets)")}
+        for col, defaut in (("photo", "{}"), ("photos_choix", "[]"), ("code_barres", "")):
+            if col not in colonnes:
+                self._c.execute(f"ALTER TABLE livrets ADD COLUMN {col} TEXT NOT NULL DEFAULT '{defaut}'")
         self._c.commit()
         self._c.execute("PRAGMA foreign_keys=ON")
 
@@ -165,10 +170,12 @@ class Base:
         d = dict(l)
         d["contenu"] = json.loads(d["contenu"] or "{}")
         d["propositions"] = json.loads(d["propositions"] or "{}")
+        d["photo"] = json.loads(d.get("photo") or "{}")                # 0.13 : photo de la page 4
+        d["photos_choix"] = json.loads(d.get("photos_choix") or "[]")
         return d
 
     def maj_livret(self, pid: int, **champs) -> None:
-        for k in ("contenu", "propositions"):
+        for k in ("contenu", "propositions", "photo", "photos_choix"):
             if k in champs:
                 champs[k] = json.dumps(champs[k], ensure_ascii=False)
         champs["modifie_le"] = maintenant()

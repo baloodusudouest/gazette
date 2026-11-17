@@ -11,6 +11,7 @@
   import Eye from '@lucide/svelte/icons/eye'
   import Replace from '@lucide/svelte/icons/replace'
   import Plus from '@lucide/svelte/icons/plus'
+  import Sparkles from '@lucide/svelte/icons/sparkles'
   import { api } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import Etat from '$lib/Etat.svelte'
@@ -24,6 +25,12 @@
   let d = $state(null)
   let contenu = $state(null)
   let mot = $state('')
+  // 0.13 : photo d'Immich en page 4 (une des 6 proposées) et message du code-barres
+  let photo = $state({})
+  let codeBarres = $state('')
+  let propsLegende = $state([])
+  let ctxPhoto = $state(null)
+  let demande = $state('')
   let modifie = $state(false)
   let message = $state('')
   let attente = $state('')
@@ -40,6 +47,10 @@
       d = await api.get(`/api/livrets/${id}`)
       contenu = JSON.parse(JSON.stringify(d.livret.contenu))
       mot = d.livret.mot || d.livret.mot_defaut
+      photo = { ...(d.livret.photo ?? {}) }
+      propsLegende = d.livret.photo?.propositions ?? []
+      ctxPhoto = d.livret.photo?.contexte ?? null
+      codeBarres = d.livret.code_barres || ''
       avant = { sejours_avant: d.personne.sejours_avant ?? 0, dernier_avant: d.personne.dernier_avant ?? '' }
       modifie = false
       tampon = Date.now()
@@ -52,6 +63,32 @@
     }
   }
   function toucher() { modifie = true; message = '' }
+  const corps = () => ({ contenu: $state.snapshot(contenu), mot, code_barres: codeBarres,
+                         photo: photo.id ? { id: photo.id, cadrage: photo.cadrage ?? 'haut', legende: photo.legende ?? '', description: photo.description ?? '' } : null })
+  const ctxTexte = (c) => !c ? '' : [c.albums?.length ? `Album : ${c.albums.join(', ')}` : '', c.personnes?.length ? `Avec : ${c.personnes.join(', ')}` : '']
+    .filter(Boolean).join(' · ')
+  function prendrePhoto(x) {
+    if (photo.id === x.id) { photo = {}; propsLegende = []; ctxPhoto = null }
+    else { photo = { id: x.id, date: x.date, cadrage: 'haut', legende: '', description: '' }; propsLegende = []; ctxPhoto = null }
+    toucher()
+  }
+  async function chercherPhotos() {
+    demande = 'photos'
+    try { const r = await api.post(`/api/livrets/${id}/photos`, {}); d.livret.photos_choix = r.photos_choix; message = r.message }
+    catch (err) { message = err.message }
+    demande = ''
+  }
+  async function proposerLegende() {
+    demande = 'legende'
+    message = ''
+    try {
+      await api.put(`/api/livrets/${id}`, corps())           // la photo choisie doit être enregistrée avant
+      const r = await api.post(`/api/livrets/${id}/photo/proposer`, { description: photo.description ?? '' })
+      propsLegende = r.propositions
+      ctxPhoto = r.contexte
+    } catch (err) { message = err.message }
+    demande = ''
+  }
   async function mesurer() {
     if (!contenu?.une) { mes = null; return }
     const instantane = { contenu: $state.snapshot(contenu), mot }
@@ -62,7 +99,7 @@
   async function enregistrer() {
     attente = 'enregistrer'
     try {
-      await api.put(`/api/livrets/${id}`, { contenu: $state.snapshot(contenu), mot })
+      await api.put(`/api/livrets/${id}`, corps())
       await lire()
       message = 'Enregistré.'
       onchange?.()
@@ -70,7 +107,7 @@
     attente = ''
   }
   async function choisir(bloc, f, index) {
-    if (modifie) await api.put(`/api/livrets/${id}`, { contenu: $state.snapshot(contenu), mot })
+    if (modifie) await api.put(`/api/livrets/${id}`, corps())
     await api.post(`/api/livrets/${id}/choisir`, { bloc, proposition: f.id, index })
     ouvert = null
     await lire()
@@ -357,6 +394,66 @@
         {@render compteur('mot')}
         <IaBloc pid={id} texte={() => mot} actions={['mot', 'raccourcir']} signes={cible('mot', mot)} onapply={(a, t) => { mot = t; toucher() }} />
         <p class="mt-1 text-xs text-muted-foreground">Une ligne vide sépare les paragraphes. Signature : « {d.signature} » (Réglages › Le journal).</p>
+
+        <!-- 0.13 : photo d'Immich, imprimée en noir et blanc au-dessus du mot -->
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
+          <h3 class="etiquette">Photo (noir et blanc, au-dessus du mot)</h3>
+          {#if d.livret.immich}
+            <button type="button" class="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50" disabled={demande !== ''} onclick={chercherPhotos}>
+              {demande === 'photos' ? '…' : d.livret.photos_choix.length ? 'Chercher de nouveau' : 'Chercher dans Immich'}</button>
+          {/if}
+        </div>
+        {#if !d.livret.immich}
+          <p class="text-xs text-muted-foreground">Immich n'est pas réglé (GAZETTE_IMMICH_CLE) : page 4 sans photo.</p>
+        {:else if !d.livret.photos_choix.length}
+          <p class="text-xs text-muted-foreground">Aucune photo proposée (personne d'Immich liée dans carnet ?) : page 4 sans photo.</p>
+        {:else}
+          <div class="mt-2 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Photo de la page 4">
+            {#each d.livret.photos_choix as x}
+              <button type="button" role="radio" aria-checked={photo.id === x.id} onclick={() => prendrePhoto(x)}
+                      class="relative aspect-[4/3] overflow-hidden rounded-lg border-2 {photo.id === x.id ? 'border-primary' : 'border-transparent opacity-80 hover:opacity-100'}">
+                <img alt="Photo du {dateCourte(x.date)}" src={`/api/livrets/${id}/photos/${x.id}`} class="size-full object-cover grayscale" loading="lazy" />
+                <span class="absolute right-1 bottom-1 rounded bg-black/70 px-1 text-[0.65rem] text-white">{x.date?.slice(0, 4)}</span>
+              </button>
+            {/each}
+          </div>
+          <p class="mt-1 text-xs text-muted-foreground">{photo.id ? 'Toucher la photo choisie la retire.' : 'Aucune photo choisie : page 4 sans photo.'}</p>
+          {#if photo.id}
+            <div class="mt-2 flex flex-wrap gap-1.5 text-xs" role="radiogroup" aria-label="Cadrage">
+              {#each Object.entries(d.livret.cadrages) as [cle, nom]}
+                <button type="button" role="radio" aria-checked={(photo.cadrage ?? 'haut') === cle} onclick={() => { photo.cadrage = cle; toucher() }}
+                        class="rounded-full border px-2 py-0.5 {(photo.cadrage ?? 'haut') === cle ? 'border-primary bg-primary/15' : ''}">{nom}</button>
+              {/each}
+            </div>
+            <label class="mt-2 grid gap-1 text-sm">
+              <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Légende imprimée</span>
+              <input class="min-w-0 rounded-lg border bg-background px-2 py-1 italic" maxlength="160" bind:value={photo.legende} oninput={toucher} placeholder="(vide : pas de légende)" />
+            </label>
+            <div class="mt-2 grid min-w-0 gap-1.5 rounded-lg border border-dashed p-2">
+              <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Pour l'IA (non imprimé)</span>
+              <div class="flex min-w-0 flex-wrap items-center justify-end gap-2">
+                <input class="w-full min-w-0 rounded-lg border bg-background px-2 py-1 text-sm" maxlength="400" bind:value={photo.description} oninput={toucher}
+                       placeholder="Décris la photo (l'IA proposera 5 légendes façon journal de l'époque)" aria-label="Description de la photo" />
+                <Button size="sm" variant="outline" class="shrink-0" onclick={proposerLegende} disabled={demande !== ''}>
+                  <Sparkles class="size-3.5" aria-hidden="true" />{demande === 'legende' ? '…' : '5 légendes'}</Button>
+              </div>
+              {#if ctxTexte(ctxPhoto)}<p class="text-[0.7rem] break-words text-muted-foreground">Immich · {ctxTexte(ctxPhoto)}</p>{/if}
+              {#if propsLegende.length}
+                <ul class="grid gap-1" aria-label="Légendes proposées">
+                  {#each propsLegende as t}
+                    <li><button type="button" class="w-full rounded-md px-2 py-1 text-left text-sm break-words italic hover:bg-secondary" onclick={() => { photo.legende = t; toucher() }}>« {t} »</button></li>
+                  {/each}
+                </ul>
+              {/if}
+            </div>
+          {/if}
+        {/if}
+
+        <label class="mt-4 grid gap-1 text-sm">
+          <span class="etiquette">Code-barres (message caché, 30 caractères)</span>
+          <input class="min-w-0 rounded-lg border bg-background px-2 py-1" maxlength="30" bind:value={codeBarres} oninput={toucher} placeholder={d.livret.code_barres_defaut} />
+          <span class="text-xs text-muted-foreground">Lisible par une appli de scan ; rien n'est écrit sous les barres. Vide : « {d.livret.code_barres_defaut} ».</span>
+        </label>
       </section>
 
       <!-- Fiche et gestes -->

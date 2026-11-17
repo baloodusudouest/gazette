@@ -91,7 +91,7 @@ def _faux_immich(photos: dict, tags=True):
                 if "tagIds" in corps:
                     if a.get("scandale"):
                         items.append(a)
-                elif corps["takenAfter"][:10] <= a["date"] < corps["takenBefore"][:10]:
+                elif "takenAfter" not in corps or corps["takenAfter"][:10] <= a["date"] < corps["takenBefore"][:10]:
                     items.append(a)
             return {"assets": {"items": [{"id": a["id"], "localDateTime": a["date"] + "T12:00:00.000Z"} for a in items],
                                "nextPage": None}}

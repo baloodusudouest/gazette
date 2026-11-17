@@ -273,12 +273,18 @@ def consigne_gazette(action: str, texte: str, annee: int | None, signes: int | N
                 + (f"Ce qu'on sait de {prenom} : « {indices} ». " if indices else "")
                 + (f"Mot actuel, à améliorer : « {texte} ». " if texte else "")
                 + "Ne signe pas (la signature est ajoutée). " + sep, 3, 520)
+    if action == "legende":
+        return (f"Photo d'un journal de {annee or 'l’époque'}, offert à {prenom} qui vient dormir chez ses hôtes.\n{texte}\n\n"
+                f"Propose 5 légendes pour cette photo, dans le style sobre et un peu solennel de la presse {epoque} "
+                "(« M. et Mme… », « Notre envoyée spéciale… », « photographiée lors de… »), affectueuses, sans moquerie, "
+                f"90 caractères au plus chacune, sans rien inventer de grave ; aucun autre prénom que {prenom} et ceux "
+                "cités. Une légende par ligne, numérotées, sans guillemets.", 5, 90)
     raise ValueError("Aide inconnue.")
 
 
 def versions(brut: str, action: str, maxi: int) -> list[str]:
     """Découpe la réponse : une ligne par titre ; sinon des versions séparées par « --- » (ou des numéros)."""
-    if action == "titres":
+    if action in ("titres", "legende"):
         return nettoyer(brut, "x", maxi)
     blocs = re.split(r"(?m)^\s*-{3,}\s*$", brut or "")
     if len(blocs) == 1:                                  # pas de séparateur : versions numérotées « 1. … »
@@ -420,7 +426,7 @@ class Ollama:
         if not self.actif:
             raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
         texte = (texte or "").strip()[:3000]
-        if action != "mot" and len(texte) < 10:
+        if action not in ("mot", "legende") and len(texte) < 10:
             raise ValueError("Pas assez de texte dans ce bloc.")
         prompt, nombre, maxi = consigne_gazette(action, texte, annee, signes, prenom, genre, indices, chez)
         brut = ""

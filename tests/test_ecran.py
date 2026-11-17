@@ -163,8 +163,30 @@ def test_titres_proposes_par_l_ia(navigateur, adresse, taille):
     page.get_by_role("heading", name="Lou Martin").wait_for()
     page.fill("input[aria-label='Description de la photo de la une']", "Lou sur une plage, lunettes de soleil")
     page.get_by_role("button", name="IA", exact=True).click()            # bouton du haut : tous les textes décrits
-    page.get_by_text("« Les vacances secrètes de Lou »").wait_for()
-    page.get_by_text("« Les vacances secrètes de Lou »").click()
+    # 0.12 : les photos ont un album parlant dans la démo, l'IA leur propose aussi des légendes : la une d'abord
+    une = page.get_by_role("region", name="Une").get_by_text("« Les vacances secrètes de Lou »")
+    une.wait_for()
+    une.click()
     assert page.locator("input[placeholder='Lou Martin revient !']").input_value() == "Les vacances secrètes de Lou"
+    sans_debordement(page)
+    assert erreurs == []
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_photo_page_4_de_la_gazette(navigateur, adresse, taille):
+    """0.13 : choisir une des photos d'Immich proposées pour la page 4, demander 5 légendes, en prendre une."""
+    page, erreurs = ouvrir(navigateur, adresse, taille, "#/livret/2")
+    page.get_by_role("heading", name="Lou Martin").wait_for()
+    photos = page.get_by_role("radiogroup", name="Photo de la page 4")
+    if not photos.is_visible():
+        page.get_by_role("button", name="Chercher dans Immich").click()
+    photos.locator("[aria-checked='false']").first.click()          # une autre que celle déjà choisie
+    page.get_by_role("radiogroup", name="Cadrage").wait_for()
+    page.get_by_role("button", name="5 légendes").click()
+    leg = page.get_by_role("list", name="Légendes proposées").get_by_role("button").first
+    leg.wait_for()
+    leg.click()
+    assert page.get_by_placeholder("(vide : pas de légende)").input_value() != ""
+    page.get_by_placeholder("Bienvenue, Lou !").wait_for()
     sans_debordement(page)
     assert erreurs == []

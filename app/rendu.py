@@ -11,7 +11,7 @@ import html
 from datetime import date
 from pathlib import Path
 
-from . import journal
+from . import code_barres, journal
 from .regles import MOIS, MOIS_COURT, PORTEES, jour_long, jour_mois
 
 POLICES = Path(__file__).parent / "polices"
@@ -123,6 +123,18 @@ h2.sec{font-family:'Playfair',serif;font-weight:900;font-size:20pt;line-height:1
 .colophon .t{font-family:'Fraktur',serif;font-size:15pt}
 .colophon p{font-size:9pt;line-height:1.35}
 .orn{text-align:center;letter-spacing:.6em;color:var(--a);font-size:10pt}
+.cliche{display:flex;flex-direction:column;gap:1.2mm;flex:0 0 auto}
+.cliche .ph{position:relative;height:46mm;border:0.3mm solid #161616;overflow:hidden;background:#222}
+.cliche img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 20%;filter:grayscale(1) contrast(1.08)}
+.cliche img.centre{object-position:50% 50%}.cliche img.bas{object-position:50% 85%}
+.cliche img.entiere{object-fit:contain}
+.cliche .leg{font-size:calc(9.5pt*var(--k,1));font-style:italic;line-height:1.3;text-align:center}
+.avec-photo .mot{gap:3mm}
+.avec-photo .mot p{font-size:calc(12pt*var(--k,1));line-height:1.48}
+.avec-photo .mot .sig{font-size:calc(12pt*var(--k,1))}
+.avec-photo .mot p.lettrine::first-letter{font-size:40pt}
+.colophon .bar{margin-top:1.2mm;display:flex;justify-content:center}
+.colophon .bar svg{display:block}
 """
 CSS += """
 .lecture body{background:#e9e4d8}
@@ -243,24 +255,54 @@ def page3(g: dict) -> str:
 </section>"""
 
 
+def _cliche(g: dict) -> str:
+    """0.13 : la photo d'Immich choisie à la relecture, en noir et blanc, avec sa légende. Rien sans aperçu gardé."""
+    ph, octets = g.get("photo") or {}, g.get("image")
+    if not ph.get("id") or not octets:
+        return ""
+    cadrage = ph.get("cadrage") if ph.get("cadrage") in ("haut", "centre", "bas", "entiere") else "haut"
+    leg = ph.get("legende") or ""
+    return (f'<figure class="cliche" data-bloc="photo" style="margin:0"><div class="ph"><img alt="" class="{cadrage}" '
+            f'src="data:image/jpeg;base64,{base64.b64encode(octets).decode()}"></div>'
+            + (f'<figcaption class="leg">{e(leg)}</figcaption>' if leg else "") + "</figure>")
+
+
 def page4(g: dict) -> str:
     paras = "".join(f'<p class="{"lettrine" if i == 0 else ""}">{e(t)}</p>' for i, t in enumerate(_paragraphes(g["mot"])))
-    return f"""<section class="page" data-page="4">
+    cliche = _cliche(g)
+    colophon = (f'<div class="colophon"><span class="t">{e(g["lieu"])}</span>' + (f"<p>{e(g['lieu_detail'])}</p>" if g['lieu_detail'] else "")
+                + f'<p>Exemplaire unique, imprimé pour {e(g["prenom"])} le {e(g["imprime_le"])}.</p>'
+                + f'<div class="bar" aria-hidden="true">{_barres(g["code_barres"])}</div></div>')
+    return f"""<section class="page{' avec-photo' if cliche else ''}" data-page="4">
 <div class="ent"><span class="t">{e(g['titre'])}</span><span class="r">Le mot des hôtes</span></div>
 <div><p class="surtitre">Édition spéciale</p><h2 class="sec">Bienvenue, {e(g['prenom'])}</h2></div>
+{cliche}
 <div class="mot filet" data-bloc="mot">{paras}<p class="sig">{e(g['signature'])}</p></div>
-<p class="orn">✦ ✦ ✦</p>
-<div class="colophon"><span class="t">{e(g['lieu'])}</span>{f"<p>{e(g['lieu_detail'])}</p>" if g['lieu_detail'] else ""}
-<p>Exemplaire unique, imprimé pour {e(g['prenom'])} le {e(g['imprime_le'])}.</p></div>
+{"" if cliche else '<p class="orn">✦ ✦ ✦</p>'}
+{colophon}
 <div class="pied"><span>Imprimé {e(g['chez'])}</span><span>4</span></div>
 </section>"""
+
+
+def _barres(texte: str) -> str:
+    """Code-barres lisible au scan : barre la plus fine de 0,25 mm (largeur selon le message), 9 mm de haut."""
+    s = code_barres.svg(texte)
+    n = len(code_barres.modules(texte)) + 20
+    style = f'style="width:{min(118.0, n * 0.25):.1f}mm;height:9mm" preserveAspectRatio="none"'
+    return s.replace('<svg class="cb"', f'<svg class="cb" {style}', 1)
+
+
+def message_code_barres(prenom: str) -> str:
+    """0.13 : le message caché dans le code-barres de la page 4 de la Gazette, par défaut (30 caractères au plus)."""
+    return f"Bienvenue, {prenom} !"[:code_barres.MAXI]
 
 
 def mot_par_defaut(personne: dict, naissance: date, j: dict | None = None) -> str:
     return journal.mot(j or {"mot_modele": journal.MOT, "chez": "à la maison"}, _prenom(personne), naissance)
 
 
-def document(personne: dict, livret: dict, j: dict, mode: str = "impose", aujourd_hui: date | None = None) -> str:
+def document(personne: dict, livret: dict, j: dict, mode: str = "impose", aujourd_hui: date | None = None,
+             image=None) -> str:
     """mode : « impose » (A4 paysage, 2 feuilles), « lecture » (4 pages A5), « ecran » (aperçu, lecture sur fond sombre).
     `j` : les éléments communs du journal (Réglages › Le journal, voir journal.py)."""
     naissance = date.fromisoformat(personne["naissance"])
@@ -274,6 +316,10 @@ def document(personne: dict, livret: dict, j: dict, mode: str = "impose", aujour
         "sources": c.get("sources", []),
         "renvoi_p2": "Le mois" if c.get("p2", {}).get("mode") == "mois" else "La semaine",
         "imprime_le": f"{'1er' if aujourd_hui.day == 1 else aujourd_hui.day} {MOIS[aujourd_hui.month - 1]} {aujourd_hui.year}",
+        # 0.13 : photo d'Immich (aperçu gardé, lu par `image(asset)`) et message du code-barres
+        "photo": livret.get("photo") or {},
+        "image": image((livret.get("photo") or {}).get("id")) if image and (livret.get("photo") or {}).get("id") else None,
+        "code_barres": livret.get("code_barres") or message_code_barres(_prenom(personne)),
     }
     if mode == "impose":
         corps = f'<div class="feuille">{page4(g)}{page1(g)}</div><div class="feuille">{page2(g)}{page3(g)}</div>'

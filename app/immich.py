@@ -119,6 +119,11 @@ class Immich:
                               "takenBefore": f"{au}T00:00:00.000Z"})
         return sorted({p["id"]: p for p in res if du <= p["date"] < au}.values(), key=lambda p: (p["date"], p["id"]))
 
+    def toutes(self, personne: str) -> list[dict]:
+        """0.13 : photos où la personne est reconnue, toutes dates (les 2 000 plus récentes au plus), plus anciennes d'abord."""
+        res = self._chercher({"personIds": [personne]})
+        return sorted({p["id"]: p for p in res}.values(), key=lambda p: (p["date"], p["id"]))
+
     def tag_scandale(self) -> str | None:
         """L'identifiant du tag « scandale » (casse et accents ignorés ; tag imbriqué « …/scandale » accepté)."""
         for t in self._appel("GET", "/tags") or []:

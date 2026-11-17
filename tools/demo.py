@@ -57,6 +57,8 @@ def immich_simule(methode: str, chemin: str, corps: dict | None = None):
             return {"assets": {"items": recentes[:2], "nextPage": None}}
         if "tagIds" in corps:
             return {"assets": {"items": vieilles, "nextPage": None}}
+        if "takenAfter" not in corps:                 # 0.13 : toutes les photos (page 4 de la Gazette)
+            return {"assets": {"items": recentes + vieilles, "nextPage": None}}
         return {"assets": {"items": [a for a in recentes if corps["takenAfter"][:10] <= a["localDateTime"][:10] < corps["takenBefore"][:10]],
                            "nextPage": None}}
     return GRIS
