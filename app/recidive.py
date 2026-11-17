@@ -22,6 +22,26 @@ from .regles import MOIS
 MACARONS = {"hg": "en haut à gauche", "hd": "en haut à droite", "bg": "en bas à gauche", "bd": "en bas à droite",
             "aucun": "sans macaron"}      # 0.9.2 : place du macaron « Exclusif ! » sur la photo de la une
 CADRAGES = {"haut": "Rogner : haut", "centre": "centre", "bas": "bas", "entiere": "Photo entière"}    # 0.9.2 : cadrage de chaque photo (par défaut : rognée, garder le haut)
+LETTRES = 2                   # 0.11 : courrier des lecteurs imprimé en page 4, au plus
+DEBUTS = [((1, 1), "Capricorne", "♑"), ((1, 20), "Verseau", "♒"), ((2, 19), "Poissons", "♓"), ((3, 21), "Bélier", "♈"),
+          ((4, 20), "Taureau", "♉"), ((5, 21), "Gémeaux", "♊"), ((6, 21), "Cancer", "♋"), ((7, 23), "Lion", "♌"),
+          ((8, 23), "Vierge", "♍"), ((9, 23), "Balance", "♎"), ((10, 23), "Scorpion", "♏"), ((11, 22), "Sagittaire", "♐"),
+          ((12, 22), "Capricorne", "♑")]       # premier jour de chaque signe (dates usuelles)
+
+
+def signe(naissance: str) -> tuple[str, str]:
+    """0.11 : le signe du zodiaque d'après la date de naissance (seul le signe est imprimé, jamais la date)."""
+    try:
+        d = date.fromisoformat(naissance[:10])
+    except (TypeError, ValueError):
+        return "", ""
+    nom, sym = "", ""
+    for debut, n, sy in DEBUTS:
+        if (d.month, d.day) >= debut:
+            nom, sym = n, sy
+    return nom, sym
+
+
 RUMEURS = 4                   # 0.9.7 : rumeurs loufoques imprimées en page 3, au plus
 PLACES = 7                    # une photo en une (page 1) + six sur la page 2
 ACCENT = "#D7191C"

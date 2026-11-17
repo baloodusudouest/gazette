@@ -30,6 +30,10 @@
   let rumeurs = $state([])          // 0.9.7 : rumeurs imprimées en page 3
   let indices = $state('')
   let propsRumeurs = $state([])
+  let courrier = $state([])         // 0.11 : page 4
+  let propsCourrier = $state([])
+  let horoscope = $state('')
+  let propsHoroscope = $state([])
   let modifie = $state(false)
   let message = $state('')
   let attente = $state('')
@@ -52,6 +56,10 @@
       rumeurs = (ed.rumeurs || []).map((r) => r.replace(/^\s*(\d+\s*[.)\-:–—/]+|[-•*–—])\s*/, ''))   // 0.9.8 : numéros de l'IA
       indices = ed.indices_rumeurs || d.indices_carnet || ''      // 0.10 : repris de carnet (« Pour les journaux »)
       propsRumeurs = ed.propositions_rumeurs || []
+      courrier = (ed.courrier || []).map((x) => ({ ...x }))
+      propsCourrier = ed.propositions_courrier || []
+      horoscope = ed.horoscope || ''
+      propsHoroscope = ed.propositions_horoscope || []
       modifie = false
       tampon = Date.now()
       clearTimeout(minuteur)
@@ -62,7 +70,7 @@
     }
   }
   function toucher() { modifie = true; message = '' }
-  const corps = () => ({ numero_main: numero === '' ? null : +numero, accroche, mot, titre_une: titreUne, description_une: descriptionUne, macaron, rumeurs, indices_rumeurs: indices,
+  const corps = () => ({ numero_main: numero === '' ? null : +numero, accroche, mot, titre_une: titreUne, description_une: descriptionUne, macaron, rumeurs, indices_rumeurs: indices, courrier, horoscope,
                          photos: photos.map((p) => ({ id: p.id, legende: p.legende, retiree: p.retiree, description: p.description ?? '', cadrage: p.cadrage ?? 'haut' })) })
   // « IA » en haut : 5 titres pour chaque texte décrit (la une et chaque photo gardée), l'un après l'autre
   const cibles = () => [...(descriptionUne.trim().length >= 3 ? ['une'] : []),
@@ -78,6 +86,22 @@
     }
     catch (err) { message = err.message }
     demande = ''
+  }
+  async function proposerPage4(quoi) {
+    demande = quoi
+    message = ''
+    try {
+      const r = await api.post(`/api/recidives/${id}/${quoi}`, { indices })
+      if (quoi === 'courrier') propsCourrier = r.propositions
+      else propsHoroscope = r.propositions
+      toucher()
+    } catch (err) { message = err.message }
+    demande = ''
+  }
+  function prendreLettre(x) {
+    if (courrier.some((y) => y.lettre === x.lettre)) return
+    if (courrier.length >= d.lettres_maxi) { message = `${d.lettres_maxi} lettres au plus : retires-en une d'abord.`; return }
+    courrier = [...courrier, { ...x }]; toucher()
   }
   function prendreRumeur(t) {
     if (rumeurs.includes(t)) return
@@ -95,6 +119,8 @@
       lot = { fait: lot.fait + 1, total: lot.total }
     }
     if (!echecs && !rumeurs.length) { await proposerRumeurs(); if (message) echecs++ }
+    if (!echecs && !courrier.length) { await proposerPage4('courrier'); if (message) echecs++ }
+    if (!echecs && !horoscope.trim()) { await proposerPage4('horoscope'); if (message) echecs++ }
     if (!echecs) message = `Propositions prêtes pour ${liste.length} texte${liste.length > 1 ? 's' : ''} : touche celles qui te plaisent, puis Enregistrer.`
     lot = null
   }
@@ -302,6 +328,49 @@
         <h2 class="etiquette mb-2">Page 4 · droit de réponse (le mot des hôtes)</h2>
         <textarea class="w-full rounded-lg border bg-background px-3 py-2 font-serif" rows="7" bind:value={mot} oninput={toucher} aria-label="Mot des hôtes"></textarea>
         <p class="mt-1 text-xs text-muted-foreground">Une ligne vide sépare les paragraphes. Signature : « {d.signature} » (Réglages › Le journal). Aucune date de naissance dans ce journal.</p>
+
+        <h3 class="etiquette mt-5 mb-2">Courrier des lecteurs ({courrier.length}/{d.lettres_maxi})</h3>
+        <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Lettres imprimées</span>
+        <ul class="mt-1 grid gap-2">
+          {#each courrier as x, i}
+            <li class="grid min-w-0 gap-1 rounded-lg border p-2">
+              <textarea rows="2" class="min-w-0 rounded-lg border bg-background px-2 py-1 text-sm italic" maxlength="260" bind:value={x.lettre} oninput={toucher} aria-label="Lettre {i + 1}"></textarea>
+              <input class="min-w-0 rounded-lg border bg-background px-2 py-1 text-xs" maxlength="60" bind:value={x.signe} oninput={toucher} placeholder="Signature (ex. Un voisin inquiet)" aria-label="Signature {i + 1}" />
+              <input class="min-w-0 rounded-lg border bg-background px-2 py-1 text-sm" maxlength="140" bind:value={x.reponse} oninput={toucher} placeholder="Réponse de la rédaction" aria-label="Réponse {i + 1}" />
+              <button type="button" class="justify-self-start text-xs text-muted-foreground hover:text-foreground" onclick={() => { courrier = courrier.filter((_, j) => j !== i); toucher() }}>Retirer</button>
+            </li>
+          {:else}<li class="text-sm text-muted-foreground">Aucune lettre : la rubrique n'est pas imprimée.</li>{/each}
+        </ul>
+        {#if courrier.length < d.lettres_maxi}
+          <button type="button" class="mt-1 text-xs text-muted-foreground hover:text-foreground" onclick={() => { courrier = [...courrier, { lettre: '', signe: '', reponse: '' }]; toucher() }}>+ Écrire une lettre</button>
+        {/if}
+        <div class="mt-2 grid min-w-0 gap-1.5 rounded-lg border border-dashed p-2">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Pour l'IA (non imprimé) · d'après les indices des rumeurs</span>
+            <Button size="sm" variant="outline" class="shrink-0" onclick={() => proposerPage4('courrier')} disabled={demande !== '' || lot !== null}>
+              <Sparkles class="size-3.5" aria-hidden="true" />{demande === 'courrier' ? '…' : '4 lettres'}</Button>
+          </div>
+          {#each propsCourrier as x}
+            <button type="button" class="w-full rounded-md px-2 py-1 text-left text-sm break-words whitespace-normal hover:bg-secondary disabled:opacity-40"
+                    disabled={courrier.some((y) => y.lettre === x.lettre)} onclick={() => prendreLettre(x)}>
+              + « {x.lettre} » <span class="text-muted-foreground">— {x.signe}</span> <span class="text-primary">La rédaction : {x.reponse}</span></button>
+          {/each}
+        </div>
+
+        <h3 class="etiquette mt-5 mb-2">Horoscope du séjour{d.signe ? ` · ${d.signe}` : ''}</h3>
+        <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Horoscope imprimé (vide : pas imprimé)</span>
+        <textarea rows="3" class="mt-1 w-full rounded-lg border bg-background px-2 py-1 text-sm" maxlength="280" bind:value={horoscope} oninput={toucher} aria-label="Horoscope"></textarea>
+        <p class="text-xs text-muted-foreground">Seul le signe est imprimé, jamais la date de naissance.</p>
+        <div class="mt-2 grid min-w-0 gap-1.5 rounded-lg border border-dashed p-2">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Pour l'IA (non imprimé)</span>
+            <Button size="sm" variant="outline" class="shrink-0" onclick={() => proposerPage4('horoscope')} disabled={demande !== '' || lot !== null || !d.signe}>
+              <Sparkles class="size-3.5" aria-hidden="true" />{demande === 'horoscope' ? '…' : '3 horoscopes'}</Button>
+          </div>
+          {#each propsHoroscope as t}
+            <button type="button" class="w-full rounded-md px-2 py-1 text-left text-sm break-words whitespace-normal hover:bg-secondary" onclick={() => { horoscope = t; toucher() }}>« {t} »</button>
+          {/each}
+        </div>
       </section>
     </div>
 

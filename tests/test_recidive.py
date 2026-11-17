@@ -474,3 +474,33 @@ def test_indices_pas_gardes_en_lecture_seule(monter):
     pid, r = _deux_sejours(c)
     rid = int(r["invites"][0]["lien"].rsplit("/", 1)[1])
     assert c.post(f"/api/recidives/{rid}/rumeurs", json={"indices": "fan de pétanque"}).json()["carnet"] == "pas gardé : lecture seule"
+
+
+
+def test_signe_du_zodiaque():
+    assert R.signe("1988-07-07") == ("Cancer", "♋") and R.signe("1990-12-22")[0] == "Capricorne"
+    assert R.signe("1990-01-19")[0] == "Capricorne" and R.signe("1990-01-20")[0] == "Verseau" and R.signe("")[0] == ""
+
+
+def test_courrier_et_horoscope(monter):
+    c = monter()
+    lire = _faux_ollama([
+        "1. Depuis son départ, mon chat boude. ::: Un voisin inquiet ::: Prolongez le séjour.\n"
+        "2. Je suis la tomate du fond du jardin et je rougis encore. ::: Une tomate ::: C'est la saison.\n"
+        "3. Lettre sans signature\n", "", "",
+        "1. Vénus s'installe dans la chambre d'amis : prudence avant le café.\n2. Couleur de chance : le rosé, évidemment."])
+    main.ETAT["ollama"] = O.Ollama("http://pc:11434", lire=lire)
+    pid, r = _deux_sejours(c)
+    rid = int(r["invites"][0]["lien"].rsplit("/", 1)[1])
+    d = c.get(f"/api/recidives/{rid}").json()
+    assert d["signe"] == "Cancer" and d["lettres_maxi"] == 2
+    lettres = c.post(f"/api/recidives/{rid}/courrier", json={}).json()["propositions"]
+    assert [x["signe"] for x in lettres] == ["Un voisin inquiet", "Une tomate"]
+    horos = c.post(f"/api/recidives/{rid}/horoscope", json={}).json()["propositions"]
+    assert len(horos) == 2 and "signe Cancer" in lire.appels[-1][1]["prompt"]
+    c.put(f"/api/recidives/{rid}", json={"courrier": lettres + [{"lettre": "trop"}], "horoscope": "1. " + horos[0]})
+    ed = c.get(f"/api/recidives/{rid}").json()["edition"]
+    assert len(ed["courrier"]) == 2 and ed["horoscope"] == horos[0]
+    html = c.get(f"/api/recidives/{rid}/apercu").text
+    assert "Courrier des lecteurs" in html and "Un voisin inquiet" in html and "Horoscope du séjour" in html
+    assert "Cancer" in html and "1988" not in html                       # le signe, jamais la date

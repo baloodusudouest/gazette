@@ -2,7 +2,7 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
-## État (17/11/2026) — 0.10.0 (La Récidive + titres par l'IA du PC + macaron et cadrage) sur 0.8.0, temps 1 livré + top 5 culturel + journal réglé dans l'appli + texte complet + aide à la place + carnet + réglages sauvegardés par l'Anneau, installé sur le NAS le 14/11 (pas encore de vrai livret)
+## État (17/11/2026) — 0.11.0 (La Récidive + titres par l'IA du PC + macaron et cadrage) sur 0.8.0, temps 1 livré + top 5 culturel + journal réglé dans l'appli + texte complet + aide à la place + carnet + réglages sauvegardés par l'Anneau, installé sur le NAS le 14/11 (pas encore de vrai livret)
 - Appli complète : fiches, livrets, relecture, aperçu, PDF à imprimer et lecture, À traiter, Connexion, Réglages, porte HA (`/ha/sejour`, `/ha/etat`).
 - Moteur essayé en vrai (réseau) sur trois dates maigres du banc (1964, 1983, 1997) : une, brèves, semaine, chronologie, nés et disparus remplis ; rendu PDF contrôlé à l'œil (aucun débordement).
 - Top 5 culturel : fichier livré dans `app/donnees/`, remplaçable depuis Réglages (fichier importé gardé dans `/data/culture.csv`) ; prompt de mise à jour annuelle dans `app/donnees/prompt_culture.md` (il nomme les années 2026 et 2027 : à adapter chaque année).
@@ -32,7 +32,8 @@
 - **0.9.6** : `rendu_recidive._taille_titre` (taille du gros titre selon la longueur), interligne 1,12 ; `ollama.SYSTEME` + `EXEMPLES` (ton tabloïd), option `system`, température 1,05 ; `GAZETTE_OLLAMA_MODELE` facultative. Jamais essayé sur le vrai PC.
 - **0.9.7** : rumeurs de la page 3 — `Ollama.rumeurs` (`consigne_rumeurs`, `MAXI_RUMEUR` 130, 8 propositions ; `_demander` commun), route `POST /api/recidives/{id}/rumeurs` {indices}, colonnes `rumeurs`, `indices_rumeurs`, `propositions_rumeurs`, `R.RUMEURS` = 4, `rendu_recidive._rumeurs`.
 - **0.10.0** : `Carnet.ecrire_journaux` (PUT `/gazette/personnes/{personne_id}/journaux`, carnet 2.29 ; injectable `ETAT["carnet_ecrire"]`), `main._garder_indices` (appelé par `/rumeurs`), `main._deja_paru(pid, sauf)` ; `ollama._feuilleton`, `ollama.proche_de` (difflib ≥ 0,82), paramètre `deja` de `proposer`/`rumeurs`. Réponse de `/api/recidives/{id}` : `indices_carnet`, `deja_paru`.
-- 116 tests (`python -m pytest -q`, dont 18 d'écran), sans réseau : pages de sources inventées (`tests/fixtures.py`) ; écrans sur PC et iPhone par le serveur de démonstration (`python -m tools.demo`, mot de passe demo-demo-demo).
+- **0.11.0** : page 4 — `Ollama.courrier` (format « lettre ::: signature ::: réponse », `lettres()`), `Ollama.horoscope`, `R.signe` (DEBUTS), routes `/api/recidives/{id}/courrier` et `/horoscope`, colonnes `courrier`, `propositions_courrier`, `horoscope`, `propositions_horoscope`, `R.LETTRES` = 2, `rendu_recidive._courrier` / `_horoscope`.
+- 118 tests (`python -m pytest -q`, dont 18 d'écran), sans réseau : pages de sources inventées (`tests/fixtures.py`) ; écrans sur PC et iPhone par le serveur de démonstration (`python -m tools.demo`, mot de passe demo-demo-demo).
 - Tuile de l'Anneau : `/health` donne `livrets` et `a_traiter` ; sa ligne du `services.yaml` de l'Anneau est dans Atlas (`data/anneau-services.yaml`, dépôt privé, qui fait foi), comme la stack (`data/homelab.yml`).
 - Package HA `chambres/gazette.yaml` v1.0 : pas dans ce dépôt (il nomme les chambres et le téléphone de la maison) ; sa copie de référence est décrite dans le master doc Home Assistant (§ 6.1 et § 10). Contrat de la porte : `docs/dossier.md`, section « Temps 1 tel que construit ».
 

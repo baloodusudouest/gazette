@@ -701,7 +701,8 @@ def _deja_paru(pid: int, sauf: int) -> list[str]:
     for ed in ETAT["base"].recidives(pid):
         if ed["id"] == sauf or ed["etat"] != "approuve":
             continue
-        res += [ed.get("titre_une") or ""] + list(ed.get("rumeurs") or [])
+        res += [ed.get("titre_une") or ""] + list(ed.get("rumeurs") or []) + [ed.get("horoscope") or ""]
+        res += [x.get("lettre", "") for x in ed.get("courrier") or []]
         res += [x.get("legende", "") for x in ed["photos"] if not x.get("retiree") and x.get("legende") != R.legende(x)]
     return [x for x in dict.fromkeys(t.strip() for t in res) if x][:40]
 
@@ -722,7 +723,8 @@ def edition(rid: int):
     return {"personne": p, "edition": {**ed, "mot_defaut": R.mot_par_defaut(ed["genre"], _prenom(p)),
                                        "accroche_defaut": R.accroche(ed["genre"], _prenom(p))},
             "signature": j["signature"], "places": R.PLACES, "titre_defaut": R.titre_une(p["nom"]),
-            "indices_carnet": _contact(p).get("journaux") or "", "deja_paru": _deja_paru(p["id"], rid), "macarons": R.MACARONS, "rumeurs_maxi": R.RUMEURS, "cadrages": R.CADRAGES,
+            "indices_carnet": _contact(p).get("journaux") or "", "deja_paru": _deja_paru(p["id"], rid), "macarons": R.MACARONS, "rumeurs_maxi": R.RUMEURS, "lettres_maxi": R.LETTRES,
+            "signe": R.signe(p.get("naissance", ""))[0], "cadrages": R.CADRAGES,
             "ia": {**ETAT["ollama"].etat(), "maxi": MAXI_TITRE}}
 
 
@@ -756,6 +758,16 @@ def enregistrer_edition(rid: int, corps: dict = Body(...)):
         champs["titre_une"] = " ".join(str(corps.get("titre_une") or "").split())[:90]
     if isinstance(corps.get("rumeurs"), list):     # 0.9.7 : 4 rumeurs au plus, imprimées en page 3
         champs["rumeurs"] = [x for x in (sans_numero(" ".join(str(x).split()))[:160] for x in corps["rumeurs"]) if x][:R.RUMEURS]
+    if isinstance(corps.get("courrier"), list):    # 0.11 : 2 lettres au plus, page 4
+        lettres_ = []
+        for x in corps["courrier"]:
+            if isinstance(x, dict):
+                l = {k: " ".join(str(x.get(k) or "").split())[:n] for k, n in (("lettre", 260), ("signe", 60), ("reponse", 140))}
+                if l["lettre"]:
+                    lettres_.append(l)
+        champs["courrier"] = lettres_[:R.LETTRES]
+    if "horoscope" in corps:
+        champs["horoscope"] = sans_numero(" ".join(str(corps.get("horoscope") or "").split()))[:280]
     if "indices_rumeurs" in corps:
         champs["indices_rumeurs"] = " ".join(str(corps.get("indices_rumeurs") or "").split())[:400]
     if "description_une" in corps:
@@ -840,6 +852,33 @@ def _garder_indices(p: dict, indices: str) -> str:
         return f"pas gardé dans carnet ({str(ex).splitlines()[0][:120]})"
     ETAT["base"].noter("carnet", p["id"], "« Pour les journaux » gardé dans carnet")
     return "gardé dans carnet"
+
+
+@app.post("/api/recidives/{rid}/courrier")
+def proposer_courrier(rid: int, corps: dict = Body(default={})):
+    """0.11 : 4 fausses lettres de lecteurs, avec la réponse de la rédaction, pour la page 4. Rien n'est choisi."""
+    ed, p = _edition_ou_404(rid)
+    indices = " ".join(str(corps.get("indices") or ed.get("indices_rumeurs") or "").split())[:400]
+    try:
+        props = ETAT["ollama"].courrier(indices, ed["genre"], _prenom(p), deja=_deja_paru(p["id"], rid))
+    except RuntimeError as ex:
+        raise HTTPException(503, str(ex))
+    ETAT["base"].maj_recidive(rid, propositions_courrier=props)
+    return {"propositions": props}
+
+
+@app.post("/api/recidives/{rid}/horoscope")
+def proposer_horoscope(rid: int, corps: dict = Body(default={})):
+    """0.11 : 3 horoscopes loufoques du séjour, d'après le signe (calculé de la date de naissance, jamais imprimée)."""
+    ed, p = _edition_ou_404(rid)
+    indices = " ".join(str(corps.get("indices") or ed.get("indices_rumeurs") or "").split())[:400]
+    try:
+        props = ETAT["ollama"].horoscope(R.signe(p.get("naissance", ""))[0], indices, ed["genre"], _prenom(p),
+                                         deja=_deja_paru(p["id"], rid))
+    except RuntimeError as ex:
+        raise HTTPException(503, str(ex))
+    ETAT["base"].maj_recidive(rid, propositions_horoscope=props)
+    return {"propositions": props}
 
 
 @app.post("/api/recidives/{rid}/preparer")

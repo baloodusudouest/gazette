@@ -1,5 +1,11 @@
 # Journal des versions
 
+## 0.11.0 — 17 novembre 2026 (page 4 : courrier des lecteurs et horoscope)
+- **Courrier des lecteurs** (page 4, sous la signature) : l'IA du PC propose 4 fausses lettres de correspondants loufoques (« Un voisin inquiet », « Une tomate du jardin »…) avec la réponse de la rédaction, d'après les indices des rumeurs ; on en prend jusqu'à 2, on les modifie ou on écrit les siennes.
+- **Horoscope du séjour** (encadré jaune) : 3 horoscopes loufoques proposés d'après le signe, calculé à partir de la date de naissance ; seul le signe est imprimé, jamais la date. On en choisit un ou on écrit le sien.
+- Rien de choisi : rubrique absente. Le bouton « IA » du haut les demande aussi quand ils sont vides. Ce qui a paru dans un numéro précédent n'est pas reproposé.
+- Choix de Julien du 17/11 pour remplir la page 4 (sans photo de plus). Tests : 118.
+
 ## 0.10.0 — 17 novembre 2026 (indices gardés dans carnet, l'IA se souvient des numéros précédents)
 - **Indices des rumeurs gardés dans carnet** (choix de Julien du 17/11) : ce que tu écris sur la personne pour les rumeurs est enregistré dans carnet (fiche › « Pour les journaux », carnet ≥ 2.29) quand tu demandes les rumeurs, et repris tout seul à l'édition suivante. carnet le recopie dans la note de la personne de son coffre « Contacts ». Seule écriture de Gazette chez carnet ; pas en lecture seule ; carnet injoignable : un message, rien de bloqué.
 - **Ce qui a déjà paru** : les gros titres, légendes écrites ou choisies et rumeurs des éditions approuvées précédentes de la personne sont donnés à l'IA (« ne les reprends pas, un clin d'œil façon feuilleton est bienvenu ») ; une proposition trop proche d'un texte déjà imprimé est écartée. Liste « Déjà paru dans les numéros précédents » dans l'édition.

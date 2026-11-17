@@ -131,6 +131,58 @@ def sans_numero(texte: str) -> str:
     return NUMERO.sub("", texte or "", count=1).strip()
 
 
+MAXI_LETTRE, MAXI_REPONSE, MAXI_HOROSCOPE = 220, 110, 240    # 0.11 : page 4
+NOMBRE_LETTRES, NOMBRE_HOROSCOPES = 4, 3
+
+
+def _accord(genre: str, prenom: str) -> str:
+    return {"femme": f"{prenom} est une femme (accorde au féminin)", "homme": f"{prenom} est un homme (accorde au masculin)"}.get(
+        genre, f"le genre de {prenom} est inconnu : formule sans accord féminin ni masculin, sans « il » ni « elle »")
+
+
+def consigne_courrier(indices: str, genre: str, prenom: str, deja: list[str] | None = None) -> str:
+    return ("Exemple du ton voulu :\n"
+            "Depuis que Marc est reparti, mon chat refuse de manger : il réclame ses imitations de mouette. Que faire ? "
+            "::: Un voisin inquiet ::: La rédaction conseille de prolonger le séjour, pour le bien du chat.\n\n"
+            + _feuilleton(deja or [])
+            + f"Écris {NOMBRE_LETTRES} fausses lettres de lecteurs, drôles et affectueuses, pour la rubrique « Courrier des "
+              f"lecteurs » d'un faux journal à scandale sur {prenom}, offert par ses hôtes. {_accord(genre, prenom)}.\n"
+            + (f"Ce que les hôtes savent de {prenom} : « {indices} »\n" if indices else "")
+            + "Chaque lettre vient d'un correspondant anonyme et loufoque (« Un voisin inquiet », « Une tomate du jardin », "
+              "« Le canapé du salon »…) et reçoit une réponse courte et piquante de la rédaction. Jamais méchant, aucune "
+              "moquerie du physique, rien de grave ni de vulgaire, aucun autre prénom que " f"{prenom}.\n"
+              f"Format strict, une lettre par ligne : texte de la lettre ({MAXI_LETTRE} caractères au plus) ::: signature "
+              f"::: réponse de la rédaction ({MAXI_REPONSE} caractères au plus). Rien d'autre.")
+
+
+def consigne_horoscope(signe_: str, indices: str, genre: str, prenom: str, deja: list[str] | None = None) -> str:
+    return ("Exemple du ton voulu : « Vénus s'installe dans votre chambre d'amis : évitez les décisions importantes avant "
+            "le deuxième café. Chiffre de chance : le nombre de croissants restants. »\n\n" + _feuilleton(deja or [])
+            + f"Écris {NOMBRE_HOROSCOPES} horoscopes loufoques pour {prenom}, signe {signe_ or 'inconnu'}, pendant son "
+              f"séjour chez ses hôtes, pour un faux journal à scandale. {_accord(genre, prenom)}.\n"
+            + (f"Ce que les hôtes savent de {prenom} : « {indices} »\n" if indices else "")
+            + "Style horoscope de magazine (planètes, chiffre ou couleur de chance), absurde et affectueux, jamais méchant, "
+              f"rien de grave (santé, argent, couple). {MAXI_HOROSCOPE} caractères au plus chacun, sur une seule ligne, "
+              "sans répéter le nom du signe. Un horoscope par ligne, numérotés.")
+
+
+def lettres(texte: str, genre: str) -> list[dict]:
+    """0.11 : « lettre ::: signature ::: réponse » → [{lettre, signe, reponse}], trop longs ou incomplets écartés."""
+    res = []
+    for l in (texte or "").splitlines():
+        parts = [sans_numero(x).strip().strip('"«»“”*').strip() for x in l.split(":::")]
+        if len(parts) != 3 or not all(parts):
+            continue
+        lettre, signe_, reponse = (" ".join(x.split()) for x in parts)
+        if len(lettre) > MAXI_LETTRE or len(reponse) > MAXI_REPONSE or len(signe_) > 50 or INTERDITS.search(lettre + reponse):
+            continue
+        if not genre and re.search(r"\b(elle|il)\b", lettre + " " + reponse, re.I):
+            continue
+        if lettre.casefold() not in {x["lettre"].casefold() for x in res}:
+            res.append({"lettre": lettre, "signe": signe_, "reponse": reponse})
+    return res
+
+
 def nettoyer(texte: str, genre: str, maxi: int = MAXI) -> list[str]:
     """Les lignes qui tiennent : numéro retiré, sans refus, sans anglais, sans genre deviné, `maxi` caractères au plus."""
     res = []
@@ -203,6 +255,45 @@ class Ollama:
             raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
         indices = " ".join((indices or "").split())[:400]
         return self._demander(consigne_rumeurs(indices, genre, prenom, photos or [], deja), NOMBRE_RUMEURS, MAXI_RUMEUR,
+                              genre, deja)
+
+    def _brut(self, prompt: str, nombre: int) -> str:
+        """Une demande, la réponse telle quelle (pour le courrier, qui a son propre format)."""
+        try:
+            r = self._lire("/api/generate", {"model": MODELE, "prompt": prompt, "system": SYSTEME, "stream": False,
+                                             "options": {"temperature": 1.05, "top_p": 0.95, "repeat_penalty": 1.15,
+                                                         "num_predict": 130 * nombre + 100}})
+        except ErreurOllama as ex:
+            self.erreur = ex.detail[:160]
+            raise RuntimeError(f"Ollama a refusé la demande ({ex.detail}).") from ex
+        except Exception as ex:  # noqa: BLE001
+            self.erreur = str(ex).splitlines()[0][:160] or type(ex).__name__
+            raise RuntimeError(f"IA du PC injoignable ({self.erreur}). " + MARCHE) from ex
+        self.erreur = ""
+        return str((r or {}).get("response", ""))
+
+    def courrier(self, indices: str, genre: str = "", prenom: str = "", deja: list[str] | None = None) -> list[dict]:
+        """0.11 : jusqu'à 4 fausses lettres de lecteurs avec la réponse de la rédaction (page 4)."""
+        if not self.actif:
+            raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
+        indices = " ".join((indices or "").split())[:400]
+        res: list[dict] = []
+        for _ in range(ESSAIS):
+            for x in lettres(self._brut(consigne_courrier(indices, genre, prenom, deja), NOMBRE_LETTRES), genre):
+                if not proche_de(x["lettre"], deja or []) and x["lettre"].casefold() not in {y["lettre"].casefold() for y in res}:
+                    res.append(x)
+            if len(res) >= NOMBRE_LETTRES:
+                break
+        if not res:
+            raise RuntimeError("L'IA n'a rien proposé d'utilisable : relance, ou écris la lettre toi-même.")
+        return res[:NOMBRE_LETTRES]
+
+    def horoscope(self, signe_: str, indices: str, genre: str = "", prenom: str = "", deja: list[str] | None = None) -> list[str]:
+        """0.11 : jusqu'à 3 horoscopes loufoques du séjour (page 4)."""
+        if not self.actif:
+            raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
+        indices = " ".join((indices or "").split())[:400]
+        return self._demander(consigne_horoscope(signe_, indices, genre, prenom, deja), NOMBRE_HOROSCOPES, MAXI_HOROSCOPE,
                               genre, deja)
 
     def sonder(self) -> dict:

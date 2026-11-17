@@ -14,7 +14,7 @@ from datetime import date
 from typing import Callable
 
 from . import rendu
-from .recidive import ACCENT, date_photo, jours_absence
+from .recidive import ACCENT, date_photo, jours_absence, signe
 from .regles import MOIS, MOIS_COURT, JOURS, jour_long
 
 e = html.escape
@@ -117,6 +117,16 @@ p,h1,h2,h3{margin:0}
 .rum p:before{content:"★";position:absolute;left:0;color:var(--a)}
 .rum small{font-family:'Oswald',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#555}
 .note{font-size:calc(14px*var(--k,1));line-height:1.4;border-top:3px double #111;padding-top:8px}
+.cour{display:flex;flex-direction:column;gap:8px}
+.cour h3,.horo h3{font-family:'Anton',sans-serif;font-weight:400;font-size:22px;line-height:1;text-transform:uppercase;border-bottom:4px solid #111;padding-bottom:4px}
+.cour .l{font-size:calc(13.5px*var(--k,1));line-height:1.35;font-style:italic}
+.cour .s{font-family:'Elite',monospace;font-size:12px;text-align:right}
+.cour .r{font-family:'Oswald',sans-serif;font-weight:500;font-size:calc(13px*var(--k,1));line-height:1.3;color:var(--a)}
+.cour .r b{color:#111}
+.horo{border:3px solid #111;background:#FFE600;padding:8px 12px 10px;display:flex;flex-direction:column;gap:4px}
+.horo h3{border:0;padding:0;display:flex;justify-content:space-between;align-items:baseline}
+.horo h3 span{font-family:'Oswald',sans-serif;font-size:14px;letter-spacing:.08em}
+.horo p{font-size:calc(14px*var(--k,1));line-height:1.35}
 .lettre p{font-size:calc(17px*var(--k,1));line-height:1.5;margin-bottom:12px;text-wrap:pretty}
 .lettre p.d::first-letter{font-family:'Anton',sans-serif;font-size:62px;line-height:.8;float:left;padding:5px 8px 0 0;color:var(--a)}
 .stamp{align-self:flex-end;border:4px solid var(--a);color:var(--a);font-family:'Anton',sans-serif;font-size:34px;line-height:1;text-transform:uppercase;padding:4px 14px;transform:rotate(-8deg)}
@@ -272,6 +282,26 @@ def _rumeurs(g: dict) -> str:
             + "".join(f"<p>{e(x)}</p>" for x in rs) + "<small>Rumeurs non vérifiées, et pour cause : tout est inventé.</small></div>")
 
 
+def _courrier(g: dict) -> str:
+    """0.11 : « Courrier des lecteurs » — fausses lettres et réponses de la rédaction (choisies ou écrites)."""
+    ls = [x for x in g.get("courrier") or [] if (x.get("lettre") or "").strip()]
+    if not ls:
+        return ""
+    corps = "".join(f'<div><p class="l">« {e(x["lettre"])} »</p><p class="s">— {e(x.get("signe") or "Un lecteur")}</p>'
+                    + (f'<p class="r"><b>La rédaction :</b> {e(x["reponse"])}</p>' if x.get("reponse") else "") + "</div>"
+                    for x in ls)
+    return f'<div class="cour" data-bloc="courrier"><h3>Courrier des lecteurs</h3>{corps}</div>'
+
+
+def _horoscope(g: dict) -> str:
+    """0.11 : « Horoscope du séjour » — le signe seulement, jamais la date de naissance."""
+    t = (g.get("horoscope") or "").strip()
+    if not t:
+        return ""
+    return (f'<div class="horo" data-bloc="horoscope"><h3>Horoscope du séjour<span>{e(g.get("signe") or "")}</span></h3>'
+            f'<p>{e(t)}</p></div>')
+
+
 def page4(g: dict) -> str:
     paras = "".join(f'<p class="{"d" if i == 0 else ""}">{e(t)}</p>' for i, t in enumerate(rendu._paragraphes(g["mot"])))
     return f"""<section class="page" data-page="4">
@@ -280,6 +310,8 @@ def page4(g: dict) -> str:
 <div class="lettre" data-bloc="mot">{paras}</div>
 <span class="stamp">Démenti</span>
 <p class="sign">{e(g['signature'])}</p>
+{_courrier(g)}
+{_horoscope(g)}
 <p class="petit">Une photo vous gêne ? Dites-le, elle sera retirée de l'édition. Chaque exemplaire est relu avant impression.</p>
 <div class="bar">{BARRES}</div>
 <div class="pied"><span>Imprimé {e(g['chez'])}</span><span>N° {g['numero']} · exemplaire unique</span></div>
@@ -301,7 +333,9 @@ def document(personne: dict, edition: dict, j: dict, image: Callable[[str], byte
         "n_rec": sum(1 for p in photos if not p.get("ancien")), "n_anc": sum(1 for p in photos if p.get("ancien")),
         "trouvees": int(edition.get("trouvees") or 0), "absence": jours_absence(prec, du),
         "mot": edition.get("mot") or "", "signature": j["signature"], "chez": j["chez"],
-        "titre_une": edition.get("titre_une") or "", "rumeurs": edition.get("rumeurs") or [], "macaron": edition.get("macaron") or "hd",
+        "titre_une": edition.get("titre_une") or "", "rumeurs": edition.get("rumeurs") or [],
+        "courrier": edition.get("courrier") or [], "horoscope": edition.get("horoscope") or "",
+        "signe": signe(personne.get("naissance") or "")[0], "macaron": edition.get("macaron") or "hd",
     }
     if mode == "impose":
         corps = f'<div class="feuille">{page4(g)}{page1(g)}</div><div class="feuille">{page2(g)}{page3(g)}</div>'
