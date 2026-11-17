@@ -1,5 +1,8 @@
 # Journal des versions
 
+## 0.11.3 — 17 novembre 2026
+- **Page 4 réordonnée** (choix de Julien) : courrier des lecteurs et horoscope en haut (bandeau « Le courrier »), « Droit de réponse » (mot des hôtes, tampon, signature) tout en bas, puis l'encart sur les photos pour finir. Sans courrier ni horoscope, la page reste « Droit de réponse » comme avant. Code-barres qui ne s'écrase plus.
+
 ## 0.11.2 — 17 novembre 2026
 - **Courrier des lecteurs** (toujours « rien d'utilisable » chez Julien) : le filtre anti-refus écartait toute lettre contenant « je ne peux » ou « désolé », fréquents dans une lettre écrite à la première personne. Seul un vrai refus en tête est maintenant écarté. Lettre 400 et réponse 200 caractères au plus. Si rien n'est gardé, le message montre le début de la réponse de l'IA, pour diagnostiquer.
 

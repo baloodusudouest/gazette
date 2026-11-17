@@ -117,6 +117,9 @@ p,h1,h2,h3{margin:0}
 .rum p:before{content:"★";position:absolute;left:0;color:var(--a)}
 .rum small{font-family:'Oswald',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#555}
 .note{font-size:calc(14px*var(--k,1));line-height:1.4;border-top:3px double #111;padding-top:8px}
+.droit{display:flex;flex-direction:column;gap:10px}
+.droit h3.dr{font-family:'Anton',sans-serif;font-weight:400;font-size:22px;line-height:1;text-transform:uppercase;border-bottom:4px solid #111;padding-bottom:4px}
+.tampon{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
 .cour{display:flex;flex-direction:column;gap:8px}
 .cour h3,.horo h3{font-family:'Anton',sans-serif;font-weight:400;font-size:22px;line-height:1;text-transform:uppercase;border-bottom:4px solid #111;padding-bottom:4px}
 .cour .l{font-size:calc(13.5px*var(--k,1));line-height:1.35;font-style:italic}
@@ -132,7 +135,7 @@ p,h1,h2,h3{margin:0}
 .stamp{align-self:flex-end;border:4px solid var(--a);color:var(--a);font-family:'Anton',sans-serif;font-size:34px;line-height:1;text-transform:uppercase;padding:4px 14px;transform:rotate(-8deg)}
 .sign{font-family:'Elite',monospace;font-size:20px;text-align:right}
 .petit{font-family:'Oswald',sans-serif;font-size:12px;line-height:1.3;text-transform:uppercase;letter-spacing:.04em;border:2px solid #111;padding:8px 10px}
-.bar{display:flex;align-items:stretch;height:34px;margin-top:auto}
+.bar{display:flex;align-items:stretch;height:34px;margin-top:auto;flex-shrink:0}
 .bar i{display:block;background:#111}
 .pied{display:flex;justify-content:space-between;align-items:flex-end;font-family:'Oswald',sans-serif;font-size:12px;letter-spacing:.06em;text-transform:uppercase}
 .lecture body{background:#e9e4d8}
@@ -303,17 +306,22 @@ def _horoscope(g: dict) -> str:
 
 
 def page4(g: dict) -> str:
+    """0.11.3 (choix de Julien) : courrier des lecteurs et horoscope en haut, droit de réponse tout en bas, puis l'encart
+    sur les photos pour finir. Sans courrier ni horoscope : la page reste « Droit de réponse » comme avant."""
     paras = "".join(f'<p class="{"d" if i == 0 else ""}">{e(t)}</p>' for i, t in enumerate(rendu._paragraphes(g["mot"])))
+    haut = _courrier(g) + _horoscope(g)
+    titre = "Le courrier" if haut else "Droit de réponse"
+    soustitre = '<h3 class="dr">Droit de réponse</h3>' if haut else ""
     return f"""<section class="page" data-page="4">
-<div class="band"><h2>Droit de réponse</h2><span>Page 4</span></div>
+<div class="band"><h2>{titre}</h2><span>Page 4</span></div>
 <div class="main" style="gap:14px">
+{haut}
+<div class="droit" style="{'margin-top:auto' if haut else ''}">{soustitre}
 <div class="lettre" data-bloc="mot">{paras}</div>
-<span class="stamp">Démenti</span>
-<p class="sign">{e(g['signature'])}</p>
-{_courrier(g)}
-{_horoscope(g)}
-<p class="petit">Une photo vous gêne ? Dites-le, elle sera retirée de l'édition. Chaque exemplaire est relu avant impression.</p>
-<div class="bar">{BARRES}</div>
+<div class="tampon"><span class="stamp">Démenti</span><p class="sign">{e(g['signature'])}</p></div>
+</div>
+<p class="petit" style="{'' if haut else 'margin-top:auto'}">Une photo vous gêne ? Dites-le, elle sera retirée de l'édition. Chaque exemplaire est relu avant impression.</p>
+<div class="bar" style="margin-top:0">{BARRES}</div>
 <div class="pied"><span>Imprimé {e(g['chez'])}</span><span>N° {g['numero']} · exemplaire unique</span></div>
 </div></section>"""
 
