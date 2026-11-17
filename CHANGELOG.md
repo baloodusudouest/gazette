@@ -1,5 +1,10 @@
 # Journal des versions
 
+## 0.9.3 — 17 novembre 2026 (La Récidive : bouton « IA » en haut)
+- **En haut à droite de l'édition** : « IA », « Enregistrer », « Approuver », toujours visibles (la barre reste en haut quand on fait défiler).
+- **« IA »** lance les propositions pour **tous les textes décrits** d'un coup (la une et chaque photo gardée qui a une description), l'un après l'autre, avec l'avancement (« IA 2/5… ») ; il s'arrête au premier « PC injoignable ». On choisit ensuite les titres, puis Enregistrer.
+- Cases plus claires : « Décris la photo de la une (l'IA proposera 5 gros titres) », « Décris cette photo (l'IA proposera 5 légendes) ».
+
 ## 0.9.2 — 17 novembre 2026 (La Récidive : macaron et cadrage)
 - **Macaron « Exclusif ! »** : sa place se choisit dans l'édition (en haut à gauche, en haut à droite, en bas à gauche, en bas à droite, ou sans macaron). Il est posé dans la photo de la une, plus en travers de la page, et un peu plus petit.
 - **Cadrage de chaque photo** : rogner en gardant le haut (par défaut, les têtes ne sont plus coupées), le centre ou le bas, ou **photo entière** (sans rognage, bandes sombres autour). Gardé par « Compléter ».

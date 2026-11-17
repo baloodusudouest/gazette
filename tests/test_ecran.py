@@ -162,7 +162,7 @@ def test_titres_proposes_par_l_ia(navigateur, adresse, taille):
     page.locator("a[href^='#/recidive/']").first.click()
     page.get_by_role("heading", name="Lou Martin").wait_for()
     page.fill("input[aria-label='Description de la photo de la une']", "Lou sur une plage, lunettes de soleil")
-    page.locator("button:has-text('5 titres')").first.click()
+    page.get_by_role("button", name="IA", exact=True).click()            # bouton du haut : tous les textes décrits
     page.get_by_text("« Les vacances secrètes de Lou »").wait_for()
     page.get_by_text("« Les vacances secrètes de Lou »").click()
     assert page.locator("input[placeholder='Lou Martin revient !']").input_value() == "Les vacances secrètes de Lou"

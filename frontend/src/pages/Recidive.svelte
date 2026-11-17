@@ -26,6 +26,7 @@
   let descriptionUne = $state('')
   let propsUne = $state([])
   let demande = $state('')          // cible en cours de proposition (« une » ou id de photo)
+  let lot = $state(null)            // « IA » sur tout : {fait, total}
   let modifie = $state(false)
   let message = $state('')
   let attente = $state('')
@@ -57,6 +58,22 @@
   function toucher() { modifie = true; message = '' }
   const corps = () => ({ numero_main: numero === '' ? null : +numero, accroche, mot, titre_une: titreUne, description_une: descriptionUne, macaron,
                          photos: photos.map((p) => ({ id: p.id, legende: p.legende, retiree: p.retiree, description: p.description ?? '', cadrage: p.cadrage ?? 'haut' })) })
+  // « IA » en haut : 5 titres pour chaque texte décrit (la une et chaque photo gardée), l'un après l'autre
+  const cibles = () => [...(descriptionUne.trim().length >= 3 ? ['une'] : []),
+                        ...photos.filter((p) => !p.retiree && (p.description ?? '').trim().length >= 3).map((p) => p.id)]
+  async function proposerTout() {
+    const liste = cibles()
+    if (!liste.length) { message = 'Décris d\'abord au moins une photo (case « Décris… » sous la une ou sous une photo).'; return }
+    lot = { fait: 0, total: liste.length }
+    let echecs = 0
+    for (const c of liste) {
+      await proposer(c)
+      if (message) { echecs++; if (message.includes('injoignable') || message.includes('pas réglée')) break }
+      lot = { fait: lot.fait + 1, total: lot.total }
+    }
+    if (!echecs) message = `Propositions prêtes pour ${liste.length} texte${liste.length > 1 ? 's' : ''} : touche celles qui te plaisent, puis Enregistrer.`
+    lot = null
+  }
   async function proposer(cible) {
     const description = cible === 'une' ? descriptionUne : photos.find((p) => p.id === cible)?.description ?? ''
     demande = cible
@@ -100,7 +117,7 @@
   <div class="mt-2 grid min-w-0 gap-1.5 rounded-lg border border-dashed p-2">
     <div class="flex min-w-0 flex-wrap items-center justify-end gap-2">
       <input class="w-full min-w-0 rounded-lg border bg-background px-2 py-1 text-sm" maxlength="400" value={description}
-             oninput={(e) => ecrire(e.currentTarget.value)} placeholder="Ce qu'on voit, en quelques mots (pour l'IA)"
+             oninput={(e) => ecrire(e.currentTarget.value)} placeholder={cible === 'une' ? "Décris la photo de la une (l'IA proposera 5 gros titres)" : "Décris cette photo (l'IA proposera 5 légendes)"}
              aria-label={cible === 'une' ? 'Description de la photo de la une' : 'Description de la photo'} />
       <Button size="sm" variant="outline" class="shrink-0" onclick={() => proposer(cible)} disabled={demande !== '' || description.trim().length < 3}>
         <Sparkles class="size-3.5" aria-hidden="true" />{demande === cible ? '…' : '5 titres'}</Button>
@@ -116,7 +133,7 @@
 {/snippet}
 
 {#if d}
-  <header class="mb-5 flex flex-wrap items-end justify-between gap-3">
+  <header class="sticky top-0 z-10 -mx-2 mb-5 flex flex-wrap items-end justify-between gap-3 bg-background/90 px-2 py-2 backdrop-blur">
     <div>
       <a href="#/livrets" class="mb-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft class="size-4" aria-hidden="true" />Livrets</a>
       <p class="etiquette">La Récidive · N° {ed.numero_main ?? ed.numero}</p>
@@ -126,6 +143,9 @@
         · {ed.trouvees} photo{ed.trouvees > 1 ? 's' : ''} trouvée{ed.trouvees > 1 ? 's' : ''} dans Immich</p>
     </div>
     <div class="flex flex-wrap gap-2">
+      <Button variant="outline" onclick={proposerTout} disabled={lot !== null || demande !== '' || !['a_relire', 'approuve'].includes(ed.etat)}
+              title="5 titres proposés par l'IA du PC pour chaque photo décrite">
+        <Sparkles class="size-4" aria-hidden="true" />{lot ? `IA ${lot.fait}/${lot.total}…` : 'IA'}</Button>
       <Button variant="outline" onclick={enregistrer} disabled={!modifie || attente !== ''}>{attente === 'enregistrer' ? 'Enregistrement…' : 'Enregistrer'}</Button>
       <Button onclick={approuver} disabled={attente !== '' || !['a_relire', 'approuve'].includes(ed.etat) || ed.etat === 'approuve' && !modifie}>
         {attente === 'approuver' ? 'Contrôle…' : ed.etat === 'approuve' && !modifie ? 'Approuvée' : 'Approuver'}</Button>
