@@ -1,5 +1,17 @@
 # Journal des versions
 
+## 0.17.0 — 17 novembre 2026 (relecture élément par élément, la même pour la Gazette et La Récidive)
+- **Quatre gestes sur chaque élément** (paragraphe, photo, rumeur, lettre, horoscope, mot, code-barres, culture…), pareils dans les deux journaux (demande de Julien du 17/11) :
+  - **Valider** : l'élément disparaît (la validation est enregistrée ; il revient s'il change ensuite) ;
+  - **IA** : l'IA du PC propose sous l'élément, tu choisis ; si une analyse tourne déjà, la demande s'ajoute à la file en cours (« IA : … , puis n en file ») ;
+  - **Changer** : d'autres données selon l'élément — Gazette : un autre événement des sources, le top 5 pour musique et cinéma, une autre photo, le mot ou le message par défaut ; Récidive : une autre photo d'Immich (« Compléter »), une autre proposition déjà faite pour le titre, la rumeur, la lettre ou l'horoscope (sinon l'IA), le mot ou le message par défaut ;
+  - **Refuser** : l'élément est supprimé (brève, article, repère, photo, rumeur, lettre, horoscope, musique, cinéma) ; pas de Refuser pour les éléments obligatoires (une, gros titre, mot des hôtes, code-barres).
+- **Tout validé : il ne reste qu'un gros bouton Approuver** (et « Revoir les éléments validés »). Un bandeau dit combien d'éléments restent ; « Montrer aussi les validés » les fait revenir.
+- **Page trop pleine** : ses éléments réapparaissent, encadrés en rouge, même validés, jusqu'à ce qu'elle tienne.
+- **Mot des hôtes de la Gazette** : l'IA s'appuie sur les événements racontés dans la Gazette (une, brèves, page 2) pour un ou deux clins d'œil (demande de Julien du 17/11).
+- Une validation ne fait plus repasser un journal approuvé « à relire » ; seul un contenu qui change le fait.
+- Tests : 141.
+
 ## 0.16.0 — 17 novembre 2026 (tout part sur la fiche de carnet à l'approbation)
 - **Approuver une Récidive envoie tout à carnet** (choix de Julien du 17/11 : tout centraliser sur la fiche contact) : le numéro (date du séjour, N°, gros titre, événement du séjour, indices, descriptions des photos écrites pour l'IA, textes imprimés : titre, légendes, rumeurs, horoscope, courrier) est rangé dans « Journaux parus » de la fiche (carnet ≥ 2.30), et les indices dans « Pour les journaux ». Un numéro réapprouvé remplace le précédent. Le message d'approbation dit si c'est fait ; carnet injoignable ou en lecture seule : l'approbation reste faite, le message le dit.
 - **Les numéros suivants relisent la fiche** : textes déjà imprimés (pour ne pas les répéter), événements des séjours précédents (horoscope), descriptions des photos des trois derniers numéros (clin d'œil des rumeurs) — même si la base de Gazette a été perdue.

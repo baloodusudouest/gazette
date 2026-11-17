@@ -3,7 +3,7 @@
   // photos et légendes, retrait, mot des hôtes), aperçu des 4 pages à droite. « Approuver » contrôle d'abord
   // qu'aucune page ne déborde. Rien ne s'imprime sans approbation. Légendes de gabarit ; 0.9.1 : Julien décrit une
   // photo en quelques mots, l'IA du PC propose 5 titres (60 caractères au plus), il en choisit un ou écrit le sien.
-  import { onMount, onDestroy } from 'svelte'
+  import { onMount, onDestroy, setContext } from 'svelte'
   import ArrowLeft from '@lucide/svelte/icons/arrow-left'
   import Download from '@lucide/svelte/icons/download'
   import EyeOff from '@lucide/svelte/icons/eye-off'
@@ -13,6 +13,9 @@
   import { api } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import Etat from '$lib/Etat.svelte'
+  import Element from '$lib/Element.svelte'
+  import Relecture from '$lib/Relecture.svelte'
+  import { enfiler } from '$lib/fileIa.svelte.js'
   import { dateCourte, dateLongue } from '$lib/format.js'
 
   let { id, onchange, ondeconnecte } = $props()
@@ -43,6 +46,23 @@
   // 0.15.2 : pages qui débordent à l'impression (mesure de Chromium sur l'édition enregistrée) → encadré rouge
   let mes = $state(null)
   const trop = $derived(Object.fromEntries((mes ?? []).filter((p) => p.deborde).map((p) => [p.page, p.exces])))
+  // 0.17 : relecture élément par élément (Valider, IA, Changer, Refuser), commune avec la Gazette
+  let valides = $state({})
+  let revoir = $state(false)
+  const registre = $state({})
+  setContext('validation', {
+    valides: () => valides, revoir: () => revoir, registre,
+    trop: (n) => !!trop[n],
+    valider: async (cle, h) => { valides = { ...valides, [cle]: h }; await enregistrer(true) },
+  })
+  const total = $derived(Object.keys(registre).length)
+  const restants = $derived(Object.values(registre).filter((x) => !x).length)
+  const fini = $derived(total > 0 && restants === 0)
+  function aFaire(...prefixes) {
+    if (revoir) return true
+    const miens = Object.entries(registre).filter(([k]) => prefixes.some((p) => k === p || k.startsWith(p + ':')))
+    return !miens.length || miens.some(([, ok]) => !ok)
+  }
   async function mesurer() {
     try { mes = (await api.get(`/api/recidives/${id}/mesure`)).pages } catch { mes = null }   // sans Chromium : rien
   }
@@ -71,6 +91,7 @@
       evenement = ed.evenement || ''
       codeBarres = ed.code_barres || ''
       propsHoroscope = ed.propositions_horoscope || []
+      valides = { ...(ed.valides ?? {}) }
       modifie = false
       tampon = Date.now()
       clearTimeout(minuteur)
@@ -82,7 +103,7 @@
     }
   }
   function toucher() { modifie = true; message = '' }
-  const corps = () => ({ numero_main: numero === '' ? null : +numero, accroche, mot, titre_une: titreUne, description_une: descriptionUne, macaron, rumeurs, indices_rumeurs: indices, courrier, horoscope, evenement, code_barres: codeBarres,
+  const corps = () => ({ numero_main: numero === '' ? null : +numero, accroche, mot, titre_une: titreUne, description_une: descriptionUne, macaron, rumeurs, indices_rumeurs: indices, courrier, horoscope, evenement, code_barres: codeBarres, valides: $state.snapshot(valides),
                          photos: photos.map((p) => ({ id: p.id, legende: p.legende, retiree: p.retiree, description: p.description ?? '', cadrage: p.cadrage ?? 'haut' })) })
   // « IA » en haut : 5 titres pour chaque texte décrit (la une et chaque photo gardée), l'un après l'autre
   // 0.12 : ce qu'Immich dit d'une photo (albums parlants, personnes) — l'IA s'en sert, même sans description
@@ -96,7 +117,8 @@
   const pret = (description, p) => description.trim().length >= 3 || ctxTexte(p) !== ''
   const cibles = () => [...(pret(descriptionUne, photoUne()) ? ['une'] : []),
                         ...photos.filter((p) => !p.retiree && pret(p.description ?? '', p)).map((p) => p.id)]
-  async function proposerRumeurs() {
+  const proposerRumeurs = () => enfiler('Rumeurs', proposerRumeurs_)
+  async function proposerRumeurs_() {
     demande = 'rumeurs'
     message = ''
     try {
@@ -108,7 +130,8 @@
     catch (err) { message = err.message }
     demande = ''
   }
-  async function proposerPage4(quoi) {
+  const proposerPage4 = (quoi) => enfiler(quoi === 'courrier' ? 'Courrier des lecteurs' : 'Horoscope', () => proposerPage4_(quoi))
+  async function proposerPage4_(quoi) {
     demande = quoi
     message = ''
     try {
@@ -145,7 +168,8 @@
     if (!echecs) message = `Propositions prêtes pour ${liste.length} texte${liste.length > 1 ? 's' : ''} : touche celles qui te plaisent, puis Enregistrer.`
     lot = null
   }
-  async function proposer(cible) {
+  const proposer = (cible) => enfiler(cible === 'une' ? 'Gros titre' : 'Légende d\'une photo', () => proposer_(cible))
+  async function proposer_(cible) {
     const description = cible === 'une' ? descriptionUne : photos.find((p) => p.id === cible)?.description ?? ''
     demande = cible
     message = ''
@@ -157,9 +181,9 @@
     } catch (err) { message = err.message }
     demande = ''
   }
-  async function enregistrer() {
+  async function enregistrer(silencieux = false) {
     attente = 'enregistrer'
-    try { await api.put(`/api/recidives/${id}`, corps()); await lire(); message = 'Enregistré.'; onchange?.() }
+    try { await api.put(`/api/recidives/${id}`, corps()); await lire(); if (silencieux !== true) message = 'Enregistré.'; onchange?.() }
     catch (err) { message = err.message }
     attente = ''
   }
@@ -182,6 +206,35 @@
     await lire()
   }
   function basculer(p) { p.retiree = !p.retiree; toucher() }
+  // 0.17 : gestes des éléments
+  function iaPour(cible, description, p) {
+    if (!pret(description, p)) { message = cible === 'une' ? 'Décris d\'abord la photo de la une (case « Pour l\'IA »).' : 'Décris d\'abord cette photo (case « Pour l\'IA ») : Immich ne dit rien d\'elle.'; return }
+    proposer(cible)
+  }
+  function suivant(liste, actuel) {        // la proposition suivante, autre que l'actuelle
+    const autres = liste.filter((x) => x !== actuel)
+    if (!autres.length) return null
+    const i = liste.indexOf(actuel)
+    return liste[(i + 1) % liste.length] === actuel ? autres[0] : liste[(i + 1) % liste.length]
+  }
+  function changerTitre() { const t = suivant(propsUne, titreUne); titreUne = t ?? ''; toucher(); if (!t) message = 'Gros titre par défaut ; « IA » en propose d\'autres.' }
+  async function changerPhoto(p) {          // retirée, puis « Compléter » cherche une autre photo dans Immich
+    p.retiree = true
+    if (!photos.some((x) => !x.retiree)) { p.retiree = false; message = 'C\'est la seule photo : « Compléter » d\'abord.'; return }
+    await preparer(true)
+  }
+  function changerRumeur(i) {
+    const t = propsRumeurs.find((x) => !rumeurs.includes(x))
+    if (t) { rumeurs[i] = t; toucher() } else proposerRumeurs()
+  }
+  function changerLettre(i) {
+    const x = propsCourrier.find((y) => !courrier.some((z) => z.lettre === y.lettre))
+    if (x) { courrier[i] = { ...x }; toucher() } else proposerPage4('courrier')
+  }
+  function changerHoroscope() {
+    const t = suivant(propsHoroscope, horoscope)
+    if (t) { horoscope = t; toucher() } else proposerPage4('horoscope')
+  }
   const vues = $derived(photos.filter((p) => !p.retiree))
   const echelle = $derived(Math.min(1, largeur / 600))
   const ed = $derived(d?.edition)
@@ -203,7 +256,7 @@
       <input class="w-full min-w-0 rounded-lg border bg-background px-2 py-1 text-sm" maxlength="400" value={description}
              oninput={(e) => ecrire(e.currentTarget.value)} placeholder={cible === 'une' ? "Décris la photo de la une (l'IA proposera 5 gros titres)" : "Décris cette photo (l'IA proposera 5 légendes)"}
              aria-label={cible === 'une' ? 'Description de la photo de la une' : 'Description de la photo'} />
-      <Button size="sm" variant="outline" class="shrink-0" onclick={() => proposer(cible)} disabled={demande !== '' || !pret(description, photo)}>
+      <Button size="sm" variant="outline" class="shrink-0" onclick={() => proposer(cible)} disabled={demande === cible || !pret(description, photo)}>
         <Sparkles class="size-3.5" aria-hidden="true" />{demande === cible ? '…' : '5 titres'}</Button>
     </div>
     {#if ctxTexte(photo)}<p class="text-[0.7rem] break-words text-muted-foreground">Immich · {ctxTexte(photo)}</p>{/if}
@@ -250,9 +303,13 @@
 
   <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
     <div class="grid min-w-0 content-start gap-4">
-      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadre(1)}" aria-label="Une">
+      <Relecture {restants} {total} bind:revoir {approuver} {attente} etat={ed.etat} {modifie} journal="La Récidive" />
+      <div class="grid min-w-0 content-start gap-4" class:hidden={fini && !revoir}>
+      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadre(1)}" class:hidden={!aFaire('une')} aria-label="Une">
         {@render alerte(1)}
         <h2 class="etiquette mb-2">Page 1 · la une</h2>
+        <Element cle="une" page={1} titre="La une : N°, accroche, gros titre, macaron" valeur={{ n: numero, a: accroche, t: titreUne, m: macaron }}
+                 onia={() => iaPour('une', descriptionUne, photoUne())} onchanger={changerTitre} changer="Un autre gros titre">
         <div class="grid gap-3 sm:grid-cols-[8rem_minmax(0,1fr)]">
           <label class="grid gap-1 text-sm"><span class="etiquette">N° (corrigé)</span>
             <input type="number" min="2" max="99" placeholder={String(ed.numero)} class="rounded-lg border bg-background px-2 py-1" bind:value={numero} oninput={toucher} /></label>
@@ -272,9 +329,10 @@
           </div>
         </fieldset>
         {@render ia('une', descriptionUne, propsUne, (v) => { descriptionUne = v; toucher() }, (t) => { titreUne = t; toucher() }, photoUne())}
+        </Element>
       </section>
 
-      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadre(2)}" aria-label="Photos">
+      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadre(2)}" class:hidden={!aFaire('photo')} aria-label="Photos">
         {@render alerte(2)}
         <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
           <h2 class="etiquette">Les preuves · {vues.length} photo{vues.length > 1 ? 's' : ''} sur {d.places}</h2>
@@ -286,7 +344,17 @@
         <p class="mb-3 text-xs text-muted-foreground">La première photo fait la une. « Retirer » écarte une photo (elle ne reviendra pas) ; « Compléter » cherche de quoi remplir les places libres.</p>
         <ul class="grid gap-3 sm:grid-cols-2">
           {#each photos as p, i (p.id)}
-            <li class="flex min-w-0 flex-col gap-2 rounded-xl border p-2 {p.retiree ? 'opacity-45' : ''}">
+            {#if p.retiree}
+              {#if revoir}
+                <li class="flex min-w-0 items-center justify-between gap-2 rounded-xl border p-2 text-sm opacity-60">Photo du {dateCourte(p.date)} retirée
+                  <button type="button" class="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" onclick={() => basculer(p)}><Eye class="size-3.5" aria-hidden="true" />Remettre</button></li>
+              {/if}
+            {:else}
+            <li class="min-w-0">
+            <Element cle="photo:{p.id}" page={vues.indexOf(p) === 0 ? 1 : 2} titre="{vues.indexOf(p) === 0 ? 'Photo de la une' : `Photo ${vues.indexOf(p) + 1}`} · {dateCourte(p.date)}"
+                     valeur={{ l: p.legende, c: p.cadrage ?? 'haut' }} onia={() => iaPour(p.id, p.description ?? '', p)}
+                     onchanger={() => changerPhoto(p)} changer="Une autre photo d'Immich" onrefuser={() => basculer(p)}>
+            <div class="flex min-w-0 flex-col gap-2">
               <div class="relative aspect-[4/3] overflow-hidden rounded-lg bg-muted">
                 <img src={`/api/recidives/${id}/photos/${p.id}`} alt="Photo du {dateLongue(p.date)}" loading="lazy"
                      class="size-full {p.cadrage === 'entiere' ? 'object-contain bg-black' : 'object-cover'} {p.ancien ? 'grayscale sepia-[.35]' : ''}"
@@ -306,27 +374,29 @@
               <textarea rows="2" class="min-w-0 rounded-lg border bg-background px-2 py-1 font-mono text-sm" maxlength="220" bind:value={p.legende}
                         oninput={toucher} aria-label="Légende de la photo du {dateLongue(p.date)}" disabled={p.retiree}></textarea>
               {#if !p.retiree}{@render ia(p.id, p.description ?? '', p.propositions ?? [], (v) => { p.description = v; toucher() }, (t) => { p.legende = t; toucher() }, p)}{/if}
-              <button type="button" class="inline-flex items-center gap-1 self-start text-xs text-muted-foreground hover:text-foreground" onclick={() => basculer(p)}>
-                {#if p.retiree}<Eye class="size-3.5" aria-hidden="true" />Remettre{:else}<EyeOff class="size-3.5" aria-hidden="true" />Retirer{/if}
-              </button>
+            </div>
+            </Element>
             </li>
+            {/if}
           {:else}
             <li class="text-sm text-muted-foreground">{ed.etat === 'en_preparation' ? 'Recherche des photos dans Immich…' : 'Aucune photo.'}</li>
           {/each}
         </ul>
       </section>
 
-      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadre(3)}" aria-label="Rumeurs">
+      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadre(3)}" class:hidden={!aFaire('rumeur')} aria-label="Rumeurs">
         {@render alerte(3)}
         <h2 class="etiquette mb-2">Page 3 · les rumeurs de la rédaction ({rumeurs.length}/{d.rumeurs_maxi})</h2>
         <p class="mb-2 text-xs text-muted-foreground">Des scandales loufoques, tout inventés, pour remplir la page 3. Imprimées avec la mention « tout est inventé ».</p>
         <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Rumeurs imprimées</span>
         <ul class="mt-1 grid gap-1.5">
           {#each rumeurs as r, i}
-            <li class="flex min-w-0 items-start gap-2">
-              <textarea rows="2" class="min-w-0 flex-1 rounded-lg border bg-background px-2 py-1 text-sm" maxlength="160" value={r}
+            <li class="min-w-0">
+              <Element cle="rumeur:{i}" page={3} titre="Rumeur {i + 1}" valeur={r} onia={proposerRumeurs} onchanger={() => changerRumeur(i)} changer="Une autre rumeur proposée"
+                       onrefuser={() => { rumeurs = rumeurs.filter((_, j) => j !== i); toucher() }}>
+              <textarea rows="2" class="min-w-0 rounded-lg border bg-background px-2 py-1 text-sm" maxlength="160" value={r}
                         oninput={(e) => { rumeurs[i] = e.currentTarget.value; toucher() }} aria-label="Rumeur {i + 1}"></textarea>
-              <button type="button" class="text-xs text-muted-foreground hover:text-foreground" onclick={() => { rumeurs = rumeurs.filter((_, j) => j !== i); toucher() }}>Retirer</button>
+              </Element>
             </li>
           {:else}<li class="text-sm text-muted-foreground">Aucune : la page 3 garde son espace libre.</li>{/each}
         </ul>
@@ -338,7 +408,7 @@
           <div class="flex min-w-0 flex-wrap items-center justify-end gap-2">
             <input class="w-full min-w-0 rounded-lg border bg-background px-2 py-1 text-sm" maxlength="400" bind:value={indices} oninput={toucher}
                    placeholder="Ce qu'on sait d'elle ou de lui (facultatif) : passions, manies, petites histoires…" aria-label="Indices pour les rumeurs" />
-            <Button size="sm" variant="outline" class="shrink-0" onclick={proposerRumeurs} disabled={demande !== '' || lot !== null}>
+            <Button size="sm" variant="outline" class="shrink-0" onclick={proposerRumeurs} disabled={demande === 'rumeurs'}>
               <Sparkles class="size-3.5" aria-hidden="true" />{demande === 'rumeurs' ? '…' : '8 rumeurs'}</Button>
           </div>
           <p class="text-[0.7rem] text-muted-foreground">Gardé dans carnet (fiche › Pour les journaux), repris au prochain séjour.</p>
@@ -361,18 +431,20 @@
         </details>
       {/if}
 
-      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadre(4)}" aria-label="Page 4">
+      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadre(4)}" class:hidden={!aFaire('lettre', 'horoscope', 'mot', 'code')} aria-label="Page 4">
         {@render alerte(4)}
         <h2 class="etiquette mb-3">Page 4 · dans l'ordre de l'impression</h2>
         <h3 class="etiquette mb-2">Courrier des lecteurs ({courrier.length}/{d.lettres_maxi})</h3>
         <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Lettres imprimées</span>
         <ul class="mt-1 grid gap-2">
           {#each courrier as x, i}
-            <li class="grid min-w-0 gap-1 rounded-lg border p-2">
+            <li class="min-w-0">
+              <Element cle="lettre:{i}" page={4} titre="Lettre {i + 1}" valeur={{ l: x.lettre, s: x.signe, r: x.reponse }} onia={() => proposerPage4('courrier')}
+                       onchanger={() => changerLettre(i)} changer="Une autre lettre proposée" onrefuser={() => { courrier = courrier.filter((_, j) => j !== i); toucher() }}>
               <textarea rows="2" class="min-w-0 rounded-lg border bg-background px-2 py-1 text-sm italic" maxlength="260" bind:value={x.lettre} oninput={toucher} aria-label="Lettre {i + 1}"></textarea>
               <input class="min-w-0 rounded-lg border bg-background px-2 py-1 text-xs" maxlength="60" bind:value={x.signe} oninput={toucher} placeholder="Signature (ex. Un voisin inquiet)" aria-label="Signature {i + 1}" />
               <input class="min-w-0 rounded-lg border bg-background px-2 py-1 text-sm" maxlength="140" bind:value={x.reponse} oninput={toucher} placeholder="Réponse de la rédaction" aria-label="Réponse {i + 1}" />
-              <button type="button" class="justify-self-start text-xs text-muted-foreground hover:text-foreground" onclick={() => { courrier = courrier.filter((_, j) => j !== i); toucher() }}>Retirer</button>
+              </Element>
             </li>
           {:else}<li class="text-sm text-muted-foreground">Aucune lettre : la rubrique n'est pas imprimée.</li>{/each}
         </ul>
@@ -382,7 +454,7 @@
         <div class="mt-2 grid min-w-0 gap-1.5 rounded-lg border border-dashed p-2">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Pour l'IA (non imprimé) · d'après les indices des rumeurs</span>
-            <Button size="sm" variant="outline" class="shrink-0" onclick={() => proposerPage4('courrier')} disabled={demande !== '' || lot !== null}>
+            <Button size="sm" variant="outline" class="shrink-0" onclick={() => proposerPage4('courrier')} disabled={demande === 'courrier'}>
               <Sparkles class="size-3.5" aria-hidden="true" />{demande === 'courrier' ? '…' : '4 lettres'}</Button>
           </div>
           {#each propsCourrier as x}
@@ -393,9 +465,11 @@
         </div>
 
         <h3 class="etiquette mt-5 mb-2">Horoscope du séjour{d.signe ? ` · ${d.signe}` : ''}</h3>
-        <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Horoscope imprimé (vide : pas imprimé)</span>
-        <textarea rows="3" class="mt-1 w-full rounded-lg border bg-background px-2 py-1 text-sm" maxlength="280" bind:value={horoscope} oninput={toucher} aria-label="Horoscope"></textarea>
+        <Element cle="horoscope" page={4} titre="Horoscope imprimé (vide : pas imprimé)" valeur={horoscope} onia={d.signe ? () => proposerPage4('horoscope') : null}
+                 onchanger={d.signe ? changerHoroscope : null} changer="Un autre horoscope proposé" onrefuser={horoscope.trim() ? () => { horoscope = ''; toucher() } : null}>
+        <textarea rows="3" class="w-full rounded-lg border bg-background px-2 py-1 text-sm" maxlength="280" bind:value={horoscope} oninput={toucher} aria-label="Horoscope"></textarea>
         <p class="text-xs text-muted-foreground">Seul le signe est imprimé, jamais la date de naissance.</p>
+        </Element>
         <div class="mt-2 grid min-w-0 gap-1.5 rounded-lg border border-dashed p-2">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Pour l'IA (non imprimé)</span>
@@ -406,7 +480,7 @@
                    placeholder="Ex. : soirée Eurovision, dort à la maison pour ne pas rentrer trop tard" aria-label="Événement du séjour" />
           </label>
           <div class="flex flex-wrap items-center justify-end gap-2">
-            <Button size="sm" variant="outline" class="shrink-0" onclick={() => proposerPage4('horoscope')} disabled={demande !== '' || lot !== null || !d.signe}>
+            <Button size="sm" variant="outline" class="shrink-0" onclick={() => proposerPage4('horoscope')} disabled={demande === 'horoscope' || !d.signe}>
               <Sparkles class="size-3.5" aria-hidden="true" />{demande === 'horoscope' ? '…' : '3 horoscopes'}</Button>
           </div>
           {#each propsHoroscope as t}
@@ -415,13 +489,19 @@
         </div>
 
         <h3 class="etiquette mt-5 mb-2">Droit de réponse (le mot des hôtes)</h3>
+        <Element cle="mot" page={4} titre="Le mot des hôtes" valeur={mot} onchanger={() => { mot = ed.mot_defaut; toucher() }} changer="Mot par défaut">
         <textarea class="w-full rounded-lg border bg-background px-3 py-2 font-serif" rows="7" bind:value={mot} oninput={toucher} aria-label="Mot des hôtes"></textarea>
         <p class="mt-1 text-xs text-muted-foreground">Une ligne vide sépare les paragraphes. Signature : « {d.signature} » (Réglages › Le journal). Aucune date de naissance dans ce journal.</p>
+        </Element>
 
-        <label class="mt-5 grid gap-1 text-sm"><span class="etiquette">Message caché dans le code-barres (en bas de la page 4)</span>
+        <div class="mt-5"></div>
+        <Element cle="code" page={4} titre="Code-barres (en bas de la page 4)" valeur={codeBarres} onchanger={() => { codeBarres = ''; toucher() }} changer="Message par défaut">
+        <label class="grid gap-1 text-sm"><span class="etiquette">Message caché dans le code-barres</span>
           <input class="rounded-lg border bg-background px-2 py-1" maxlength={d.code_barres_maxi} placeholder={d.code_barres_defaut} bind:value={codeBarres} oninput={toucher} /></label>
         <p class="text-xs text-muted-foreground">Un vrai code-barres, lisible par une appli de scan sur téléphone. Sans accents à la lecture ; {d.code_barres_maxi} caractères au plus. Vide : « {d.code_barres_defaut} ».</p>
+        </Element>
       </section>
+      </div>
     </div>
 
     <aside class="lg:sticky lg:top-6 lg:self-start" aria-label="Aperçu">

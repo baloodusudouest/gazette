@@ -86,7 +86,7 @@ def test_livret_relecture_et_apercu(navigateur, adresse, taille):
     cadre = page.frame_locator("iframe[title='Aperçu du livret']")
     cadre.get_by_text("Camille Fabre").first.wait_for()
     # Les propositions s'ouvrent et montrent les faits sensibles seulement sur demande
-    page.get_by_role("button", name="Changer").click()
+    page.get_by_role("button", name="Un autre événement : La une").click()           # 0.17 : geste « Changer » de l'élément
     page.get_by_placeholder("Chercher…").wait_for()
     sans_debordement(page)
     assert erreurs == []
@@ -146,8 +146,8 @@ def test_la_recidive(navigateur, adresse, taille):
     page.get_by_text("La Récidive N° 2").first.wait_for()
     page.locator("a[href^='#/recidive/']").first.click()
     page.get_by_role("heading", name="Lou Martin").wait_for()
-    assert page.locator("textarea[aria-label^='Légende']").count() == 7          # 3 récentes + 4 anciens scandales
-    page.locator("button:has-text('Retirer')").first.click()
+    assert page.locator("textarea[aria-label^='Légende']").count() >= 6          # 3 récentes + 4 anciens scandales (une retirée au 1er passage)
+    page.locator("button[aria-label^='Refuser : Photo']").first.click()           # 0.17 : geste « Refuser »
     page.get_by_role("button", name="Enregistrer", exact=True).click()
     page.get_by_text("Enregistré.").wait_for()
     assert page.frame_locator("iframe[title='Aperçu de La Récidive']").get_by_text("Elle est revenue, nous aussi").first.is_visible()
@@ -213,10 +213,51 @@ def test_page_trop_pleine_encadree_en_rouge(navigateur, adresse, taille):
     page, erreurs = ouvrir(navigateur, adresse, taille)
     page.locator("a[href^='#/recidive/']").first.click()
     page.get_by_role("heading", name="Lou Martin").wait_for()
-    mot = page.get_by_label("Mot des hôtes")
+    mot = page.get_by_role("textbox", name="Mot des hôtes")
     mot.fill(("Un très long mot des hôtes qui ne tiendra jamais sur la page, même en tout petit. " * 30).strip())
     page.get_by_role("button", name="Enregistrer", exact=True).click()
     page.get_by_role("alert").filter(has_text="Page 4 trop pleine").wait_for()
     assert "border-destructive" in page.get_by_role("region", name="Page 4").get_attribute("class")
+    sans_debordement(page)
+    assert erreurs == []
+
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_valider_chaque_element_puis_approuver(navigateur, adresse, taille):
+    """0.17 : chaque élément a Valider, IA, Changer (et Refuser s'il est facultatif) ; validé, il disparaît ;
+    tout validé, il ne reste que le gros bouton Approuver."""
+    page, erreurs = ouvrir(navigateur, adresse, taille)
+    page.locator("a[href^='#/recidive/']").first.click()
+    page.get_by_role("heading", name="Lou Martin").wait_for()
+    page.get_by_text("Montrer aussi les validés").or_(page.get_by_text("Revoir les éléments validés")).first.wait_for()
+    if page.get_by_text("Revoir les éléments validés").is_visible():
+        page.get_by_text("Revoir les éléments validés").click()
+    else:
+        page.get_by_label("Montrer aussi les validés").check()
+    # Un mot court (un autre essai a pu remplir la page 4 jusqu'à déborder)
+    page.get_by_role("textbox", name="Mot des hôtes").fill("Bienvenue, Lou.")
+    page.get_by_role("button", name="Enregistrer", exact=True).click()
+    page.get_by_text("Enregistré.").wait_for()
+    une = page.get_by_role("group", name="La une : N°, accroche, gros titre, macaron")
+    assert une.locator("button[aria-label^='Refuser']").count() == 0                       # obligatoire : pas de Refuser
+    assert une.locator("button[aria-label^='Un autre gros titre']").count() == 1
+    page.get_by_label("Montrer aussi les validés").evaluate("e => { if (e.checked) e.click() }")
+    for _ in range(40):                                  # valider tout ce qui reste, un élément après l'autre
+        boutons = page.locator("button[aria-label^='Valider :']")
+        if boutons.count() == 0:
+            break
+        n = boutons.count()
+        nom = boutons.first.get_attribute("aria-label")
+        boutons.first.click()
+        try:
+            page.wait_for_function(f"document.querySelectorAll(\"button[aria-label^='Valider :']\").length < {n}", timeout=8000)
+        except Exception:
+            restes = [b.get_attribute("aria-label") for b in page.locator("button[aria-label^='Valider :']").all()]
+            raise AssertionError(f"reste après validation : {nom} ; {restes}")
+    page.get_by_text("Tout est validé.").wait_for()
+    assert page.get_by_role("button", name="Approuver La Récidive").is_visible()
+    page.get_by_text("Revoir les éléments validés").click()
+    page.get_by_role("group", name="La une : N°, accroche, gros titre, macaron").wait_for()
     sans_debordement(page)
     assert erreurs == []

@@ -75,6 +75,8 @@ class Base:
             self._c.execute("ALTER TABLE personnes ADD COLUMN dernier_avant TEXT NOT NULL DEFAULT ''")
         # 0.9.1 : gros titre de la une choisi ou écrit, description et propositions de l'IA
         colonnes = {l["name"] for l in self._c.execute("PRAGMA table_info(recidives)")}
+        if "valides" not in colonnes:            # 0.17 : éléments validés à la relecture
+            self._c.execute("ALTER TABLE recidives ADD COLUMN valides TEXT NOT NULL DEFAULT '{}'")
         if "evenement" not in colonnes:          # 0.15 : événement du séjour (pour l'horoscope, gardé pour les suivants)
             self._c.execute("ALTER TABLE recidives ADD COLUMN evenement TEXT NOT NULL DEFAULT ''")
         if "code_barres" not in colonnes:        # 0.11.4 : message du code-barres de la page 4
@@ -87,7 +89,7 @@ class Base:
                 self._c.execute(f"ALTER TABLE recidives ADD COLUMN {col} TEXT NOT NULL DEFAULT '{'' if col in ('titre_une', 'description_une', 'indices_rumeurs', 'horoscope') else '[]'}'")
         # 0.13 : Gazette classique — photo d'Immich en page 4 (6 au choix) et message du code-barres
         colonnes = {l["name"] for l in self._c.execute("PRAGMA table_info(livrets)")}
-        for col, defaut in (("photo", "{}"), ("photos_choix", "[]"), ("code_barres", "")):
+        for col, defaut in (("photo", "{}"), ("photos_choix", "[]"), ("code_barres", ""), ("valides", "{}")):
             if col not in colonnes:
                 self._c.execute(f"ALTER TABLE livrets ADD COLUMN {col} TEXT NOT NULL DEFAULT '{defaut}'")
         self._c.commit()
@@ -174,10 +176,11 @@ class Base:
         d["propositions"] = json.loads(d["propositions"] or "{}")
         d["photo"] = json.loads(d.get("photo") or "{}")                # 0.13 : photo de la page 4
         d["photos_choix"] = json.loads(d.get("photos_choix") or "[]")
+        d["valides"] = json.loads(d.get("valides") or "{}")            # 0.17 : éléments validés à la relecture
         return d
 
     def maj_livret(self, pid: int, **champs) -> None:
-        for k in ("contenu", "propositions", "photo", "photos_choix"):
+        for k in ("contenu", "propositions", "photo", "photos_choix", "valides"):
             if k in champs:
                 champs[k] = json.dumps(champs[k], ensure_ascii=False)
         champs["modifie_le"] = maintenant()
@@ -241,6 +244,7 @@ class Base:
     def _recidive(self, l) -> dict:
         d = dict(l)
         d["photos"] = json.loads(d["photos"] or "[]")
+        d["valides"] = json.loads(d.get("valides") or "{}")               # 0.17 : éléments validés à la relecture
         d["propositions_une"] = json.loads(d.get("propositions_une") or "[]")
         d["rumeurs"] = json.loads(d.get("rumeurs") or "[]")                      # 0.9.7 : rumeurs de la page 3
         d["propositions_rumeurs"] = json.loads(d.get("propositions_rumeurs") or "[]")
@@ -282,9 +286,9 @@ class Base:
 
     def maj_recidive(self, rid: int, **champs) -> None:
         for k in ("photos", "precedent", "propositions_une", "rumeurs", "propositions_rumeurs", "courrier",
-                  "propositions_courrier", "propositions_horoscope"):
+                  "propositions_courrier", "propositions_horoscope", "valides"):
             if k in champs:
-                champs[k] = json.dumps(champs[k] or ({} if k == "precedent" else []), ensure_ascii=False)
+                champs[k] = json.dumps(champs[k] or ({} if k in ("precedent", "valides") else []), ensure_ascii=False)
         for k in ("manque_scandale", "tag_absent"):
             if k in champs:
                 champs[k] = int(bool(champs[k]))

@@ -576,10 +576,17 @@ def enregistrer_livret(pid: int, corps: dict = Body(...)):
                                "description": " ".join(str(ph.get("description") or "").split())[:400]}
         else:
             champs["photo"] = {}
+    if "valides" in corps:                     # 0.17 : éléments validés (ne change pas l'état du livret)
+        valides = _valides(corps["valides"])
+        if len(corps) == 1:
+            base.maj_livret(pid, valides=valides)
+            return {"ok": True, "etat": base.livret(pid)["etat"]}
+        champs["valides"] = valides
     if "code_barres" in corps:                 # 0.13 : vide = « Bienvenue, {prénom} ! »
         champs["code_barres"] = " ".join(str(corps.get("code_barres") or "").split())[:code_barres.MAXI]
     if champs:
-        if lv["etat"] == "approuve":
+        # 0.17 : un livret approuvé repasse « à relire » seulement si un contenu change (pas pour une validation)
+        if lv["etat"] == "approuve" and any(k != "valides" and champs[k] != lv.get(k) for k in champs):
             champs["etat"], champs["approuve_le"] = "a_relire", ""
         base.maj_livret(pid, **champs)
     return {"ok": True, "etat": base.livret(pid)["etat"]}
@@ -688,6 +695,22 @@ def proposer_legende_livret(pid: int, corps: dict = Body(default={})):
     return {"propositions": props, "contexte": ph.get("contexte") or {}}
 
 
+def _valides(v) -> dict:
+    """0.17 : {clé d'élément : empreinte de son contenu au moment de la validation}, bornés."""
+    if not isinstance(v, dict):
+        return {}
+    return {str(k)[:60]: str(x)[:24] for k, x in list(v.items())[:300] if isinstance(x, (str, int))}
+
+
+def _evenements_du_livret(lv: dict | None) -> list[str]:
+    """0.17 : les titres des événements racontés dans la Gazette (une, brèves, page 2), pour le mot des hôtes."""
+    c = (lv or {}).get("contenu") or {}
+    res = [(c.get("une") or {}).get("titre", "")]
+    res += [b.get("titre", "") for b in c.get("breves") or [] if not b.get("masque")]
+    res += [b.get("titre", "") for b in (c.get("p2") or {}).get("items") or [] if not b.get("masque")]
+    return [t.strip() for t in dict.fromkeys(res) if t and t.strip()][:8]
+
+
 @app.post("/api/livrets/{pid}/ia")
 def ia_livret(pid: int, corps: dict = Body(...)):
     """0.12 : aides de l'IA du PC pour la Gazette classique, sur le texte affiché (même pas enregistré) :
@@ -702,9 +725,11 @@ def ia_livret(pid: int, corps: dict = Body(...)):
     except (TypeError, ValueError):
         signes = None
     contact = _contact(p) if action == "mot" else {}
+    evenements = _evenements_du_livret(ETAT["base"].livret(pid)) if action == "mot" else None
     try:
         props = ETAT["ollama"].gazette(action, str(corps.get("texte") or ""), int(p["naissance"][:4]), signes,
-                                       _prenom(p), contact.get("genre", ""), contact.get("journaux", ""), _journal()["chez"])
+                                       _prenom(p), contact.get("genre", ""), contact.get("journaux", ""), _journal()["chez"],
+                                       evenements)
     except ValueError as ex:
         raise HTTPException(422, str(ex))
     except RuntimeError as ex:
@@ -911,6 +936,8 @@ def enregistrer_edition(rid: int, corps: dict = Body(...)):
         champs["code_barres"] = " ".join(str(corps.get("code_barres") or "").split())[:60]
     if "horoscope" in corps:
         champs["horoscope"] = sans_numero(" ".join(str(corps.get("horoscope") or "").split()))[:280]
+    if "valides" in corps:                     # 0.17 : éléments validés à la relecture
+        champs["valides"] = _valides(corps["valides"])
     if "evenement" in corps:                   # 0.15 : événement du séjour, pour l'IA seulement (jamais imprimé)
         champs["evenement"] = " ".join(str(corps.get("evenement") or "").split())[:200]
     if "indices_rumeurs" in corps:
@@ -930,7 +957,8 @@ def enregistrer_edition(rid: int, corps: dict = Body(...)):
             photos.append(x)
         champs["photos"] = photos
     if champs:
-        if ed["etat"] == "approuve":
+        # 0.17 : une édition approuvée repasse « à relire » seulement si un contenu change (pas pour une validation)
+        if ed["etat"] == "approuve" and any(k != "valides" and champs[k] != ed.get(k) for k in champs):
             champs["etat"], champs["approuve_le"] = "a_relire", ""
         if "photos" in champs and ed["etat"] in ("a_relire", "approuve") and not any(not x["retiree"] for x in champs["photos"]):
             raise HTTPException(409, "Toutes les photos seraient retirées : remets-en une, ou « Compléter » pour en chercher d'autres.")

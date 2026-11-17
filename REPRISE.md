@@ -2,7 +2,7 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
-## État (17/11/2026) — 0.16.0 (La Récidive + IA du PC pour les deux journaux + albums Immich + photo et code-barres en page 4 de la Gazette) sur 0.8.0, temps 1 livré + top 5 culturel + journal réglé dans l'appli + texte complet + aide à la place + carnet + réglages sauvegardés par l'Anneau, installé sur le NAS le 14/11 (pas encore de vrai livret)
+## État (17/11/2026) — 0.17.0 (La Récidive + IA du PC pour les deux journaux + albums Immich + photo et code-barres en page 4 de la Gazette) sur 0.8.0, temps 1 livré + top 5 culturel + journal réglé dans l'appli + texte complet + aide à la place + carnet + réglages sauvegardés par l'Anneau, installé sur le NAS le 14/11 (pas encore de vrai livret)
 - Appli complète : fiches, livrets, relecture, aperçu, PDF à imprimer et lecture, À traiter, Connexion, Réglages, porte HA (`/ha/sejour`, `/ha/etat`).
 - Moteur essayé en vrai (réseau) sur trois dates maigres du banc (1964, 1983, 1997) : une, brèves, semaine, chronologie, nés et disparus remplis ; rendu PDF contrôlé à l'œil (aucun débordement).
 - Top 5 culturel : fichier livré dans `app/donnees/`, remplaçable depuis Réglages (fichier importé gardé dans `/data/culture.csv`) ; prompt de mise à jour annuelle dans `app/donnees/prompt_culture.md` (il nomme les années 2026 et 2027 : à adapter chaque année).
@@ -40,6 +40,7 @@
 
 ## Prochaine étape
 
+- 0.17.0 : relire une Gazette et une Récidive avec les quatre gestes (Valider, IA, Changer, Refuser) ; vérifier le gros bouton Approuver et le retour en rouge d'une page trop pleine ; essayer le mot des hôtes de la Gazette avec la vraie IA.
 - 0.16.0 : déployer carnet 2.30.0 d'abord ; approuver une Récidive et vérifier « Journaux parus » sur la fiche de carnet et dans le coffre Contacts.
 - 0.15.0 : essayer l'événement du séjour sur l'horoscope avec la vraie IA du PC.
 - 0.14.0 : essayer le bouton « IA » du haut sur une vraie Gazette, PC allumé (durée, qualité des versions journal).

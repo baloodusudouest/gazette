@@ -264,7 +264,7 @@ SEPARATEUR = "---"
 
 
 def consigne_gazette(action: str, texte: str, annee: int | None, signes: int | None, prenom: str, genre: str,
-                     indices: str, chez: str) -> tuple[str, int, int]:
+                     indices: str, chez: str, evenements: list[str] | None = None) -> tuple[str, int, int]:
     """(consigne, nombre de propositions, longueur maximale) pour une aide de la Gazette."""
     epoque = f"de {annee}" if annee else "de l'époque"
     sep = f"Sépare les versions par une ligne contenant seulement {SEPARATEUR}. Rien d'autre que les versions."
@@ -290,6 +290,9 @@ def consigne_gazette(action: str, texte: str, annee: int | None, signes: int | N
                 f"(né{'e' if genre == 'femme' else ''} en {annee or '…'}), qui vient dormir {chez or 'chez nous'}. "
                 f"Accorde {accord}. Chaleureux, un brin d'humour, 3 à 5 phrases, 500 caractères au plus, au « vous ». "
                 + (f"Ce qu'on sait de {prenom} : « {indices} ». " if indices else "")
+                # 0.17 : le mot s'appuie sur les événements racontés dans le journal (demande de Julien du 17/11)
+                + ("Événements racontés dans ce journal (le monde à la naissance) : " + " ; ".join(evenements[:8])
+                   + ". Fais un ou deux clins d'œil à ces événements, sans en inventer d'autres. " if evenements else "")
                 + (f"Mot actuel, à améliorer : « {texte} ». " if texte else "")
                 + "Ne signe pas (la signature est ajoutée). " + sep, 3, 520)
     if action == "legende":
@@ -440,7 +443,7 @@ class Ollama:
 
     # ------------------------------------------------------------ 0.12 : aides pour la Gazette classique
     def gazette(self, action: str, texte: str, annee: int | None = None, signes: int | None = None, prenom: str = "",
-                genre: str = "", indices: str = "", chez: str = "") -> list[str]:
+                genre: str = "", indices: str = "", chez: str = "", evenements: list[str] | None = None) -> list[str]:
         """Propositions à choisir pour un bloc de la Gazette : « titres » (5), « raccourcir » (3, `signes` au plus),
         « journal » (3 réécritures façon presse de l'époque), « traduire » (2), « mot » (3 mots d'accueil). Mêmes faits
         que le texte donné : rien d'inventé (sauf le mot des hôtes, écrit d'après les indices)."""
@@ -449,7 +452,7 @@ class Ollama:
         texte = (texte or "").strip()[:3000]
         if action not in ("mot", "legende") and len(texte) < 10:
             raise ValueError("Pas assez de texte dans ce bloc.")
-        prompt, nombre, maxi = consigne_gazette(action, texte, annee, signes, prenom, genre, indices, chez)
+        prompt, nombre, maxi = consigne_gazette(action, texte, annee, signes, prenom, genre, indices, chez, evenements)
         brut = ""
         for _ in range(ESSAIS):
             try:

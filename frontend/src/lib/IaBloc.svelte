@@ -5,18 +5,21 @@
   // demande toutes les aides du bloc d'un coup.
   import Sparkles from '@lucide/svelte/icons/sparkles'
   import { api } from '$lib/api.js'
+  import { enfiler } from '$lib/fileIa.svelte.js'
 
-  let { pid, texte, actions, signes = null, onapply } = $props()
+  let { pid, texte, actions, signes = null, onapply, nom = 'un bloc' } = $props()
   const NOMS = { titres: 'Titres', raccourcir: 'Raccourcir', journal: 'Version journal', traduire: 'Traduire', mot: '3 mots' }
   let res = $state({})            // {action: [propositions]}
   let attente = $state('')
   let erreur = $state('')
 
+  // 0.17 : chaque demande passe par la file commune de l'IA (une à la fois, à la suite de celles en cours)
   async function demander(action) {
     attente = action
     erreur = ''
     try {
-      const props = (await api.post(`/api/livrets/${pid}/ia`, { action, texte: texte(), signes: action === 'raccourcir' ? signes : null })).propositions
+      const props = await enfiler(`${nom} (${NOMS[action].toLowerCase()})`, async () =>
+        (await api.post(`/api/livrets/${pid}/ia`, { action, texte: texte(), signes: action === 'raccourcir' ? signes : null })).propositions)
       res = { ...res, [action]: props }
     } catch (err) { erreur = err.message }
     attente = ''
@@ -48,7 +51,7 @@
   <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
     <Sparkles class="size-3.5" aria-hidden="true" /><span class="sr-only">IA :</span>
     {#each actions as a}
-      <button type="button" class="hover:text-foreground disabled:opacity-50" disabled={attente !== ''} onclick={() => demander(a)}>
+      <button type="button" class="hover:text-foreground disabled:opacity-50" disabled={attente === a} onclick={() => demander(a)}>
         {attente === a ? '…' : NOMS[a]}</button>
     {/each}
   </div>

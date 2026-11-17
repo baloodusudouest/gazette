@@ -3,7 +3,7 @@
   // d'abord qu'aucune page ne déborde. Rien ne s'imprime sans approbation.
   // Une page qui déborde : ses blocs passent en rouge, avec un compteur qui suit la frappe (lib/place.js),
   // et les propositions de remplacement qui la feraient tenir sont en vert.
-  import { onMount, onDestroy } from 'svelte'
+  import { onMount, onDestroy, setContext } from 'svelte'
   import ArrowLeft from '@lucide/svelte/icons/arrow-left'
   import Cake from '@lucide/svelte/icons/cake'
   import Download from '@lucide/svelte/icons/download'
@@ -18,6 +18,9 @@
   import FicheForm from '$lib/FicheForm.svelte'
   import Propositions from '$lib/Propositions.svelte'
   import IaBloc from '$lib/IaBloc.svelte'
+  import Element from '$lib/Element.svelte'
+  import Relecture from '$lib/Relecture.svelte'
+  import { enfiler } from '$lib/fileIa.svelte.js'
   import { dateCourte, dateLongue, PORTEES } from '$lib/format.js'
   import { etatPlace } from '$lib/place.js'
 
@@ -33,6 +36,24 @@
   let demande = $state('')
   // 0.14 : bouton « IA » du haut — toutes les aides de tous les blocs, une après l'autre
   const ias = {}                   // composants IaBloc par bloc (bind:this)
+  // 0.17 : relecture élément par élément (Valider, IA, Changer, Refuser), commune avec La Récidive
+  let valides = $state({})         // {clé d'élément : empreinte validée}, enregistré avec le livret
+  let revoir = $state(false)
+  const registre = $state({})      // {clé : validé ?}, tenu par chaque Element
+  setContext('validation', {
+    valides: () => valides, revoir: () => revoir, registre,
+    trop: (n) => !!(place.pages[n] && !place.pages[n].ok),
+    valider: async (cle, h) => { valides = { ...valides, [cle]: h }; await enregistrer(true) },
+  })
+  const total = $derived(Object.keys(registre).length)
+  const restants = $derived(Object.values(registre).filter((x) => !x).length)
+  const fini = $derived(total > 0 && restants === 0)
+  // Une partie reste affichée tant qu'elle a un élément à valider (ou aucun élément : de quoi en ajouter)
+  function aFaire(...prefixes) {
+    if (revoir) return true
+    const miens = Object.entries(registre).filter(([k]) => prefixes.some((p) => k === p || k.startsWith(p + ':')))
+    return !miens.length || miens.some(([, ok]) => !ok)
+  }
   let lot = $state(null)           // {fait, total} pendant le tour complet
   let modifie = $state(false)
   let message = $state('')
@@ -54,6 +75,7 @@
       propsLegende = d.livret.photo?.propositions ?? []
       ctxPhoto = d.livret.photo?.contexte ?? null
       codeBarres = d.livret.code_barres || ''
+      valides = { ...(d.livret.valides ?? {}) }
       avant = { sejours_avant: d.personne.sejours_avant ?? 0, dernier_avant: d.personne.dernier_avant ?? '' }
       modifie = false
       tampon = Date.now()
@@ -66,7 +88,7 @@
     }
   }
   function toucher() { modifie = true; message = '' }
-  const corps = () => ({ contenu: $state.snapshot(contenu), mot, code_barres: codeBarres,
+  const corps = () => ({ contenu: $state.snapshot(contenu), mot, code_barres: codeBarres, valides: $state.snapshot(valides),
                          photo: photo.id ? { id: photo.id, cadrage: photo.cadrage ?? 'haut', legende: photo.legende ?? '', description: photo.description ?? '' } : null })
   const ctxTexte = (c) => !c ? '' : [c.albums?.length ? `Album : ${c.albums.join(', ')}` : '', c.personnes?.length ? `Avec : ${c.personnes.join(', ')}` : '']
     .filter(Boolean).join(' · ')
@@ -93,13 +115,21 @@
       lot = { ...lot, fait: lot.fait + 1 }
     }
     if (photo.id && !/injoignable|pas réglée|refusé/.test(echec)) {
-      await proposerLegende(true)
+      await enfiler('Légende de la photo', () => proposerLegende(true))
       lot = { ...lot, fait: lot.fait + 1 }
     }
     lot = null
     message = echec && !faites ? echec
       : `Propositions prêtes${echec ? ' (une partie seulement : ' + echec + ')' : ''} : touche celles qui te plaisent sous chaque bloc, puis Enregistrer.`
   }
+  function photoSuivante() {
+    const l = d.livret.photos_choix
+    if (!l.length) return
+    const i = l.findIndex((x) => x.id === photo.id)
+    const x = l[(i + 1) % l.length]
+    photo = { id: x.id, date: x.date, cadrage: 'haut', legende: '', description: '' }; propsLegende = []; ctxPhoto = null; toucher()
+  }
+  const legendeEnFile = () => enfiler('Légende de la photo', () => proposerLegende())
   async function proposerLegende(silencieux = false) {
     demande = 'legende'
     message = ''
@@ -118,12 +148,12 @@
     catch { mes = null }             // sans Chromium : pas de contrôle de place, l'éditeur marche quand même
   }
 
-  async function enregistrer() {
+  async function enregistrer(silencieux = false) {
     attente = 'enregistrer'
     try {
       await api.put(`/api/livrets/${id}`, corps())
       await lire()
-      message = 'Enregistré.'
+      if (silencieux !== true) message = 'Enregistré.'
       onchange?.()
     } catch (err) { message = err.message }
     attente = ''
@@ -283,13 +313,17 @@
 
   <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
     <div class="grid min-w-0 content-start gap-4">
+      <Relecture {restants} {total} bind:revoir {approuver} {attente} etat={d.livret.etat} {modifie} journal="la Gazette" />
+      <div class="grid min-w-0 content-start gap-4" class:hidden={fini && !revoir}>
       <!-- La une -->
-      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadrePage(1)}" aria-label="La une">
-        <div class="mb-2 flex items-center justify-between"><h2 class="etiquette">Page 1 · la une ({PORTEES[contenu.une?.portee] ?? '—'})</h2>{@render bouton('une', null, 'Changer')}</div>
+      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadrePage(1)}" class:hidden={!aFaire('une')} aria-label="La une">
+        <div class="mb-2 flex items-center justify-between"><h2 class="etiquette">Page 1 · la une ({PORTEES[contenu.une?.portee] ?? '—'})</h2></div>
+        <Element cle="une" page={1} titre="La une" valeur={{ t: contenu.une.titre, c: contenu.une.chapo, e: contenu.une.encart }}
+                 onia={() => ias.une?.tout()} onchanger={() => ouvrir('une')} changer="Un autre événement">
         <input class="mb-2 w-full rounded-lg border bg-background px-3 py-2 font-serif text-lg font-semibold {bord('une')}" bind:value={contenu.une.titre} oninput={toucher} aria-label="Gros titre" />
         <textarea class="w-full rounded-lg border bg-background px-3 py-2 text-sm {bord('une')}" rows="3" bind:value={contenu.une.chapo} oninput={toucher} aria-label="Chapeau"></textarea>
         {@render compteur('une')}
-        <IaBloc bind:this={ias.une} pid={id} texte={() => contenu.une.chapo} actions={['titres', 'raccourcir', 'journal', 'traduire']} signes={cible('une', contenu.une.chapo)}
+        <IaBloc bind:this={ias.une} nom="La une" pid={id} texte={() => contenu.une.chapo} actions={['titres', 'raccourcir', 'journal', 'traduire']} signes={cible('une', contenu.une.chapo)}
                 onapply={(a, t) => { if (a === 'titres') contenu.une.titre = t; else contenu.une.chapo = t; toucher() }} />
         <div class="mt-2 grid grid-cols-3 gap-2 text-sm">
           <input class="min-w-0 rounded-lg border bg-background px-2 py-1" bind:value={contenu.une.encart.k} oninput={toucher} aria-label="Encart : rubrique" />
@@ -297,67 +331,78 @@
           <input class="min-w-0 rounded-lg border bg-background px-2 py-1" bind:value={contenu.une.encart.l} oninput={toucher} aria-label="Encart : légende" />
         </div>
         {#if ouvert?.bloc === 'une'}<Propositions liste={evts} choisis={pris} tient={tient('une')} onchoisir={(f) => choisir('une', f)} onfermer={() => (ouvert = null)} />{/if}
+        </Element>
       </section>
 
       <!-- Brèves -->
-      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadrePage(1)}" aria-label="Brèves">
+      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadrePage(1)}" class:hidden={!aFaire('breve')} aria-label="Brèves">
         <div class="mb-2 flex items-center justify-between"><h2 class="etiquette">Page 1 · brèves</h2>{@render bouton('breve', null, 'Ajouter')}</div>
         {#if ouvert?.bloc === 'breve' && ouvert.index === null}<Propositions liste={evts} choisis={pris} onchoisir={(f) => choisir('breve', f, null)} onfermer={() => (ouvert = null)} />{/if}
         <ul class="grid gap-3">
           {#each contenu.breves as b, i}
-            <li class="grid gap-1 {b.masque ? 'opacity-45' : ''} {cadre(`breve:${i}`)}">
-              <div class="flex flex-wrap items-center gap-2 sm:flex-nowrap">
-                <input class="order-last min-w-0 flex-1 basis-full sm:order-none sm:basis-0 rounded-lg border bg-background px-2 py-1 text-sm font-semibold" bind:value={b.titre} oninput={toucher} aria-label="Titre de la brève {i + 1}" />
-                {@render bouton('breve', i)}{@render masquer(b)}
-              </div>
+            <li class="{b.masque ? 'opacity-45' : ''}">
+              <Element cle="breve:{b.id ?? i}" page={1} titre="Brève {i + 1}" valeur={{ t: b.titre, x: b.texte, m: !!b.masque }}
+                       onia={() => ias[`breve:${i}`]?.tout()} onchanger={() => ouvrir('breve', i)} changer="Un autre événement"
+                       onrefuser={() => { contenu.breves.splice(i, 1); toucher() }}>
+              <div class="grid gap-1 {cadre(`breve:${i}`)}">
+                <input class="min-w-0 rounded-lg border bg-background px-2 py-1 text-sm font-semibold" bind:value={b.titre} oninput={toucher} aria-label="Titre de la brève {i + 1}" />
               <textarea class="rounded-lg border bg-background px-2 py-1 text-sm [field-sizing:content] min-h-14" rows="2" bind:value={b.texte} oninput={toucher} aria-label="Texte de la brève {i + 1}"></textarea>
               {@render compteur(`breve:${i}`)}
-              <IaBloc bind:this={ias[`breve:${i}`]} pid={id} texte={() => b.texte} actions={['titres', 'raccourcir', 'journal', 'traduire']} signes={cible(`breve:${i}`, b.texte)}
+              <IaBloc bind:this={ias[`breve:${i}`]} nom="Brève {i + 1}" pid={id} texte={() => b.texte} actions={['titres', 'raccourcir', 'journal', 'traduire']} signes={cible(`breve:${i}`, b.texte)}
                       onapply={(a, t) => { if (a === 'titres') b.titre = t; else b.texte = t; toucher() }} />
               {#if ouvert?.bloc === 'breve' && ouvert.index === i}<Propositions liste={evts} choisis={pris} tient={tient(`breve:${i}`)} onchoisir={(f) => choisir('breve', f, i)} onfermer={() => (ouvert = null)} />{/if}
+              </div>
+              </Element>
             </li>
           {/each}
         </ul>
       </section>
 
       <!-- Page 2 -->
-      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadrePage(2)}" aria-label="Page 2">
+      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadrePage(2)}" class:hidden={!aFaire('p2')} aria-label="Page 2">
         <div class="mb-2 flex items-center justify-between"><h2 class="etiquette">Page 2 · {contenu.p2.mode === 'mois' ? 'les titres du mois' : 'la semaine'}</h2>{@render bouton('p2', null, 'Ajouter')}</div>
         {#if ouvert?.bloc === 'p2' && ouvert.index === null}<Propositions liste={evts} choisis={pris} onchoisir={(f) => choisir('p2', f, null)} onfermer={() => (ouvert = null)} />{/if}
         <ul class="grid gap-3">
           {#each contenu.p2.items as it, i}
-            <li class="grid gap-1 {it.masque ? 'opacity-45' : ''} {cadre(`p2:${i}`)}">
-              <div class="flex flex-wrap items-center gap-2 sm:flex-nowrap">
-                <span class="w-14 shrink-0 text-xs text-muted-foreground">{dateCourte(it.date)}</span>
-                <input class="order-last min-w-0 flex-1 basis-full sm:order-none sm:basis-0 rounded-lg border bg-background px-2 py-1 text-sm font-semibold" bind:value={it.titre} oninput={toucher} aria-label="Titre {i + 1}" />
-                {@render bouton('p2', i)}{@render masquer(it)}
-              </div>
+            <li class="{it.masque ? 'opacity-45' : ''}">
+              <Element cle="p2:{it.id ?? i}" page={2} titre="Page 2 · {dateCourte(it.date)}" valeur={{ t: it.titre, x: it.texte, m: !!it.masque }}
+                       onia={() => ias[`p2:${i}`]?.tout()} onchanger={() => ouvrir('p2', i)} changer="Un autre événement"
+                       onrefuser={() => { contenu.p2.items.splice(i, 1); toucher() }}>
+              <div class="grid gap-1 {cadre(`p2:${i}`)}">
+                <input class="min-w-0 rounded-lg border bg-background px-2 py-1 text-sm font-semibold" bind:value={it.titre} oninput={toucher} aria-label="Titre {i + 1}" />
               <textarea class="rounded-lg border bg-background px-2 py-1 text-sm [field-sizing:content] min-h-14" rows="2" bind:value={it.texte} oninput={toucher} aria-label="Texte {i + 1}"></textarea>
               {@render compteur(`p2:${i}`)}
-              <IaBloc bind:this={ias[`p2:${i}`]} pid={id} texte={() => it.texte} actions={['titres', 'raccourcir', 'journal', 'traduire']} signes={cible(`p2:${i}`, it.texte)}
+              <IaBloc bind:this={ias[`p2:${i}`]} nom="Page 2, article {i + 1}" pid={id} texte={() => it.texte} actions={['titres', 'raccourcir', 'journal', 'traduire']} signes={cible(`p2:${i}`, it.texte)}
                       onapply={(a, t) => { if (a === 'titres') it.titre = t; else it.texte = t; toucher() }} />
               {#if ouvert?.bloc === 'p2' && ouvert.index === i}<Propositions liste={evts} choisis={pris} tient={tient(`p2:${i}`)} onchoisir={(f) => choisir('p2', f, i)} onfermer={() => (ouvert = null)} />{/if}
+              </div>
+              </Element>
             </li>
           {/each}
         </ul>
       </section>
 
       <!-- Page 3 -->
-      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadrePage(3)}" aria-label="Chronologie">
+      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadrePage(3)}" class:hidden={!aFaire('chrono', 'musique', 'cinema', 'nes', 'morts')} aria-label="Chronologie">
         <div class="mb-2 flex items-center justify-between"><h2 class="etiquette">Page 3 · chronologie de l'année</h2>{@render bouton('chrono', null, 'Ajouter')}</div>
         {#if ouvert?.bloc === 'chrono' && ouvert.index === null}<Propositions liste={annee} choisis={pris} onchoisir={(f) => choisir('chrono', f, null)} onfermer={() => (ouvert = null)} />{/if}
         <ul class="grid gap-2">
           {#each contenu.chrono as c, i}
-            <li class="{c.masque ? 'opacity-45' : ''} {cadre(`chrono:${i}`)}">
+            <li class="{c.masque ? 'opacity-45' : ''}">
+              <Element cle="chrono:{c.id ?? i}" page={3} titre="Repère {i + 1}" valeur={{ q: c.quand, x: c.texte, m: !!c.masque }}
+                       onia={() => ias[`chrono:${i}`]?.tout()} onchanger={() => ouvrir('chrono', i)} changer="Un autre repère"
+                       onrefuser={() => { contenu.chrono.splice(i, 1); toucher() }}>
+              <div class="grid gap-1 {cadre(`chrono:${i}`)}">
               <div class="flex flex-wrap items-center gap-2 sm:flex-nowrap">
                 <input class="w-20 shrink-0 rounded-lg border bg-background px-2 py-1 text-xs" bind:value={c.quand} oninput={toucher} aria-label="Date du repère {i + 1}" />
                 <input class="order-last min-w-0 flex-1 basis-full sm:order-none sm:basis-0 rounded-lg border bg-background px-2 py-1 text-sm" bind:value={c.texte} oninput={toucher} aria-label="Repère {i + 1}" />
-                {@render bouton('chrono', i)}{@render masquer(c)}
               </div>
               {@render compteur(`chrono:${i}`)}
-              <IaBloc bind:this={ias[`chrono:${i}`]} pid={id} texte={() => c.texte} actions={['raccourcir', 'journal', 'traduire']} signes={cible(`chrono:${i}`, c.texte)}
+              <IaBloc bind:this={ias[`chrono:${i}`]} nom="Repère {i + 1}" pid={id} texte={() => c.texte} actions={['raccourcir', 'journal', 'traduire']} signes={cible(`chrono:${i}`, c.texte)}
                       onapply={(a, t) => { c.texte = t; toucher() }} />
               {#if ouvert?.bloc === 'chrono' && ouvert.index === i}<Propositions liste={annee} choisis={pris} tient={tient(`chrono:${i}`)} onchoisir={(f) => choisir('chrono', f, i)} onfermer={() => (ouvert = null)} />{/if}
+              </div>
+              </Element>
             </li>
           {/each}
         </ul>
@@ -385,15 +430,16 @@
           </details>
         {/if}
         <div class="mt-3 grid gap-3 sm:grid-cols-2">
-          <label class="grid gap-1 text-sm"><span class="etiquette">Musique</span>
-            <textarea rows="3" class="min-w-0 rounded-lg border bg-background px-2 py-1 {bord('musique')}" bind:value={contenu.musique} oninput={toucher} placeholder="n°1 des ventes de la semaine (vide : rubrique absente)"></textarea>{@render compteur('musique')}</label>
-          <label class="grid gap-1 text-sm"><span class="etiquette">Cinéma</span>
-            <textarea rows="3" class="min-w-0 rounded-lg border bg-background px-2 py-1 {bord('cinema')}" bind:value={contenu.cinema} oninput={toucher} placeholder="films à l'affiche (vide : rubrique absente)"></textarea>{@render compteur('cinema')}</label>
+          {#each [['musique', 'Musique', "n°1 des ventes de la semaine (vide : rubrique absente)"], ['cinema', 'Cinéma', "films à l'affiche (vide : rubrique absente)"]] as [cle, nom, aide]}
+            <Element {cle} page={3} titre={nom} valeur={contenu[cle] ?? ''} onchanger={remplirCulture} changer="Depuis le top 5"
+                     onrefuser={contenu[cle] ? () => { contenu[cle] = ''; toucher() } : null}>
+              <textarea rows="3" class="min-w-0 rounded-lg border bg-background px-2 py-1 text-sm {bord(cle)}" bind:value={contenu[cle]} oninput={toucher} placeholder={aide} aria-label={nom}></textarea>{@render compteur(cle)}
+            </Element>
+          {/each}
         </div>
         <div class="mt-4 grid gap-3 sm:grid-cols-2">
           {#each [['nes', 'Nés le même jour'], ['morts', 'Disparus le même jour']] as [cle, libelle]}
-            <div>
-              <p class="etiquette mb-1">{libelle}</p>
+            <Element {cle} page={3} titre={libelle} valeur={contenu[cle].map((p) => [p.nom, !!p.masque])}>
               <ul class="grid gap-1 text-sm">
                 {#each contenu[cle] as p}
                   <li class="flex items-center justify-between gap-2 {p.masque ? 'opacity-45' : ''}"><span>{p.nom} ({p.annee})</span>{@render masquer(p)}</li>
@@ -409,21 +455,28 @@
                   </ul>
                 </details>
               {/if}
-            </div>
+            </Element>
           {/each}
         </div>
       </section>
 
       <!-- Page 4 -->
-      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadrePage(4)}" aria-label="Le mot des hôtes">
+      <section class="min-w-0 rounded-2xl border bg-card p-4 {cadrePage(4)}" class:hidden={!aFaire('mot', 'photo', 'code')} aria-label="Le mot des hôtes">
         <h2 class="etiquette mb-2">Page 4 · le mot des hôtes</h2>
+        <Element cle="mot" page={4} titre="Le mot des hôtes" valeur={mot} onia={() => ias.mot?.tout()}
+                 onchanger={() => { mot = d.livret.mot_defaut; toucher() }} changer="Mot par défaut">
         <textarea class="w-full rounded-lg border bg-background px-3 py-2 font-serif {bord('mot')}" rows="8" bind:value={mot} oninput={toucher} aria-label="Mot des hôtes"></textarea>
         {@render compteur('mot')}
-        <IaBloc bind:this={ias.mot} pid={id} texte={() => mot} actions={['mot', 'raccourcir']} signes={cible('mot', mot)} onapply={(a, t) => { mot = t; toucher() }} />
-        <p class="mt-1 text-xs text-muted-foreground">Une ligne vide sépare les paragraphes. Signature : « {d.signature} » (Réglages › Le journal).</p>
+        <IaBloc bind:this={ias.mot} nom="Le mot des hôtes" pid={id} texte={() => mot} actions={['mot', 'raccourcir']} signes={cible('mot', mot)} onapply={(a, t) => { mot = t; toucher() }} />
+        <p class="mt-1 text-xs text-muted-foreground">Une ligne vide sépare les paragraphes. Signature : « {d.signature} » (Réglages › Le journal). L'IA s'appuie sur les événements racontés dans la Gazette.</p>
+        </Element>
 
         <!-- 0.13 : photo d'Immich, imprimée en noir et blanc au-dessus du mot -->
-        <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <div class="mt-3"></div>
+        <Element cle="photo" page={4} titre="Photo de la page 4" valeur={{ i: photo.id ?? '', c: photo.cadrage ?? 'haut', l: photo.legende ?? '' }}
+                 onia={photo.id ? legendeEnFile : null} onchanger={d.livret.photos_choix.length ? photoSuivante : null} changer="Une autre photo"
+                 onrefuser={photo.id ? () => { photo = {}; propsLegende = []; ctxPhoto = null; toucher() } : null}>
+        <div class="flex flex-wrap items-center justify-between gap-2">
           <h3 class="etiquette">Photo (noir et blanc, au-dessus du mot)</h3>
           {#if d.livret.immich}
             <button type="button" class="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50" disabled={demande !== ''} onclick={chercherPhotos}>
@@ -461,7 +514,7 @@
               <div class="flex min-w-0 flex-wrap items-center justify-end gap-2">
                 <input class="w-full min-w-0 rounded-lg border bg-background px-2 py-1 text-sm" maxlength="400" bind:value={photo.description} oninput={toucher}
                        placeholder="Décris la photo (l'IA proposera 5 légendes façon journal de l'époque)" aria-label="Description de la photo" />
-                <Button size="sm" variant="outline" class="shrink-0" onclick={() => proposerLegende()} disabled={demande !== ''}>
+                <Button size="sm" variant="outline" class="shrink-0" onclick={legendeEnFile} disabled={demande === 'legende'}>
                   <Sparkles class="size-3.5" aria-hidden="true" />{demande === 'legende' ? '…' : '5 légendes'}</Button>
               </div>
               {#if ctxTexte(ctxPhoto)}<p class="text-[0.7rem] break-words text-muted-foreground">Immich · {ctxTexte(ctxPhoto)}</p>{/if}
@@ -475,12 +528,16 @@
             </div>
           {/if}
         {/if}
+        </Element>
 
-        <label class="mt-4 grid gap-1 text-sm">
+        <div class="mt-3"></div>
+        <Element cle="code" page={4} titre="Code-barres" valeur={codeBarres} onchanger={() => { codeBarres = ''; toucher() }} changer="Message par défaut">
+        <label class="grid gap-1 text-sm">
           <span class="etiquette">Code-barres (message caché, 30 caractères)</span>
           <input class="min-w-0 rounded-lg border bg-background px-2 py-1" maxlength="30" bind:value={codeBarres} oninput={toucher} placeholder={d.livret.code_barres_defaut} />
           <span class="text-xs text-muted-foreground">Lisible par une appli de scan ; rien n'est écrit sous les barres. Vide : « {d.livret.code_barres_defaut} ».</span>
         </label>
+        </Element>
       </section>
 
       <!-- Fiche et gestes -->
@@ -505,6 +562,7 @@
         </details>
         {#if contenu.notes?.length}<p class="mt-3 text-xs text-muted-foreground">Sources en défaut : {contenu.notes.join(' ; ')}</p>{/if}
       </section>
+      </div>
     </div>
 
     <!-- Aperçu -->
