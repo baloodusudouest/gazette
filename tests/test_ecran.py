@@ -153,3 +153,18 @@ def test_la_recidive(navigateur, adresse, taille):
     assert page.frame_locator("iframe[title='Aperçu de La Récidive']").get_by_text("Elle est revenue, nous aussi").first.is_visible()
     sans_debordement(page)
     assert erreurs == []
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_titres_proposes_par_l_ia(navigateur, adresse, taille):
+    """0.9.1 : décrire la photo de la une, demander 5 titres, en choisir un."""
+    page, erreurs = ouvrir(navigateur, adresse, taille)
+    page.locator("a[href^='#/recidive/']").first.click()
+    page.get_by_role("heading", name="Lou Martin").wait_for()
+    page.fill("input[aria-label='Description de la photo de la une']", "Lou sur une plage, lunettes de soleil")
+    page.locator("button:has-text('5 titres')").first.click()
+    page.get_by_text("« Les vacances secrètes de Lou »").wait_for()
+    page.get_by_text("« Les vacances secrètes de Lou »").click()
+    assert page.locator("input[placeholder='Lou Martin revient !']").input_value() == "Les vacances secrètes de Lou"
+    sans_debordement(page)
+    assert erreurs == []

@@ -2,7 +2,7 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
-## État (17/11/2026) — 0.9.0 (La Récidive) sur 0.8.0, temps 1 livré + top 5 culturel + journal réglé dans l'appli + texte complet + aide à la place + carnet + réglages sauvegardés par l'Anneau, installé sur le NAS le 14/11 (pas encore de vrai livret)
+## État (17/11/2026) — 0.9.1 (La Récidive + titres par l'IA du PC) sur 0.8.0, temps 1 livré + top 5 culturel + journal réglé dans l'appli + texte complet + aide à la place + carnet + réglages sauvegardés par l'Anneau, installé sur le NAS le 14/11 (pas encore de vrai livret)
 - Appli complète : fiches, livrets, relecture, aperçu, PDF à imprimer et lecture, À traiter, Connexion, Réglages, porte HA (`/ha/sejour`, `/ha/etat`).
 - Moteur essayé en vrai (réseau) sur trois dates maigres du banc (1964, 1983, 1997) : une, brèves, semaine, chronologie, nés et disparus remplis ; rendu PDF contrôlé à l'œil (aucun débordement).
 - Top 5 culturel : fichier livré dans `app/donnees/`, remplaçable depuis Réglages (fichier importé gardé dans `/data/culture.csv`) ; prompt de mise à jour annuelle dans `app/donnees/prompt_culture.md` (il nomme les années 2026 et 2027 : à adapter chaque année).
@@ -26,13 +26,14 @@
   - Écrans : `pages/Recidive.svelte`, route `#/recidive/<id>` ; Livrets, À traiter, Connexion, fiche (« Séjours d'avant Gazette »).
   - Démo : Lou Martin revient (Immich simulé, petite image grise).
   - **Jamais essayé sur la vraie installation** : forme réelle de `search/metadata` (`personIds`, `tagIds`, `takenAfter/Before`), permissions de la clé, tag « scandale », impression des photos. Dépend de carnet 2.27.0 (`genre`, `immich_id`) : sans lui, `immich_id` manque → message dans À traiter.
-- 104 tests (`python -m pytest -q`, dont 16 d'écran), sans réseau : pages de sources inventées (`tests/fixtures.py`) ; écrans sur PC et iPhone par le serveur de démonstration (`python -m tools.demo`, mot de passe demo-demo-demo).
+- **Titres par l'IA (0.9.1)** : `app/ollama.py` (`Ollama.proposer(description, sorte, genre, prenom)` → 5 titres ≤ `MAXI` = 60 ; `consigne`, `nettoyer`, `sonder` ; `MARCHE` = marche à suivre sur le PC ; lecture injectable `ETAT["ollama_lire"]`). Route `POST /api/recidives/{id}/proposer` {cible « une » ou id de photo, description} (422 description vide, 503 IA injoignable). Colonnes `titre_une`, `description_une`, `propositions_une` (ALTER au démarrage) ; photos : `description`, `propositions`. `rendu_recidive._gros_titre`. Écran : snippet `ia` de `Recidive.svelte`. Variable `GAZETTE_OLLAMA_URL`. Jamais essayé : Ollama du PC joint depuis le NAS (OLLAMA_HOST, pare-feu).
+- 109 tests (`python -m pytest -q`, dont 18 d'écran), sans réseau : pages de sources inventées (`tests/fixtures.py`) ; écrans sur PC et iPhone par le serveur de démonstration (`python -m tools.demo`, mot de passe demo-demo-demo).
 - Tuile de l'Anneau : `/health` donne `livrets` et `a_traiter` ; sa ligne du `services.yaml` de l'Anneau est dans Atlas (`data/anneau-services.yaml`, dépôt privé, qui fait foi), comme la stack (`data/homelab.yml`).
 - Package HA `chambres/gazette.yaml` v1.0 : pas dans ce dépôt (il nomme les chambres et le téléphone de la maison) ; sa copie de référence est décrite dans le master doc Home Assistant (§ 6.1 et § 10). Contrat de la porte : `docs/dossier.md`, section « Temps 1 tel que construit ».
 
 ## Prochaine étape
 0. 0.9.0 : déployer carnet 2.27.0 d'abord, puis Gazette 0.9.0 avec `GAZETTE_IMMICH_CLE` (clé Immich dédiée « gazette » : asset.read, asset.view, tag.read) ; Connexion › Vérifier (tuile Immich : tag « scandale » trouvé ?) ; noter les séjours d'avant Gazette sur les fiches des habitués ; taguer quelques vieilles photos « scandale » dans Immich ; à la première Récidive, relire puis imprimer un exemplaire pour contrôler les photos sur papier.
-0. 0.9.1 : légendes par IA locale (Ollama sur le PC), seulement après l'essai de la vision en aperçu (5 photos sur 5).
+0. 0.9.1 : sur le PC, `setx OLLAMA_HOST 0.0.0.0`, rouvrir Ollama, ouvrir le port 11434 ; poser `GAZETTE_OLLAMA_URL` dans la stack ; Connexion › Vérifier (tuile « IA du PC ») ; essayer « 5 titres » sur une vraie édition.
 0. 0.8.0 : déploiement en deux temps (ci-dessus) ; puis Réglages › Restaurer les réglages, une fois que l'Anneau a fait sa première collecte de nuit.
 1. Après l'installation, remplir Réglages › Le journal (titre, lieu, hôtes, mot par défaut).
 1. Installé le 14/11 (port **8089** sur le NAS, 8099 dans le conteneur) : vérifier la version (0.5.0) et la tuile « Rendu PDF » de Connexion.

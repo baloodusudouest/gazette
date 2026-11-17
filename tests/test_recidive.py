@@ -288,3 +288,75 @@ def test_chambre_liberee_garde_le_sejour_commence(monter):
     ha(c, {"chambre": "ami", "noms": []})
     assert main.ETAT["base"].sejours_de(pid) == [{"du": j(-1), "jusqu_au": j(-1), "chambre": "ami"}]
     assert c.get("/api/livrets").json()["sejours"] == []
+
+
+# ---------------------------------------------------------------- 0.9.1 : titres proposés par l'IA du PC
+
+from app import ollama as O  # noqa: E402
+
+
+def test_nettoyer_les_propositions():
+    brut = ("1. Camille encore prise la main dans le sac !\n2) « Scandale au barbecue : elle nie tout »\n"
+            "3. Un titre beaucoup trop long qui dépasse largement les soixante caractères permis\n"
+            "4. Je ne peux pas écrire cela\n5. The party is over with her\n- Camille encore prise la main dans le sac !\n\n")
+    assert O.nettoyer(brut, "femme") == ["Camille encore prise la main dans le sac !", "Scandale au barbecue : elle nie tout"]
+    assert O.nettoyer(brut, "") == ["Camille encore prise la main dans le sac !"]      # genre inconnu : pas de « elle »
+    assert "60 caractères au plus" in O.consigne("un gâteau renversé", "photo", "femme", "Camille")
+
+
+def _faux_ollama(reponses):
+    appels = []
+
+    def lire(chemin, corps):
+        appels.append((chemin, corps))
+        if chemin == "/api/tags":
+            return {"models": [{"name": "qwen2.5:7b"}]}
+        return {"response": reponses.pop(0) if reponses else ""}
+    lire.appels = appels
+    return lire
+
+
+def test_proposer_des_titres(monter):
+    c = monter()
+    main.ETAT["ollama"] = O.Ollama("http://pc:11434", lire=_faux_ollama([
+        "1. Camille surprise en flagrant délit de gâteau\n2. Le gâteau du scandale\n3. Elle a tout mangé, seule",
+        "1. Crème fouettée : les aveux de Camille\n2. Le gâteau du scandale\n3. Dessert interdit, preuves à l'appui"]))
+    pid, r = _deux_sejours(c)
+    rid = int(r["invites"][0]["lien"].rsplit("/", 1)[1])
+    ed = c.get(f"/api/recidives/{rid}").json()
+    assert ed["ia"]["maxi"] == 60 and ed["titre_defaut"] == "Camille Fabre revient !"
+    photo = ed["edition"]["photos"][1]["id"]
+    assert c.post(f"/api/recidives/{rid}/proposer", json={"cible": photo, "description": "x"}).status_code == 422
+    props = c.post(f"/api/recidives/{rid}/proposer", json={"cible": photo, "description": "Camille devant un gâteau renversé"}).json()["propositions"]
+    assert len(props) == 5 and all(len(x) <= 60 for x in props) and props.count("Le gâteau du scandale") == 1
+    gardee = c.get(f"/api/recidives/{rid}").json()["edition"]["photos"][1]
+    assert gardee["description"] == "Camille devant un gâteau renversé" and gardee["propositions"] == props
+    assert gardee["legende"].startswith("Cliché du ")                  # rien n'est choisi à la place de Julien
+    # Choisir une proposition pour la légende, écrire le gros titre de la une
+    c.put(f"/api/recidives/{rid}", json={"photos": [{"id": photo, "legende": props[0]}], "titre_une": "Camille Fabre récidive !"})
+    html = c.get(f"/api/recidives/{rid}/apercu").text
+    assert props[0] in html and "<span>Camille Fabre</span> récidive !" in html
+    # Compléter garde descriptions et propositions
+    c.post(f"/api/recidives/{rid}/preparer", json={"completer": True})
+    assert c.get(f"/api/recidives/{rid}").json()["edition"]["photos"][1]["propositions"] == props
+
+
+def test_ia_injoignable_ou_pas_reglee(monter):
+    c = monter()
+    pid, r = _deux_sejours(c)
+    rid = int(r["invites"][0]["lien"].rsplit("/", 1)[1])
+    r = c.post(f"/api/recidives/{rid}/proposer", json={"cible": "une", "description": "Camille au marché"})
+    assert r.status_code == 503 and "GAZETTE_OLLAMA_URL" in r.json()["detail"]
+
+    def panne(chemin, corps):
+        raise ConnectionError("Connection refused")
+    main.ETAT["ollama"] = O.Ollama("http://pc:11434", lire=panne)
+    r = c.post(f"/api/recidives/{rid}/proposer", json={"cible": "une", "description": "Camille au marché"})
+    assert r.status_code == 503 and "OLLAMA_HOST" in r.json()["detail"]
+    assert c.post("/api/connexion/verifier").json()["ia"]["ok"] is False
+    main.ETAT["ollama"] = O.Ollama("http://pc:11434", lire=_faux_ollama(["1. Camille fait son marché en douce"]))
+    props = c.post(f"/api/recidives/{rid}/proposer", json={"cible": "une", "description": "Camille au marché"}).json()["propositions"]
+    assert props == ["Camille fait son marché en douce"]
+    ed = c.get(f"/api/recidives/{rid}").json()["edition"]
+    assert ed["propositions_une"] == props and ed["description_une"] == "Camille au marché"
+    assert c.post("/api/connexion/verifier").json()["ia"]["ok"] is True

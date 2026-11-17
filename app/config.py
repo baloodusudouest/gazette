@@ -3,7 +3,7 @@
 0.8 : seules restent les variables qui ne sont pas des réglages d'usage — le mot de passe et le jeton communs
 (MAISON_PASSWORD, MAISON_JETON), la lecture seule (MAISON_LECTURE_SEULE, forçable par GAZETTE_LECTURE_SEULE), le
 jeton de Home Assistant (GAZETTE_JETON_HA) et l'adresse de carnet dans la stack (GAZETTE_CARNET_URL). 0.9 : l'adresse
-et la clé d'Immich (GAZETTE_IMMICH_URL, GAZETTE_IMMICH_CLE) pour La Récidive. Le titre du
+et la clé d'Immich (GAZETTE_IMMICH_URL, GAZETTE_IMMICH_CLE) pour La Récidive ; 0.9.1 : l'IA du PC (GAZETTE_OLLAMA_URL). Le titre du
 journal, le lieu, les hôtes, le mot par défaut, la couleur et Larousse se règlent dans l'appli (journal.py)."""
 from __future__ import annotations
 
@@ -44,6 +44,7 @@ class Config:
     carnet_jeton: str = ""               # MAISON_JETON (0.8 : plus d'ancien jeton par paire) ; vide : carnet pas lu
     immich_url: str = ""                 # 0.9 : GAZETTE_IMMICH_URL (http://immich_server:2283 dans la stack)
     immich_cle: str = ""                 # 0.9 : GAZETTE_IMMICH_CLE, clé d'API dédiée ; vide : pas de Récidive
+    ollama_url: str = ""                 # 0.9.1 : GAZETTE_OLLAMA_URL (Ollama du PC, http://<PC>:11434) ; vide : pas d'IA
 
 
 def charger() -> Config:
@@ -61,4 +62,5 @@ def charger() -> Config:
         carnet_jeton=maison.jeton_a_envoyer(),                 # 0.8 : MAISON_JETON seul
         immich_url=os.environ.get("GAZETTE_IMMICH_URL", "").strip().rstrip("/") or "http://immich_server:2283",
         immich_cle=os.environ.get("GAZETTE_IMMICH_CLE", "").strip(),
+        ollama_url=os.environ.get("GAZETTE_OLLAMA_URL", "").strip().rstrip("/"),
     )

@@ -8,8 +8,9 @@ Règles (dossier, ajout du 17/11/2026, arbitrées après le conseil du même jou
   (rubrique « Anciens scandales »), pas encore publiées d'abord, réparties sur les décennies, au hasard dans chaque
   décennie, puis en variant les années ; déjà publiées seulement s'il n'en reste plus.
 - Aucune photo dans la fenêtre : pas de Récidive, le séjour garde la Gazette.
-- Légendes de gabarit, modifiables à la relecture (pas d'IA en 0.9 ; les légendes par IA locale viendront en 0.9.1
-  si l'essai sur le PC réussit). Relecture et approbation obligatoires avant impression.
+- Légendes de gabarit, modifiables à la relecture. 0.9.1 : Julien décrit une photo en quelques mots, l'IA locale
+  (ollama.py) propose 5 titres de 60 caractères au plus pour la légende ou le gros titre de la une ; il en choisit un
+  ou écrit le sien. Relecture et approbation obligatoires avant impression.
 Aucune date de naissance dans ce journal."""
 from __future__ import annotations
 
@@ -45,6 +46,11 @@ def accroche(genre: str, prenom: str) -> str:
     if genre == "homme":
         return "Il est revenu, nous aussi"
     return f"{prenom or 'Notre invité·e'} est de retour, nous aussi"
+
+
+def titre_une(nom: str) -> str:
+    """Le gros titre de la une par défaut (0.9.1 : remplaçable par un titre choisi ou écrit)."""
+    return f"{nom} revient !"
 
 
 def salut(genre: str, prenom: str) -> str:
@@ -149,6 +155,8 @@ def choisir(recentes: list[dict], scandales: list[dict] | None, publies: set[str
         q = {k: p.get(k) for k in ("id", "date", "ancien")}
         q["legende"] = p.get("legende") or legende(q)
         q["retiree"] = False
+        q["description"] = p.get("description", "")          # 0.9.1 : ce que Julien voit sur la photo (pour l'IA)
+        q["propositions"] = list(p.get("propositions") or [])
         sortie.append(q)
     return {"photos": sortie, "manque_scandale": manque, "tag_absent": scandales is None, "trouvees": len(recentes)}
 

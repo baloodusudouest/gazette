@@ -73,6 +73,11 @@ class Base:
             self._c.execute("ALTER TABLE personnes ADD COLUMN sejours_avant INTEGER NOT NULL DEFAULT 0")
         if "dernier_avant" not in colonnes:
             self._c.execute("ALTER TABLE personnes ADD COLUMN dernier_avant TEXT NOT NULL DEFAULT ''")
+        # 0.9.1 : gros titre de la une choisi ou écrit, description et propositions de l'IA
+        colonnes = {l["name"] for l in self._c.execute("PRAGMA table_info(recidives)")}
+        for col in ("titre_une", "description_une", "propositions_une"):
+            if col not in colonnes:
+                self._c.execute(f"ALTER TABLE recidives ADD COLUMN {col} TEXT NOT NULL DEFAULT '{'[]' if col == 'propositions_une' else ''}'")
         self._c.commit()
         self._c.execute("PRAGMA foreign_keys=ON")
 
@@ -222,6 +227,7 @@ class Base:
     def _recidive(self, l) -> dict:
         d = dict(l)
         d["photos"] = json.loads(d["photos"] or "[]")
+        d["propositions_une"] = json.loads(d.get("propositions_une") or "[]")
         d["precedent"] = json.loads(d["precedent"] or "{}") or None
         d["manque_scandale"], d["tag_absent"] = bool(d["manque_scandale"]), bool(d["tag_absent"])
         return d
@@ -249,7 +255,7 @@ class Base:
             return self._c.execute("SELECT id FROM recidives WHERE personne_id = ? AND sejour_du = ?", (pid, du)).fetchone()["id"]
 
     def maj_recidive(self, rid: int, **champs) -> None:
-        for k in ("photos", "precedent"):
+        for k in ("photos", "precedent", "propositions_une"):
             if k in champs:
                 champs[k] = json.dumps(champs[k] or ({} if k == "precedent" else []), ensure_ascii=False)
         for k in ("manque_scandale", "tag_absent"):

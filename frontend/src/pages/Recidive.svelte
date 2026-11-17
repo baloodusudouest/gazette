@@ -1,13 +1,15 @@
 <script>
   // 0.9 : une édition de La Récidive (journal à scandale, à partir du 2e séjour) — relecture à gauche (N°, accroche,
   // photos et légendes, retrait, mot des hôtes), aperçu des 4 pages à droite. « Approuver » contrôle d'abord
-  // qu'aucune page ne déborde. Rien ne s'imprime sans approbation. Légendes de gabarit en 0.9 (pas d'IA).
+  // qu'aucune page ne déborde. Rien ne s'imprime sans approbation. Légendes de gabarit ; 0.9.1 : Julien décrit une
+  // photo en quelques mots, l'IA du PC propose 5 titres (60 caractères au plus), il en choisit un ou écrit le sien.
   import { onMount, onDestroy } from 'svelte'
   import ArrowLeft from '@lucide/svelte/icons/arrow-left'
   import Download from '@lucide/svelte/icons/download'
   import EyeOff from '@lucide/svelte/icons/eye-off'
   import Eye from '@lucide/svelte/icons/eye'
   import RefreshCw from '@lucide/svelte/icons/refresh-cw'
+  import Sparkles from '@lucide/svelte/icons/sparkles'
   import { api } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import Etat from '$lib/Etat.svelte'
@@ -19,6 +21,10 @@
   let mot = $state('')
   let accroche = $state('')
   let numero = $state('')
+  let titreUne = $state('')
+  let descriptionUne = $state('')
+  let propsUne = $state([])
+  let demande = $state('')          // cible en cours de proposition (« une » ou id de photo)
   let modifie = $state(false)
   let message = $state('')
   let attente = $state('')
@@ -34,6 +40,9 @@
       mot = ed.mot || ed.mot_defaut
       accroche = ed.accroche || ed.accroche_defaut
       numero = ed.numero_main ?? ''
+      titreUne = ed.titre_une || ''
+      descriptionUne = ed.description_une || ''
+      propsUne = ed.propositions_une || []
       modifie = false
       tampon = Date.now()
       clearTimeout(minuteur)
@@ -44,8 +53,20 @@
     }
   }
   function toucher() { modifie = true; message = '' }
-  const corps = () => ({ numero_main: numero === '' ? null : +numero, accroche, mot,
-                         photos: photos.map((p) => ({ id: p.id, legende: p.legende, retiree: p.retiree })) })
+  const corps = () => ({ numero_main: numero === '' ? null : +numero, accroche, mot, titre_une: titreUne, description_une: descriptionUne,
+                         photos: photos.map((p) => ({ id: p.id, legende: p.legende, retiree: p.retiree, description: p.description ?? '' })) })
+  async function proposer(cible) {
+    const description = cible === 'une' ? descriptionUne : photos.find((p) => p.id === cible)?.description ?? ''
+    demande = cible
+    message = ''
+    try {
+      const r = await api.post(`/api/recidives/${id}/proposer`, { cible, description })
+      if (cible === 'une') propsUne = r.propositions
+      else { const p = photos.find((x) => x.id === cible); p.propositions = r.propositions }
+      toucher()
+    } catch (err) { message = err.message }
+    demande = ''
+  }
   async function enregistrer() {
     attente = 'enregistrer'
     try { await api.put(`/api/recidives/${id}`, corps()); await lire(); message = 'Enregistré.'; onchange?.() }
@@ -72,6 +93,25 @@
   onMount(lire)
   onDestroy(() => clearTimeout(minuteur))
 </script>
+
+{#snippet ia(cible, description, props, ecrire, choisir)}
+  <div class="mt-2 grid gap-1.5 rounded-lg border border-dashed p-2">
+    <div class="flex gap-2">
+      <input class="min-w-0 flex-1 rounded-lg border bg-background px-2 py-1 text-sm" maxlength="400" value={description}
+             oninput={(e) => ecrire(e.currentTarget.value)} placeholder="Ce qu'on voit, en quelques mots (pour l'IA)"
+             aria-label={cible === 'une' ? 'Description de la photo de la une' : 'Description de la photo'} />
+      <Button size="sm" variant="outline" onclick={() => proposer(cible)} disabled={demande !== '' || description.trim().length < 3}>
+        <Sparkles class="size-3.5" aria-hidden="true" />{demande === cible ? '…' : '5 titres'}</Button>
+    </div>
+    {#if props.length}
+      <ul class="grid gap-1" aria-label="Propositions de l'IA">
+        {#each props as t}
+          <li><button type="button" class="w-full rounded-md px-2 py-1 text-left text-sm hover:bg-secondary" onclick={() => choisir(t)}>« {t} » <span class="text-xs text-muted-foreground">{t.length}</span></button></li>
+        {/each}
+      </ul>
+    {/if}
+  </div>
+{/snippet}
 
 {#if d}
   <header class="mb-5 flex flex-wrap items-end justify-between gap-3">
@@ -112,6 +152,9 @@
             <input class="rounded-lg border bg-background px-2 py-1" maxlength="80" bind:value={accroche} oninput={toucher} /></label>
         </div>
         <p class="mt-1 text-xs text-muted-foreground">N° vide : celui du séjour ({ed.numero}). Accroche proposée d'après le genre de la fiche carnet : « {ed.accroche_defaut} ».</p>
+        <label class="mt-3 grid gap-1 text-sm"><span class="etiquette">Gros titre de la une</span>
+          <input class="rounded-lg border bg-background px-2 py-1" maxlength="90" placeholder={d.titre_defaut} bind:value={titreUne} oninput={toucher} /></label>
+        {@render ia('une', descriptionUne, propsUne, (v) => { descriptionUne = v; toucher() }, (t) => { titreUne = t; toucher() })}
       </section>
 
       <section class="min-w-0 rounded-2xl border bg-card p-4" aria-label="Photos">
@@ -134,6 +177,7 @@
               </div>
               <textarea rows="2" class="min-w-0 rounded-lg border bg-background px-2 py-1 font-mono text-sm" maxlength="220" bind:value={p.legende}
                         oninput={toucher} aria-label="Légende de la photo du {dateLongue(p.date)}" disabled={p.retiree}></textarea>
+              {#if !p.retiree}{@render ia(p.id, p.description ?? '', p.propositions ?? [], (v) => { p.description = v; toucher() }, (t) => { p.legende = t; toucher() })}{/if}
               <button type="button" class="inline-flex items-center gap-1 self-start text-xs text-muted-foreground hover:text-foreground" onclick={() => basculer(p)}>
                 {#if p.retiree}<Eye class="size-3.5" aria-hidden="true" />Remettre{:else}<EyeOff class="size-3.5" aria-hidden="true" />Retirer{/if}
               </button>

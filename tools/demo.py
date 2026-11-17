@@ -57,6 +57,14 @@ def immich_simule(methode: str, chemin: str, corps: dict | None = None):
 NOTORIETE = [("Gustav Exemple", 90), ("Ringo Exemple", 120), ("Arthur Exemple", 80), ("Henri Exemple", 20)]
 
 
+def ollama_simule(chemin: str, corps: dict | None):
+    """0.9.1 : l'IA du PC simulée (titres fixes)."""
+    if corps is None:
+        return {"models": [{"name": "qwen2.5:7b"}]}
+    return {"response": "1. Flagrant délit au soleil\n2. Les vacances secrètes de Lou\n3. Elle nie tout en bloc\n"
+                        "4. Photo volée, sourire avoué\n5. Le scandale de l'été"}
+
+
 def anneau_simule(adresse: str, jeton: str) -> dict:
     """L'Anneau simulé : deux sauvegardes des réglages, la plus récente d'abord (aucun réseau)."""
     if "?le=" not in adresse:
@@ -80,6 +88,7 @@ def configurer(data: Path) -> None:
                               sources_actives=False, synchrone=True, jeton_ha=JETON)
     main.ETAT["anneau_lire"] = anneau_simule
     main.ETAT["immich_lire"] = immich_simule
+    main.ETAT["ollama_lire"] = ollama_simule
 
 
 def semer(adresse: str) -> None:

@@ -145,6 +145,18 @@ def _photo(p: dict | None, image: Callable[[str], bytes | None], style: str = ""
     return f'<div class="ph{" arch" if p.get("ancien") else ""}" style="{style}">{img}<span class="tag">{e(tag)}</span></div>'
 
 
+def _gros_titre(g: dict) -> str:
+    """Par défaut « [Nom] revient ! » (nom surligné) ; 0.9.1 : le titre choisi ou écrit, le nom surligné s'il y est."""
+    t = (g.get("titre_une") or "").strip()
+    if not t:
+        return f'<h2 class="hl" data-bloc="titre"><span>{e(g["nom"])}</span> revient !</h2>'
+    for n in (g["nom"], g["prenom"]):
+        if n and n.casefold() in t.casefold():
+            i = t.casefold().index(n.casefold())
+            return (f'<h2 class="hl" data-bloc="titre">{e(t[:i])}<span>{e(t[i:i + len(n)])}</span>{e(t[i + len(n):])}</h2>')
+    return f'<h2 class="hl" data-bloc="titre"><span>{e(t)}</span></h2>'
+
+
 def page1(g: dict) -> str:
     une = g["photos"][0] if g["photos"] else None
     n_rec, n_anc = g["n_rec"], g["n_anc"]
@@ -155,7 +167,7 @@ def page1(g: dict) -> str:
 <div class="strip"><span>N° {g['numero']} · {e(g['arrivee_longue'])}</span><span>Prix : offert par la maison</span></div>
 <div class="main">
 <span class="kick">Exclusif · Photos accablantes</span>
-<h2 class="hl" data-bloc="titre"><span>{e(g['nom'])}</span> revient !</h2>
+{_gros_titre(g)}
 <p class="sub">{e(sous)}</p>
 {_photo(une, g['image'], 'flex:1 1 auto;min-height:0', 'Pièce à conviction n°1 · ' + date_photo(une.get('date', '')) if une else '')}
 <div class="burst" style="right:16px;top:300px">Exclusif !</div>
@@ -261,6 +273,7 @@ def document(personne: dict, edition: dict, j: dict, image: Callable[[str], byte
         "n_rec": sum(1 for p in photos if not p.get("ancien")), "n_anc": sum(1 for p in photos if p.get("ancien")),
         "trouvees": int(edition.get("trouvees") or 0), "absence": jours_absence(prec, du),
         "mot": edition.get("mot") or "", "signature": j["signature"], "chez": j["chez"],
+        "titre_une": edition.get("titre_une") or "",
     }
     if mode == "impose":
         corps = f'<div class="feuille">{page4(g)}{page1(g)}</div><div class="feuille">{page2(g)}{page3(g)}</div>'

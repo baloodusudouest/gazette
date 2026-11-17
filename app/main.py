@@ -22,6 +22,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from . import __version__, anniversaire, culture, journal, maison, recidive as R, rendu, rendu_recidive
 from .carnet import Carnet
 from .immich import Immich
+from .ollama import MAXI as MAXI_TITRE, Ollama
 from .auth import COMMUN, DUREE, Sessions
 from .base import ETATS, Base, cle_nom, maintenant
 from .config import APPLI, Config, charger, racine
@@ -233,6 +234,7 @@ async def cycle(app: FastAPI):
     ETAT["sources"].larousse_actif = larousse
     ETAT["carnet"] = Carnet(cfg.carnet_url, cfg.carnet_jeton, base, lire=ETAT.get("carnet_lire"))
     ETAT["immich"] = Immich(cfg.immich_url, cfg.immich_cle, cfg.data / "photos", lire=ETAT.get("immich_lire"))
+    ETAT["ollama"] = Ollama(cfg.ollama_url, lire=ETAT.get("ollama_lire"))
     ouvrier = threading.Thread(target=_ouvrier, daemon=True, name="preparation")
     ouvrier.start()
     # Livrets restés « en préparation » (redémarrage pendant une lecture) : on reprend
@@ -706,7 +708,8 @@ def edition(rid: int):
     j = _journal()
     return {"personne": p, "edition": {**ed, "mot_defaut": R.mot_par_defaut(ed["genre"], _prenom(p)),
                                        "accroche_defaut": R.accroche(ed["genre"], _prenom(p))},
-            "signature": j["signature"], "places": R.PLACES}
+            "signature": j["signature"], "places": R.PLACES, "titre_defaut": R.titre_une(p["nom"]),
+            "ia": {**ETAT["ollama"].etat(), "maxi": MAXI_TITRE}}
 
 
 @app.put("/api/recidives/{rid}")
@@ -731,6 +734,10 @@ def enregistrer_edition(rid: int, corps: dict = Body(...)):
         champs["accroche"] = " ".join(str(corps.get("accroche") or "").split())[:80]
     if "mot" in corps:
         champs["mot"] = str(corps.get("mot") or "")[:4000]
+    if "titre_une" in corps:                    # 0.9.1 : vide = « [Nom] revient ! »
+        champs["titre_une"] = " ".join(str(corps.get("titre_une") or "").split())[:90]
+    if "description_une" in corps:
+        champs["description_une"] = " ".join(str(corps.get("description_une") or "").split())[:400]
     if isinstance(corps.get("photos"), list):
         recues = {str(x.get("id")): x for x in corps["photos"] if isinstance(x, dict)}
         photos = []
@@ -738,7 +745,8 @@ def enregistrer_edition(rid: int, corps: dict = Body(...)):
             r = recues.get(x["id"])
             if r:
                 x = {**x, "legende": " ".join(str(r.get("legende", x["legende"])).split())[:220] or R.legende(x),
-                     "retiree": bool(r.get("retiree", x.get("retiree")))}
+                     "retiree": bool(r.get("retiree", x.get("retiree"))),
+                     "description": " ".join(str(r.get("description", x.get("description", ""))).split())[:400]}
             photos.append(x)
         champs["photos"] = photos
     if champs:
@@ -748,6 +756,32 @@ def enregistrer_edition(rid: int, corps: dict = Body(...)):
             raise HTTPException(409, "Toutes les photos seraient retirées : remets-en une, ou « Compléter » pour en chercher d'autres.")
         ETAT["base"].maj_recidive(rid, **champs)
     return {"ok": True, "etat": ETAT["base"].recidive(rid)["etat"]}
+
+
+@app.post("/api/recidives/{rid}/proposer")
+def proposer_titres(rid: int, corps: dict = Body(...)):
+    """0.9.1 : {cible: « une » ou l'id d'une photo, description} → 5 titres de 60 caractères au plus, proposés par
+    l'IA du PC d'après la description écrite par Julien (la photo ne part pas). La description et les propositions
+    sont gardées ; rien n'est choisi à sa place. PC injoignable : 503 avec la marche à suivre."""
+    ed, p = _edition_ou_404(rid)
+    cible = str(corps.get("cible") or "")
+    description = " ".join(str(corps.get("description") or "").split())[:400]
+    photo = next((x for x in ed["photos"] if x["id"] == cible), None)
+    if cible != "une" and not photo:
+        raise HTTPException(404, "Photo introuvable dans cette édition.")
+    try:
+        props = ETAT["ollama"].proposer(description, "une" if cible == "une" else "photo", ed["genre"], _prenom(p))
+    except ValueError as ex:
+        raise HTTPException(422, str(ex))
+    except RuntimeError as ex:
+        raise HTTPException(503, str(ex))
+    if cible == "une":
+        ETAT["base"].maj_recidive(rid, description_une=description, propositions_une=props)
+    else:
+        photos = [{**x, "description": description, "propositions": props} if x["id"] == cible else x for x in ed["photos"]]
+        ETAT["base"].maj_recidive(rid, photos=photos)
+    ETAT["base"].noter("recidive", p["id"], f"{len(props)} titre(s) proposé(s) par l'IA ({'une' if cible == 'une' else 'photo'})")
+    return {"propositions": props}
 
 
 @app.post("/api/recidives/{rid}/preparer")
@@ -976,7 +1010,7 @@ def etat_connexions():
                    "dernier_corps": base.reglage("ha_dernier_resume")},
             "rendu": {"polices": rendu.polices_presentes()},
             "larousse": _journal()["larousse"],
-            "carnet": ETAT["carnet"].etat(), "immich": ETAT["immich"].etat(),
+            "carnet": ETAT["carnet"].etat(), "immich": ETAT["immich"].etat(), "ia": ETAT["ollama"].etat(),
             "rendu_recidive": {"polices": rendu_recidive.polices_presentes()}}
 
 
@@ -990,6 +1024,7 @@ def verifier_sources():
     else:
         r["carnet"] = {"ok": None, "detail": "pas réglé (MAISON_JETON vide)"}
     r["immich"] = ETAT["immich"].sonder()
+    r["ia"] = ETAT["ollama"].sonder()
     return r
 
 

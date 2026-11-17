@@ -10,6 +10,7 @@
   import FileText from '@lucide/svelte/icons/file-text'
   import BookUser from '@lucide/svelte/icons/book-user'
   import Images from '@lucide/svelte/icons/images'
+  import Sparkles from '@lucide/svelte/icons/sparkles'
   import { api } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import { dateCourte } from '$lib/format.js'
@@ -36,12 +37,15 @@
     { cle: 'ha', nom: 'Home Assistant', icone: House, cache: null, lit: 'reçoit les séjours sur /ha/sejour (jeton GAZETTE_JETON_HA) ; HA lit /ha/etat', ecrit: 'rien' },
     { cle: 'carnet', nom: 'Carnet', icone: BookUser, cache: null, lit: 'noms et dates de naissance sur /gazette/personnes (jeton commun MAISON_JETON) : fiche créée seule pour un invité connu, saisie assistée, dates comparées', ecrit: 'rien' },
     { cle: 'immich', nom: 'Immich', icone: Images, cache: null, lit: "La Récidive : photos de l'invité entre deux séjours, photos taguées « scandale », aperçus (clé GAZETTE_IMMICH_CLE : asset.read, asset.view, tag.read)", ecrit: 'rien' },
+    { cle: 'ia', nom: 'IA du PC', icone: Sparkles, cache: null, lit: `La Récidive : envoie la description écrite d'une photo (jamais la photo) à Ollama sur le PC, reçoit 5 titres de ${e.ia.maxi} caractères au plus (${e.ia.modele}). ${e.ia.marche}`, ecrit: 'rien' },
     { cle: 'rendu', nom: 'Rendu PDF', icone: FileText, cache: null, lit: 'Chromium dans le conteneur, polices embarquées', ecrit: 'rien' },
   ] : [])
   function voyant(s) {
     if (s.cle === 'ha') return e.ha.porte ? (e.ha.dernier_appel ? 'ok' : 'attente') : 'ko'
     if (s.cle === 'rendu') return e.rendu.polices && e.rendu_recidive?.polices ? 'ok' : 'ko'
+    if (s.cle === 'ia' && !sonde?.ia) return !e.ia.regle ? 'pas réglée : écris les titres toi-même' : e.ia.erreur || 'réglée, à vérifier (PC allumé ?)'
     if (s.cle === 'immich' && !sonde?.immich) return !e.immich.regle ? 'coupe' : e.immich.erreur ? 'ko' : 'attente'
+    if (s.cle === 'ia' && !sonde?.ia) return !e.ia.regle ? 'coupe' : e.ia.erreur ? 'ko' : 'attente'
     if (s.cle === 'carnet' && !sonde?.carnet) return !e.carnet.regle ? 'coupe' : e.carnet.erreur ? 'ko' : e.carnet.personnes !== null ? 'ok' : 'attente'
     if (s.cle === 'larousse' && !e.larousse) return 'coupe'
     if (sonde?.[s.cle]) return sonde[s.cle].ok ? 'ok' : sonde[s.cle].ok === null ? 'coupe' : 'ko'

@@ -1,5 +1,14 @@
 # Journal des versions
 
+## 0.9.1 — 17 novembre 2026 (La Récidive : titres proposés par l'IA du PC)
+- **Titres par l'IA, d'après ta description** (choix de Julien du 17/11) : dans l'édition, sous la photo de la une et sous chaque photo, on écrit en quelques mots ce qu'on voit, puis « 5 titres » : l'IA du PC (Ollama, `qwen2.5:7b`) propose cinq titres façon presse à scandale, **60 caractères au plus**. Un toucher en prend un pour le **gros titre de la une** ou pour la **légende** ; on peut toujours écrire le sien. Rien n'est choisi à ta place.
+- **Pas de modèle de vision** : la photo ne quitte pas Gazette, seule la description part vers le PC (fin du plantage du pilote AMD sur les grandes photos).
+- Filtres du code : 60 caractères, refus, anglais, doublons, « elle / il » écartés quand le genre est inconnu ; jusqu'à trois demandes pour en avoir cinq. Description et propositions gardées avec l'édition (et par « Compléter »).
+- **Gros titre de la une** modifiable (vide : « [Nom] revient ! » ; le nom reste surligné s'il est dans le titre).
+- **PC éteint ou Ollama fermé** : un message avec la marche à suivre (ouvrir Ollama ; une fois : `OLLAMA_HOST=0.0.0.0`, port 11434 ouvert dans le pare-feu) ; la légende de gabarit reste. **Connexion** : tuile « IA du PC » (modèle présent ?).
+- Variable : `GAZETTE_OLLAMA_URL` (`http://<adresse du PC>:11434` ; vide : pas de propositions).
+- Tests : 109. **Jamais essayé sur la vraie installation.**
+
 ## 0.9.0 — 17 novembre 2026 (La Récidive, journal à scandale)
 - **La Récidive** : à partir du deuxième séjour d'une personne, une édition par séjour remplace la Gazette. Numéro = numéro du séjour (séjours connus + « séjours d'avant Gazette » de la fiche), corrigeable. Photos d'Immich où la personne (liée dans carnet) est reconnue, de l'arrivée du séjour précédent à l'arrivée du nouveau : la plus récente en une, six en page 2 ; s'il en manque, ses photos taguées « scandale » (rubrique « Anciens scandales », jamais parues d'abord, réparties sur les décennies). Aucune photo récente : la Gazette sert. Immich pas réglé : la Gazette sert, comme avant.
 - **Relecture** (`#/recidive/<id>`) : N°, accroche (« Elle est revenue / Il est revenu / Prénom est de retour, nous aussi », d'après le genre de carnet), légendes de gabarit modifiables, retirer une photo, « Compléter », « Tout refaire », mot des hôtes (« Droit de réponse »), aperçu, PDF à imprimer et lecture, approbation refusée si une page déborde. Pas d'IA en 0.9.0.

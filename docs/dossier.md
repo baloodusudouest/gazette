@@ -212,3 +212,13 @@ Titre, sous-titre, lieu (et sa ligne de détail), « chez vous » avec l'article
 **Jamais essayé sur la vraie installation** : la recherche Immich (forme de `search/metadata` avec `tagIds`, permissions de la clé), le tag « scandale », l'impression des photos, carnet 2.27.
 
 **Reste (0.9.1)** : légendes par IA locale (Ollama sur le PC : `qwen2.5vl:7b` décrit, `qwen2.5:7b` propose, filtres, gabarit de secours), seulement si la vision passe 5 photos sur 5 en aperçu et après deux ou trois vrais numéros.
+
+### Titres par l'IA du PC (0.9.1, 17/11/2026)
+
+**Demande de Julien** : écrire soi-même quelques mots sur la photo, les envoyer à l'IA pour 5 propositions de titres en format tabloïd avec un nombre maximum de caractères ; choisir l'une ou écrire sa version. **Choix** : pour le gros titre de la une et pour la légende de chaque photo ; 60 caractères au plus ; IA sur le PC (Ollama, `qwen2.5:7b`), PC éteint : pas de propositions, on écrit soi-même (la légende de gabarit reste).
+
+- Plus de modèle de vision : la photo ne quitte jamais Gazette ; seule la description écrite part vers le PC.
+- Consigne : ton tabloïd, drôle et bienveillant, 60 caractères, aucun fait absent de la description, pas de moquerie du physique, aucun autre nom que celui de l'invité, accord selon le genre de carnet (inconnu : rien d'accordé). Filtres du code : longueur, refus, anglais, doublons, « elle / il » sans genre connu ; jusqu'à trois demandes.
+- Rien n'est choisi à la place de Julien ; description et propositions gardées avec l'édition.
+- Sur le PC, une fois : `OLLAMA_HOST=0.0.0.0` puis rouvrir Ollama, port 11434 ouvert dans le pare-feu. Stack : `GAZETTE_OLLAMA_URL`.
+- Jamais essayé sur la vraie installation.
