@@ -38,9 +38,22 @@ def _lire_http(url: str) -> Lire:
             r = httpx.get(f"{url}{chemin}", timeout=8)
         else:
             r = httpx.post(f"{url}{chemin}", json=corps, timeout=DELAI)
-        r.raise_for_status()
+        if r.status_code >= 400:
+            # 0.9.4 : le message d'Ollama (« model 'qwen2.5:7b' not found »…) plutôt qu'un simple code
+            try:
+                detail = str(r.json().get("error") or "")
+            except ValueError:
+                detail = r.text[:160]
+            raise ErreurOllama(r.status_code, detail or f"réponse {r.status_code}")
         return r.json()
     return lire
+
+
+class ErreurOllama(Exception):
+    """Ollama a répondu, mais avec une erreur (modèle absent, mémoire…) : le PC est joignable."""
+    def __init__(self, statut: int, detail: str):
+        super().__init__(detail)
+        self.statut, self.detail = statut, detail
 
 
 def consigne(description: str, sorte: str, genre: str, prenom: str) -> str:
@@ -93,6 +106,13 @@ class Ollama:
             try:
                 r = self._lire("/api/generate", {"model": MODELE, "prompt": consigne(description, sorte, genre, prenom),
                                                  "stream": False, "options": {"temperature": 0.9, "num_predict": 300}})
+            except ErreurOllama as ex:
+                self.erreur = ex.detail[:160]
+                if ex.statut == 404:
+                    raise RuntimeError(f"Le PC répond, mais Ollama n'y trouve pas le modèle {MODELE} ({ex.detail}). "
+                                       f"Sur le PC : « ollama list » doit le montrer ; sinon « ollama pull {MODELE} », ou "
+                                       "vérifier OLLAMA_MODELS puis quitter et rouvrir Ollama.") from ex
+                raise RuntimeError(f"Ollama a refusé la demande ({ex.detail}).") from ex
             except Exception as ex:  # noqa: BLE001 — PC éteint, Ollama fermé, pare-feu
                 self.erreur = str(ex).splitlines()[0][:160] or type(ex).__name__
                 raise RuntimeError(f"IA du PC injoignable ({self.erreur}). " + MARCHE) from ex

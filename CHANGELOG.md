@@ -1,5 +1,8 @@
 # Journal des versions
 
+## 0.9.4 — 17 novembre 2026
+- **IA du PC** : quand Ollama répond par une erreur, Gazette affiche son message (ex. « model 'qwen2.5:7b' not found ») et la marche à suivre qui va avec, au lieu de « injoignable ». Vu chez Julien le 17/11 : 404 sur `/api/generate`.
+
 ## 0.9.3 — 17 novembre 2026 (La Récidive : bouton « IA » en haut)
 - **En haut à droite de l'édition** : « IA », « Enregistrer », « Approuver », toujours visibles (la barre reste en haut quand on fait défiler).
 - **« IA »** lance les propositions pour **tous les textes décrits** d'un coup (la une et chaque photo gardée qui a une description), l'un après l'autre, avec l'avancement (« IA 2/5… ») ; il s'arrête au premier « PC injoignable ». On choisit ensuite les titres, puis Enregistrer.
