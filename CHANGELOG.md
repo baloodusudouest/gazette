@@ -1,5 +1,10 @@
 # Journal des versions
 
+## 0.16.0 — 17 novembre 2026 (tout part sur la fiche de carnet à l'approbation)
+- **Approuver une Récidive envoie tout à carnet** (choix de Julien du 17/11 : tout centraliser sur la fiche contact) : le numéro (date du séjour, N°, gros titre, événement du séjour, indices, descriptions des photos écrites pour l'IA, textes imprimés : titre, légendes, rumeurs, horoscope, courrier) est rangé dans « Journaux parus » de la fiche (carnet ≥ 2.30), et les indices dans « Pour les journaux ». Un numéro réapprouvé remplace le précédent. Le message d'approbation dit si c'est fait ; carnet injoignable ou en lecture seule : l'approbation reste faite, le message le dit.
+- **Les numéros suivants relisent la fiche** : textes déjà imprimés (pour ne pas les répéter), événements des séjours précédents (horoscope), descriptions des photos des trois derniers numéros (clin d'œil des rumeurs) — même si la base de Gazette a été perdue.
+- Tests : 139.
+
 ## 0.15.2 — 17 novembre 2026
 - **Page trop pleine encadrée en rouge** (demande de Julien du 17/11) : dans l'édition de La Récidive, les réglages d'une page qui déborde à l'impression (Une, Photos, Rumeurs, Page 4) sont encadrés en rouge, avec « Page n trop pleine à l'impression (il manque environ x mm) : raccourcis un texte de cette page, puis Enregistrer pour revérifier ». Mesure de Chromium sur l'édition enregistrée, refaite à chaque enregistrement.
 - Gazette classique : mêmes encadrés rouges sur les réglages de la page qui déborde (en plus des blocs en rouge), jusqu'à ce que les changements la fassent tenir.

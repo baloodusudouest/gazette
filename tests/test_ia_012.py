@@ -122,3 +122,44 @@ def test_horoscope_brode_sur_l_evenement(monter):
     # Sans événement : consigne d'avant
     assert "brode dessus" not in O.consigne_horoscope("Cancer", "", "femme", "Camille")
     assert "2025 : mariage" in O.consigne_horoscope("Cancer", "", "femme", "Camille", avant=["2025 : mariage"])
+
+
+def test_approuver_envoie_tout_a_carnet(monter):
+    """0.16 : à l'approbation, indices, événement, descriptions et textes imprimés partent sur la fiche de carnet
+    (« Journaux parus ») ; les numéros suivants les relisent depuis carnet."""
+    envois, indices = [], []
+    c = monter()
+    main.ETAT["carnet_paru"] = lambda url, jeton, pid, cle, corps: envois.append((pid, cle, corps))
+    main.ETAT["carnet_ecrire"] = lambda url, jeton, pid, texte: indices.append(texte)
+    main.ETAT["carnet"]._paru = main.ETAT["carnet_paru"]
+    main.ETAT["carnet"]._ecrire = main.ETAT["carnet_ecrire"]
+    for x in main.ETAT["carnet"].personnes(forcer=True):
+        x["personne_id"] = "p-camille0001"
+    pid, r = _deux_sejours(c)
+    rid = int(r["invites"][0]["lien"].rsplit("/", 1)[1])
+    ed = c.get(f"/api/recidives/{rid}").json()["edition"]
+    photo = ed["photos"][1]["id"]
+    c.put(f"/api/recidives/{rid}", json={"titre_une": "Camille récidive !", "evenement": "soirée Eurovision",
+                                         "indices_rumeurs": "fan de pétanque", "rumeurs": ["Selon nos sources, Camille parle aux ceps."],
+                                         "horoscope": "Pluton percute le Cancer.",
+                                         "photos": [{"id": photo, "legende": "Flagrant délit", "description": "Camille en tigre"}]})
+    r = c.post(f"/api/recidives/{rid}/approuver").json()
+    assert r["carnet"] == "rangé sur la fiche de carnet"
+    pid_c, cle, corps = envois[-1]
+    assert cle == f"recidive-{ed['sejour_du']}" and corps["numero"] == 2 and corps["evenement"] == "soirée Eurovision"
+    assert corps["descriptions"] == ["Camille en tigre"] and corps["indices"] == "fan de pétanque"
+    assert {"Camille récidive !", "Flagrant délit", "Selon nos sources, Camille parle aux ceps.", "Pluton percute le Cancer."} <= set(corps["textes"])
+    assert indices == ["fan de pétanque"]
+    # Le numéro suivant relit la fiche de carnet : événement et textes, même sans la base de Gazette
+    x = main.ETAT["carnet"].personnes()[0]
+    assert x["parus"][0]["evenement"] == "soirée Eurovision"
+    main.ETAT["base"].maj_recidive(rid, evenement="", etat="a_relire")
+    autre = {**main.ETAT["base"].recidive(rid), "id": -1, "sejour_du": "2099-01-01"}
+    assert main._evenements_avant(pid, autre) == [f"{ed['sejour_du'][:4]} : soirée Eurovision"]
+    assert "Flagrant délit" in main._deja_paru(pid, 0)
+    # Carnet injoignable : l'approbation reste faite, un message le dit
+    def panne(*a):
+        raise ConnectionError("carnet arrêté")
+    main.ETAT["carnet"]._paru = panne
+    r = c.post(f"/api/recidives/{rid}/approuver").json()
+    assert r["ok"] and r["carnet"].startswith("pas envoyé à carnet")

@@ -259,7 +259,7 @@ async def cycle(app: FastAPI):
     ETAT.setdefault("sources", Sources(base, actives=cfg.sources_actives, larousse=larousse))
     ETAT["sources"].larousse_actif = larousse
     ETAT["carnet"] = Carnet(cfg.carnet_url, cfg.carnet_jeton, base, lire=ETAT.get("carnet_lire"),
-                            ecrire=ETAT.get("carnet_ecrire"))
+                            ecrire=ETAT.get("carnet_ecrire"), paru=ETAT.get("carnet_paru"))
     ETAT["immich"] = Immich(cfg.immich_url, cfg.immich_cle, cfg.data / "photos", lire=ETAT.get("immich_lire"))
     ETAT["ollama"] = Ollama(cfg.ollama_url, lire=ETAT.get("ollama_lire"))
     ouvrier = threading.Thread(target=_ouvrier, daemon=True, name="preparation")
@@ -821,7 +821,11 @@ def _evenements_avant(pid: int, ed: dict) -> list[str]:
     for x in ETAT["base"].recidives(pid):
         if x["id"] != ed["id"] and x["sejour_du"] < ed["sejour_du"] and (x.get("evenement") or "").strip():
             res.append(f"{x['sejour_du'][:4]} : {x['evenement'].strip()}")
-    return res[:5]
+    p = ETAT["base"].personne(pid)               # 0.16 : et ceux rangés sur la fiche de carnet
+    for x in _parus_carnet(p, ed) if p else []:
+        if (x.get("evenement") or "").strip() and (x.get("le") or "") < ed["sejour_du"]:
+            res.append(f"{x['le'][:4]} : {x['evenement'].strip()}")
+    return list(dict.fromkeys(res))[:5]
 
 
 def _deja_paru(pid: int, sauf: int) -> list[str]:
@@ -834,6 +838,12 @@ def _deja_paru(pid: int, sauf: int) -> list[str]:
         res += [ed.get("titre_une") or ""] + list(ed.get("rumeurs") or []) + [ed.get("horoscope") or ""]
         res += [x.get("lettre", "") for x in ed.get("courrier") or []]
         res += [x.get("legende", "") for x in ed["photos"] if not x.get("retiree") and x.get("legende") != R.legende(x)]
+    # 0.16 : et ce qui est rangé sur la fiche de carnet (« Journaux parus »), même si la base de Gazette l'a perdu
+    p = ETAT["base"].personne(pid)
+    cette = ETAT["base"].recidive(sauf) if sauf else None
+    if p:
+        for x in _parus_carnet(p, cette or {}):
+            res += [t.split(" — ")[0] if " / La rédaction" in t else t for t in x.get("textes") or []]
     return [x for x in dict.fromkeys(t.strip() for t in res) if x][:40]
 
 
@@ -980,6 +990,8 @@ def proposer_rumeurs(rid: int, corps: dict = Body(default={})):
     ctxs = [_contexte_photo(ed, x) for x in gardees]          # 0.12 : albums et personnes des photos
     vues = [" — ".join(t for t in (x.get("description", ""), texte_contexte(c)) if t) for x, c in zip(gardees, ctxs)]
     vues.append(ed.get("description_une", ""))
+    for x in _parus_carnet(p, ed)[:3]:          # 0.16 : photos des numéros précédents (fiche de carnet), en clin d'œil
+        vues += [f"(numéro de {x.get('le', '')[:4]}) {d}" for d in (x.get("descriptions") or [])[:3]]
     gens = list(dict.fromkeys(g for c in ctxs for g in c.get("personnes") or []))
     try:
         props = ETAT["ollama"].rumeurs(indices, ed["genre"], _prenom(p), vues, deja=_deja_paru(p["id"], rid), personnes=gens)
@@ -1111,7 +1123,43 @@ def approuver_edition(rid: int):
     ETAT["base"].publier(p["id"], [x["id"] for x in vues if x.get("ancien")])
     ETAT["base"].maj_recidive(rid, etat="approuve", approuve_le=maintenant())
     ETAT["base"].noter("approuver", p["id"], f"La Récidive N° {ed['numero_main'] or ed['numero']}")
-    return {"ok": True}
+    return {"ok": True, "carnet": _envoyer_a_carnet(p, ETAT["base"].recidive(rid))}
+
+
+def _envoyer_a_carnet(p: dict, ed: dict) -> str:
+    """0.16 : à l'approbation, tout ce qui a été saisi et imprimé part sur la fiche de carnet (choix de Julien du
+    17/11 : tout centraliser sur la fiche contact) — indices dans « Pour les journaux », le numéro dans « Journaux
+    parus ». Rend ce qui s'est passé, pour l'écran ; jamais une erreur (l'approbation est faite)."""
+    contact = _contact(p)
+    if not contact.get("personne_id"):
+        return "pas envoyé à carnet : carnet ne trouve pas cette personne"
+    if ETAT["cfg"].lecture_seule:
+        return "pas envoyé à carnet : lecture seule"
+    vues = [x for x in ed["photos"] if not x.get("retiree")]
+    textes = [ed.get("titre_une") or "", *[x.get("legende", "") for x in vues if x.get("legende") != R.legende(x)],
+              *(ed.get("rumeurs") or []), ed.get("horoscope") or "",
+              *[f"{x.get('lettre', '')} — {x.get('signe') or 'Un lecteur'}" + (f" / La rédaction : {x['reponse']}" if x.get("reponse") else "")
+                for x in ed.get("courrier") or [] if x.get("lettre")]]
+    corps = {"journal": "recidive", "numero": ed.get("numero_main") or ed["numero"], "le": ed["sejour_du"],
+             "titre": ed.get("titre_une") or R.titre_une(p["nom"]),
+             "evenement": ed.get("evenement") or "", "indices": ed.get("indices_rumeurs") or "",
+             "descriptions": [d for d in [ed.get("description_une") or "", *[x.get("description", "") for x in vues]] if d.strip()],
+             "textes": [t for t in dict.fromkeys(x.strip() for x in textes) if t]}
+    if ed.get("indices_rumeurs"):
+        _garder_indices(p, ed["indices_rumeurs"])
+    try:
+        ETAT["carnet"].ecrire_paru(contact["personne_id"], f"recidive-{ed['sejour_du']}", corps)
+    except Exception as ex:  # noqa: BLE001 — carnet arrêté, ancienne version, jeton
+        message = f"pas envoyé à carnet ({str(ex).splitlines()[0][:120]})"
+        ETAT["base"].noter("erreur", p["id"], f"La Récidive : {message}"[:200])
+        return message
+    ETAT["base"].noter("carnet", p["id"], f"La Récidive N° {corps['numero']} rangée dans carnet (Journaux parus)")
+    return "rangé sur la fiche de carnet"
+
+
+def _parus_carnet(p: dict, ed: dict) -> list[dict]:
+    """0.16 : les numéros parus rangés sur la fiche de carnet, sauf celui de ce séjour."""
+    return [x for x in (_contact(p).get("parus") or []) if x.get("le") != ed.get("sejour_du")]
 
 
 # ================================================================ Top 5 culturel

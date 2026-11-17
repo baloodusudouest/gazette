@@ -166,7 +166,12 @@
   async function approuver() {
     if (modifie) await enregistrer()
     attente = 'approuver'
-    try { await api.post(`/api/recidives/${id}/approuver`); await lire(); message = 'Édition approuvée : prête à imprimer.'; onchange?.() }
+    try {
+      const r = await api.post(`/api/recidives/${id}/approuver`)
+      await lire()
+      message = `Édition approuvée : prête à imprimer. Carnet : ${r.carnet}.`       // 0.16 : tout part sur la fiche
+      onchange?.()
+    }
     catch (err) { message = err.message }
     attente = ''
   }

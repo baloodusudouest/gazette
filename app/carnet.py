@@ -43,12 +43,24 @@ def _ecrire_http(url: str, jeton: str, personne_id: str, texte: str) -> None:
     r.raise_for_status()
 
 
+def _paru_http(url: str, jeton: str, personne_id: str, cle: str, corps: dict) -> None:
+    r = httpx.put(f"{url}/gazette/personnes/{personne_id}/parus/{cle}", json=corps,
+                  headers={"Authorization": f"Bearer {jeton}"}, timeout=DELAI)
+    if r.status_code == 401:
+        raise RuntimeError("jeton refusé par carnet (MAISON_JETON différent de celui de carnet)")
+    if r.status_code in (404, 405):
+        raise RuntimeError("carnet ne connaît pas cette adresse (carnet 2.30 nécessaire)")
+    r.raise_for_status()
+
+
 class Carnet:
     def __init__(self, url: str, jeton: str, base: Base, lire: Callable[[str, str], list[dict]] | None = None,
-                 ecrire: Callable[[str, str, str, str], None] | None = None):
+                 ecrire: Callable[[str, str, str, str], None] | None = None,
+                 paru: Callable[[str, str, str, str, dict], None] | None = None):
         self.url, self.jeton, self.base = url.rstrip("/"), jeton, base
         self._lire = lire or _lire_http
         self._ecrire = ecrire or _ecrire_http
+        self._paru = paru or _paru_http
         self._liste: list[dict] | None = None
         self._lu_a = 0.0
         self.erreur = ""
@@ -121,6 +133,15 @@ class Carnet:
         for p in self._liste or []:                     # la liste en mémoire suit, sans relire carnet
             if p.get("personne_id") == personne_id:
                 p["journaux"] = texte
+
+    def ecrire_paru(self, personne_id: str, cle: str, corps: dict) -> None:
+        """0.16 : range sur la fiche de carnet (≥ 2.30, « Journaux parus ») un numéro de La Récidive approuvé."""
+        if not self.actif or not personne_id:
+            raise RuntimeError("carnet pas réglé ou personne inconnue de carnet")
+        self._paru(self.url, self.jeton, personne_id, cle, corps)
+        for p in self._liste or []:                     # la liste en mémoire suit, sans relire carnet
+            if p.get("personne_id") == personne_id:
+                p["parus"] = [{"cle": cle, **corps}] + [x for x in p.get("parus") or [] if x.get("cle") != cle]
 
     def etat(self) -> dict:
         liste = self._liste if self._liste is not None else None
