@@ -131,7 +131,8 @@ def sans_numero(texte: str) -> str:
     return NUMERO.sub("", texte or "", count=1).strip()
 
 
-MAXI_LETTRE, MAXI_REPONSE, MAXI_HOROSCOPE = 300, 160, 240    # 0.11 : page 4 (0.11.1 : plus de marge)
+MAXI_LETTRE, MAXI_REPONSE, MAXI_HOROSCOPE = 400, 200, 240    # 0.11 : page 4 (0.11.2 : plus de marge, Julien raccourcit)
+REFUS = re.compile(r"^\W*(je ne peux pas (écrire|répondre|aider|créer|produire)|désolé, (je|mais)|en tant qu|as an ai|sorry|i can)", re.I)
 NOMBRE_LETTRES, NOMBRE_HOROSCOPES = 4, 3
 
 
@@ -206,7 +207,9 @@ def lettres(texte: str, genre: str) -> list[dict]:
         lettre, signe_, reponse = x.get("lettre", ""), x.get("signe", "") or "Un lecteur", x.get("reponse", "")
         if not lettre or len(lettre) > MAXI_LETTRE or len(reponse) > MAXI_REPONSE or len(signe_) > 60:
             continue
-        if INTERDITS.search(lettre + " " + reponse) or (not genre and re.search(r"\b(elle|il)\b", lettre + " " + reponse, re.I)):
+        # 0.11.2 : une lettre est écrite à la première personne (« Je ne peux plus dormir… ») : seul un vrai refus
+        # en tête est écarté, plus « je ne peux » n'importe où
+        if REFUS.search(lettre) or (not genre and re.search(r"\b(elle|il)\b", lettre + " " + reponse, re.I)):
             continue
         if lettre.casefold() not in {y["lettre"].casefold() for y in res}:
             res.append({"lettre": lettre, "signe": signe_, "reponse": reponse})
@@ -308,14 +311,18 @@ class Ollama:
             raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
         indices = " ".join((indices or "").split())[:400]
         res: list[dict] = []
+        brut = ""
         for _ in range(ESSAIS):
-            for x in lettres(self._brut(consigne_courrier(indices, genre, prenom, deja), NOMBRE_LETTRES), genre):
+            brut = self._brut(consigne_courrier(indices, genre, prenom, deja), NOMBRE_LETTRES)
+            for x in lettres(brut, genre):
                 if not proche_de(x["lettre"], deja or []) and x["lettre"].casefold() not in {y["lettre"].casefold() for y in res}:
                     res.append(x)
             if len(res) >= NOMBRE_LETTRES:
                 break
         if not res:
-            raise RuntimeError("L'IA n'a rien proposé d'utilisable : relance, ou écris la lettre toi-même.")
+            extrait = " ".join(brut.split())[:220]
+            raise RuntimeError("L'IA n'a rien proposé d'utilisable : relance, ou écris la lettre toi-même. "
+                               f"Début de sa réponse (pour Claude) : « {extrait or 'vide'} »")
         return res[:NOMBRE_LETTRES]
 
     def horoscope(self, signe_: str, indices: str, genre: str = "", prenom: str = "", deja: list[str] | None = None) -> list[str]:

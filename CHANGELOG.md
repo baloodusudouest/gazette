@@ -1,5 +1,8 @@
 # Journal des versions
 
+## 0.11.2 — 17 novembre 2026
+- **Courrier des lecteurs** (toujours « rien d'utilisable » chez Julien) : le filtre anti-refus écartait toute lettre contenant « je ne peux » ou « désolé », fréquents dans une lettre écrite à la première personne. Seul un vrai refus en tête est maintenant écarté. Lettre 400 et réponse 200 caractères au plus. Si rien n'est gardé, le message montre le début de la réponse de l'IA, pour diagnostiquer.
+
 ## 0.11.1 — 17 novembre 2026
 - **Courrier des lecteurs** : l'IA ne suivait pas le format sur une ligne (« lettre ::: signature ::: réponse ») et rien n'était gardé (« rien proposé d'utilisable », vu chez Julien le 17/11). Consigne à étiquettes (« Lettre : … / Signature : … / Réponse : … ») ; la lecture accepte les deux formes, le gras, les numéros, une signature ou une réponse absente ; un peu plus de place (lettre 300, réponse 160 caractères).
 

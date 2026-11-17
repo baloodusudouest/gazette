@@ -515,3 +515,10 @@ def test_lettres_formats_du_modele():
     assert [x["signe"] for x in ls] == ["Un voisin inquiet", "Une tomate", "Un lecteur"]
     assert ls[0]["lettre"] == "Depuis son départ, mon chat boude. Que faire ?" and ls[2]["reponse"] == ""
     assert O.lettres("Mon chat boude. ::: Un voisin ::: Prolongez.\nLe canapé se plaint | Le canapé | Normal.", "femme")[1]["signe"] == "Le canapé"
+
+
+
+def test_lettre_a_la_premiere_personne_gardee():
+    ls = O.lettres("Lettre : Je ne peux plus dormir depuis son départ, désolé de vous écrire.\nSignature : Le matelas\nRéponse : Courage.", "femme")
+    assert ls and ls[0]["signe"] == "Le matelas"
+    assert O.lettres("Désolé, je ne peux pas écrire ces lettres.", "femme") == []
