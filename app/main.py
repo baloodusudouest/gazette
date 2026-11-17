@@ -1488,8 +1488,11 @@ def verifier_sources():
         r["carnet"] = {"ok": not err, "detail": err or f"{len(liste)} contacts, {sum(1 for p in liste if p.get('naissance'))} avec date complète"}
     else:
         r["carnet"] = {"ok": None, "detail": "pas réglé (MAISON_JETON vide)"}
-    r["immich"] = ETAT["immich"].sonder()
-    r["ia"] = ETAT["ollama"].sonder()
+    for cle in ("immich", "ollama"):        # 0.20.3 : une sonde qui plante ne fait plus tomber toute la vérification
+        try:
+            r["ia" if cle == "ollama" else cle] = ETAT[cle].sonder()
+        except Exception as ex:  # noqa: BLE001
+            r["ia" if cle == "ollama" else cle] = {"ok": False, "detail": f"vérification impossible ({type(ex).__name__} : {ex})"[:200]}
     return r
 
 

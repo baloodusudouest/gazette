@@ -1,5 +1,10 @@
 # Journal des versions
 
+## 0.20.3 — 17 novembre 2026 (vérification de l'IA avec un modèle sans étiquette)
+- **Bug** : avec `GAZETTE_OLLAMA_MODELE=mistral-nemo` (nom sans « : »), « Vérifier les sources » plantait (le nom était coupé sur « : ») et l'écran n'en disait rien : la tuile « IA du PC » restait sur « à vérifier » alors que le PC répondait. Trouvé sur le PC de Julien le 17/11 (journal d'Ollama : `GET /api/tags` du NAS en 200). `ollama.meme_modele` : « mistral-nemo » = « mistral-nemo:latest ».
+- Une sonde qui plante ne fait plus tomber toute la vérification (Immich, IA) ; une vérification qui échoue s'affiche en rouge en haut de Connexion.
+- Tests : 153.
+
 ## 0.20.2 — 17 novembre 2026 (marche à suivre de l'IA du PC)
 - **Connexion › IA du PC** (demande de Julien du 17/11) : le panneau donne maintenant la marche à suivre complète, mise en forme : réglages lus (adresse appelée, modèle, nombre de titres, attente), « Allumer normalement » en cinq étapes, « En cas de problème » (six pannes connues, chacune avec ses gestes et ses commandes PowerShell à copier : PC injoignable, modèle introuvable, `ollama list` refusé dans le terminal, Ollama qui se ferme seul, lenteur, pas de titres), et « Installation » repliée. La dernière erreur s'affiche en tête. `ollama.guide(url)`, rendu par `etat()["guide"]`.
 - Le texte suit le modèle réglé (`GAZETTE_OLLAMA_MODELE`) : il disait toujours `qwen2.5:7b`. Messages d'erreur raccourcis, renvoyant au panneau. Règle de pare-feu proposée limitée au réseau local (`-RemoteAddress LocalSubnet`).

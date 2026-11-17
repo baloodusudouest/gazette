@@ -556,3 +556,15 @@ def test_guide_de_l_ia_du_pc():
     assert "192.0.2.5" in " ".join(f for p in g["pannes"] for f in p["faire"])
     assert ollama.guide("")["reglages"][0]["valeur"].startswith("pas réglée")
     assert ollama.MODELE in ollama.MARCHE
+
+
+def test_modele_sans_etiquette(monkeypatch):
+    """0.20.3 : GAZETTE_OLLAMA_MODELE=mistral-nemo (sans « : ») ne fait plus planter la vérification."""
+    from app import ollama as O
+    assert O.meme_modele("mistral-nemo:latest", "mistral-nemo") and O.meme_modele("qwen2.5:7b", "qwen2.5:7b")
+    assert not O.meme_modele("mistral-nemo:12b", "mistral-nemo") and not O.meme_modele("qwen2.5:14b", "qwen2.5:7b")
+    monkeypatch.setattr(O, "MODELE", "mistral-nemo")
+    ia = O.Ollama("http://pc:11434", lire=lambda chemin, corps: {"models": [{"name": "mistral-nemo:latest"}, {"name": "qwen2.5:7b"}]})
+    assert ia.sonder() == {"ok": True, "detail": "PC prêt (mistral-nemo)"}
+    absent = O.Ollama("http://pc:11434", lire=lambda chemin, corps: {"models": [{"name": "qwen2.5:7b"}]})
+    assert absent.sonder()["ok"] is False

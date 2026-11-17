@@ -27,6 +27,13 @@ MARCHE = (f"Sur le PC : ouvrir Ollama depuis le menu Démarrer (pas depuis un Po
           "Détails et pannes : Connexion › IA du PC.")
 
 
+def meme_modele(nom: str, voulu: str) -> bool:
+    """0.20.3 : « mistral-nemo » et « mistral-nemo:latest » sont le même modèle (Ollama ajoute « :latest » quand
+    aucune étiquette n'est donnée). Avant, un nom sans « : » faisait planter la vérification."""
+    complet = lambda m: m.strip() if ":" in m else m.strip() + ":latest"
+    return complet(nom) == complet(voulu)
+
+
 def guide(url: str) -> dict:
     """0.20.2 : la marche à suivre complète affichée dans Connexion › IA du PC : réglages lus, démarrage normal,
     installation (une seule fois) et pannes connues, avec les commandes PowerShell à copier. Rien de propre à une
@@ -571,7 +578,7 @@ class Ollama:
             self.erreur = str(ex).splitlines()[0][:160] or type(ex).__name__
             return {"ok": False, "detail": f"PC injoignable ({self.erreur})"}
         noms = [m.get("name", "") for m in (r or {}).get("models", [])]
-        if not any(n.split(":")[0] == MODELE.split(":")[0] and n.endswith(MODELE.split(":")[1]) for n in noms):
+        if not any(meme_modele(n, MODELE) for n in noms):
             return {"ok": False, "detail": f"PC joignable, mais le modèle {MODELE} n'y est pas (ollama pull {MODELE})"}
         return {"ok": True, "detail": f"PC prêt ({MODELE})"}
 

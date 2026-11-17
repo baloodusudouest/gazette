@@ -30,13 +30,15 @@
     setTimeout(() => { if (copie === texte) copie = '' }, 2000)
   }
   let attente = $state(false)
+  let erreurVerif = $state('')      // 0.20.3 : une vérification qui échoue le dit (avant : rien)
 
   async function lire() {
     try { e = await api.get('/api/connexion/etat') } catch (err) { if (err.statut === 401) ondeconnecte?.() }
   }
   async function verifier() {
     attente = true
-    try { sonde = await api.post('/api/connexion/verifier') } catch { /* affiché par les voyants */ }
+    erreurVerif = ''
+    try { sonde = await api.post('/api/connexion/verifier') } catch (err) { erreurVerif = `La vérification a échoué : ${err.message}` }
     attente = false
   }
   const services = $derived(e ? [
@@ -123,6 +125,7 @@
   </details>
 {/snippet}
 
+{#if erreurVerif}<p class="mb-4 rounded-xl border border-destructive/60 px-4 py-2 text-sm" role="alert">{erreurVerif}</p>{/if}
 {#if e}
   <div class="grid grid-cols-2 gap-3 md:grid-cols-3" role="group" aria-label="Services">
     {#each services as s}
