@@ -1,5 +1,10 @@
 # Journal des versions
 
+## 0.9.7 — 17 novembre 2026 (les rumeurs de la rédaction)
+- **Page 3 : « Les rumeurs de la rédaction »** pour remplir l'espace libre : l'IA du PC propose 8 rumeurs loufoques et inventées sur l'invité (130 caractères au plus, « Selon nos sources… », jamais méchant, rien de grave), d'après des indices facultatifs (« ce qu'on sait d'elle ») et les descriptions des photos. On en prend jusqu'à 4, on les modifie, ou on écrit les siennes. Imprimées dans un encadré avec « Rumeurs non vérifiées, et pour cause : tout est inventé. » Rien choisi : rien d'imprimé.
+- Le bouton « IA » du haut demande aussi les rumeurs quand aucune n'est encore choisie.
+- Tests : 113.
+
 ## 0.9.6 — 17 novembre 2026 (titres qui ne se chevauchent plus, IA plus piquante)
 - **Gros titre de la une** : interligne élargi (les accents et le surlignage jaune ne chevauchent plus la ligne du dessus) et taille selon la longueur (58 px jusqu'à 22 signes, puis 50, 42, 36 px) ; accroche longue en plus petit. Vu chez Julien le 17/11 (« Soirée apéro : Camille dézingue l'Eurovision Asie »).
 - **IA plus piquante** : consigne de rédacteur en chef de tabloïd (faux scoop, exagération, jeux de mots, vocabulaire people, toujours affectueux, rien de grave ni de vulgaire), cinq exemples du ton voulu, « ne décris pas la photo, transforme-la en scandale », cinq angles différents ; température 1,05, pénalité de répétition. Les propositions trop descriptives (« Camille sourit avec son iPhone ») venaient de l'ancienne consigne.

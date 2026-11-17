@@ -22,6 +22,7 @@ from .regles import MOIS
 MACARONS = {"hg": "en haut à gauche", "hd": "en haut à droite", "bg": "en bas à gauche", "bd": "en bas à droite",
             "aucun": "sans macaron"}      # 0.9.2 : place du macaron « Exclusif ! » sur la photo de la une
 CADRAGES = {"haut": "Rogner : haut", "centre": "centre", "bas": "bas", "entiere": "Photo entière"}    # 0.9.2 : cadrage de chaque photo (par défaut : rognée, garder le haut)
+RUMEURS = 4                   # 0.9.7 : rumeurs loufoques imprimées en page 3, au plus
 PLACES = 7                    # une photo en une (page 1) + six sur la page 2
 ACCENT = "#D7191C"
 

@@ -111,6 +111,11 @@ p,h1,h2,h3{margin:0}
 .chif div{border:3px solid #111;text-align:center;padding:8px 4px;background:#FFE600}
 .chif b{display:block;font-family:'Anton',sans-serif;font-weight:400;font-size:44px;line-height:1}
 .chif span{font-family:'Oswald',sans-serif;font-size:13px;text-transform:uppercase;letter-spacing:.06em}
+.rum{display:flex;flex-direction:column;gap:6px;border:3px solid #111;padding:10px 14px 12px;position:relative}
+.rum h3{font-family:'Anton',sans-serif;font-weight:400;font-size:24px;line-height:1;text-transform:uppercase;background:#111;color:#FFE600;margin:-10px -14px 4px;padding:6px 14px}
+.rum p{font-size:calc(14.5px*var(--k,1));line-height:1.35;padding-left:18px;position:relative}
+.rum p:before{content:"★";position:absolute;left:0;color:var(--a)}
+.rum small{font-family:'Oswald',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#555}
 .note{font-size:calc(14px*var(--k,1));line-height:1.4;border-top:3px double #111;padding-top:8px}
 .lettre p{font-size:calc(17px*var(--k,1));line-height:1.5;margin-bottom:12px;text-wrap:pretty}
 .lettre p.d::first-letter{font-family:'Anton',sans-serif;font-size:62px;line-height:.8;float:left;padding:5px 8px 0 0;color:var(--a)}
@@ -252,8 +257,18 @@ def page3(g: dict) -> str:
 <div><b>{g['n_anc']}</b><span>ancien{'s' if g['n_anc'] > 1 else ''} scandale{'s' if g['n_anc'] > 1 else ''}</span></div>
 <div><b>{absence if absence is not None else '?'}</b><span>jours d'absence</span></div></div>
 <p class="note">{note}</p>
+{_rumeurs(g)}
 <div class="bar">{BARRES}</div>
 </div></section>"""
+
+
+def _rumeurs(g: dict) -> str:
+    """0.9.7 : « Les rumeurs de la rédaction », choisies parmi les propositions de l'IA ou écrites à la main."""
+    rs = [x for x in g.get("rumeurs") or [] if x.strip()]
+    if not rs:
+        return ""
+    return ('<div class="rum" data-bloc="rumeurs"><h3>Les rumeurs de la rédaction</h3>'
+            + "".join(f"<p>{e(x)}</p>" for x in rs) + "<small>Rumeurs non vérifiées, et pour cause : tout est inventé.</small></div>")
 
 
 def page4(g: dict) -> str:
@@ -285,7 +300,7 @@ def document(personne: dict, edition: dict, j: dict, image: Callable[[str], byte
         "n_rec": sum(1 for p in photos if not p.get("ancien")), "n_anc": sum(1 for p in photos if p.get("ancien")),
         "trouvees": int(edition.get("trouvees") or 0), "absence": jours_absence(prec, du),
         "mot": edition.get("mot") or "", "signature": j["signature"], "chez": j["chez"],
-        "titre_une": edition.get("titre_une") or "", "macaron": edition.get("macaron") or "hd",
+        "titre_une": edition.get("titre_une") or "", "rumeurs": edition.get("rumeurs") or [], "macaron": edition.get("macaron") or "hd",
     }
     if mode == "impose":
         corps = f'<div class="feuille">{page4(g)}{page1(g)}</div><div class="feuille">{page2(g)}{page3(g)}</div>'

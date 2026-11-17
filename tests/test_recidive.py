@@ -405,3 +405,25 @@ def test_ia_modele_absent(monter):
     main.ETAT["ollama"] = O.Ollama("http://pc:11434", lire=absent)
     r = c.post(f"/api/recidives/{rid}/proposer", json={"cible": "une", "description": "Camille au marché"})
     assert r.status_code == 503 and "trouve pas le modèle" in r.json()["detail"] and "not found" in r.json()["detail"]
+
+
+
+def test_rumeurs_de_la_redaction(monter):
+    c = monter()
+    lire = _faux_ollama(["1. Selon nos sources, Camille aurait adopté un rond-point.\n2. Il se murmure que Camille parle aux tomates.\n"
+                         "3. Une rumeur beaucoup trop longue pour tenir dans la rubrique, qui dépasse largement les cent trente caractères autorisés par la rédaction en chef\n"
+                         "4. Exclusif : Camille détiendrait le record de siestes assises."])
+    main.ETAT["ollama"] = O.Ollama("http://pc:11434", lire=lire)
+    pid, r = _deux_sejours(c)
+    rid = int(r["invites"][0]["lien"].rsplit("/", 1)[1])
+    props = c.post(f"/api/recidives/{rid}/rumeurs", json={"indices": "aime le jardinage"}).json()["propositions"]
+    assert len(props) == 3 and all(len(x) <= 130 for x in props)
+    assert "aime le jardinage" in lire.appels[-1][1]["prompt"]
+    ed = c.get(f"/api/recidives/{rid}").json()
+    assert ed["edition"]["propositions_rumeurs"] == props and ed["rumeurs_maxi"] == 4
+    assert "rumeurs de la rédaction" not in c.get(f"/api/recidives/{rid}/apercu").text      # rien choisi : rien imprimé
+    c.put(f"/api/recidives/{rid}", json={"rumeurs": props[:2] + ["Ma rumeur à moi", "", "5", "6"]})
+    gardees = c.get(f"/api/recidives/{rid}").json()["edition"]["rumeurs"]
+    assert gardees == props[:2] + ["Ma rumeur à moi", "5"]                                  # 4 au plus, vides retirées
+    html = c.get(f"/api/recidives/{rid}/apercu").text
+    assert "Les rumeurs de la rédaction" in html and "Ma rumeur à moi" in html and "tout est inventé" in html

@@ -708,7 +708,7 @@ def edition(rid: int):
     j = _journal()
     return {"personne": p, "edition": {**ed, "mot_defaut": R.mot_par_defaut(ed["genre"], _prenom(p)),
                                        "accroche_defaut": R.accroche(ed["genre"], _prenom(p))},
-            "signature": j["signature"], "places": R.PLACES, "titre_defaut": R.titre_une(p["nom"]), "macarons": R.MACARONS, "cadrages": R.CADRAGES,
+            "signature": j["signature"], "places": R.PLACES, "titre_defaut": R.titre_une(p["nom"]), "macarons": R.MACARONS, "rumeurs_maxi": R.RUMEURS, "cadrages": R.CADRAGES,
             "ia": {**ETAT["ollama"].etat(), "maxi": MAXI_TITRE}}
 
 
@@ -740,6 +740,10 @@ def enregistrer_edition(rid: int, corps: dict = Body(...)):
         champs["macaron"] = corps["macaron"]
     if "titre_une" in corps:                    # 0.9.1 : vide = « [Nom] revient ! »
         champs["titre_une"] = " ".join(str(corps.get("titre_une") or "").split())[:90]
+    if isinstance(corps.get("rumeurs"), list):     # 0.9.7 : 4 rumeurs au plus, imprimées en page 3
+        champs["rumeurs"] = [" ".join(str(x).split())[:160] for x in corps["rumeurs"] if str(x).strip()][:R.RUMEURS]
+    if "indices_rumeurs" in corps:
+        champs["indices_rumeurs"] = " ".join(str(corps.get("indices_rumeurs") or "").split())[:400]
     if "description_une" in corps:
         champs["description_une"] = " ".join(str(corps.get("description_une") or "").split())[:400]
     if isinstance(corps.get("photos"), list):
@@ -786,6 +790,22 @@ def proposer_titres(rid: int, corps: dict = Body(...)):
         photos = [{**x, "description": description, "propositions": props} if x["id"] == cible else x for x in ed["photos"]]
         ETAT["base"].maj_recidive(rid, photos=photos)
     ETAT["base"].noter("recidive", p["id"], f"{len(props)} titre(s) proposé(s) par l'IA ({'une' if cible == 'une' else 'photo'})")
+    return {"propositions": props}
+
+
+@app.post("/api/recidives/{rid}/rumeurs")
+def proposer_rumeurs(rid: int, corps: dict = Body(default={})):
+    """0.9.7 : {indices} (facultatif, ce qu'on sait de l'invité) → 8 rumeurs loufoques inventées par l'IA du PC, pour la
+    rubrique « Les rumeurs de la rédaction » (page 3). Rien n'est choisi à la place de Julien."""
+    ed, p = _edition_ou_404(rid)
+    indices = " ".join(str(corps.get("indices") or "").split())[:400]
+    vues = [x.get("description", "") for x in ed["photos"] if not x.get("retiree")] + [ed.get("description_une", "")]
+    try:
+        props = ETAT["ollama"].rumeurs(indices, ed["genre"], _prenom(p), vues)
+    except RuntimeError as ex:
+        raise HTTPException(503, str(ex))
+    ETAT["base"].maj_recidive(rid, indices_rumeurs=indices, propositions_rumeurs=props)
+    ETAT["base"].noter("recidive", p["id"], f"{len(props)} rumeur(s) proposée(s) par l'IA")
     return {"propositions": props}
 
 

@@ -27,6 +27,9 @@
   let propsUne = $state([])
   let demande = $state('')          // cible en cours de proposition (« une » ou id de photo)
   let lot = $state(null)            // « IA » sur tout : {fait, total}
+  let rumeurs = $state([])          // 0.9.7 : rumeurs imprimées en page 3
+  let indices = $state('')
+  let propsRumeurs = $state([])
   let modifie = $state(false)
   let message = $state('')
   let attente = $state('')
@@ -46,6 +49,9 @@
       macaron = ed.macaron || 'hd'
       descriptionUne = ed.description_une || ''
       propsUne = ed.propositions_une || []
+      rumeurs = [...(ed.rumeurs || [])]
+      indices = ed.indices_rumeurs || ''
+      propsRumeurs = ed.propositions_rumeurs || []
       modifie = false
       tampon = Date.now()
       clearTimeout(minuteur)
@@ -56,11 +62,23 @@
     }
   }
   function toucher() { modifie = true; message = '' }
-  const corps = () => ({ numero_main: numero === '' ? null : +numero, accroche, mot, titre_une: titreUne, description_une: descriptionUne, macaron,
+  const corps = () => ({ numero_main: numero === '' ? null : +numero, accroche, mot, titre_une: titreUne, description_une: descriptionUne, macaron, rumeurs, indices_rumeurs: indices,
                          photos: photos.map((p) => ({ id: p.id, legende: p.legende, retiree: p.retiree, description: p.description ?? '', cadrage: p.cadrage ?? 'haut' })) })
   // « IA » en haut : 5 titres pour chaque texte décrit (la une et chaque photo gardée), l'un après l'autre
   const cibles = () => [...(descriptionUne.trim().length >= 3 ? ['une'] : []),
                         ...photos.filter((p) => !p.retiree && (p.description ?? '').trim().length >= 3).map((p) => p.id)]
+  async function proposerRumeurs() {
+    demande = 'rumeurs'
+    message = ''
+    try { propsRumeurs = (await api.post(`/api/recidives/${id}/rumeurs`, { indices })).propositions; toucher() }
+    catch (err) { message = err.message }
+    demande = ''
+  }
+  function prendreRumeur(t) {
+    if (rumeurs.includes(t)) return
+    if (rumeurs.length >= d.rumeurs_maxi) { message = `${d.rumeurs_maxi} rumeurs au plus : retires-en une d'abord.`; return }
+    rumeurs = [...rumeurs, t]; toucher()
+  }
   async function proposerTout() {
     const liste = cibles()
     if (!liste.length) { message = 'Décris d\'abord au moins une photo (case « Décris… » sous la une ou sous une photo).'; return }
@@ -71,6 +89,7 @@
       if (message) { echecs++; if (message.includes('injoignable') || message.includes('pas réglée')) break }
       lot = { fait: lot.fait + 1, total: lot.total }
     }
+    if (!echecs && !rumeurs.length) { await proposerRumeurs(); if (message) echecs++ }
     if (!echecs) message = `Propositions prêtes pour ${liste.length} texte${liste.length > 1 ? 's' : ''} : touche celles qui te plaisent, puis Enregistrer.`
     lot = null
   }
@@ -228,6 +247,41 @@
             <li class="text-sm text-muted-foreground">{ed.etat === 'en_preparation' ? 'Recherche des photos dans Immich…' : 'Aucune photo.'}</li>
           {/each}
         </ul>
+      </section>
+
+      <section class="min-w-0 rounded-2xl border bg-card p-4" aria-label="Rumeurs">
+        <h2 class="etiquette mb-2">Page 3 · les rumeurs de la rédaction ({rumeurs.length}/{d.rumeurs_maxi})</h2>
+        <p class="mb-2 text-xs text-muted-foreground">Des scandales loufoques, tout inventés, pour remplir la page 3. Imprimées avec la mention « tout est inventé ».</p>
+        <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Rumeurs imprimées</span>
+        <ul class="mt-1 grid gap-1.5">
+          {#each rumeurs as r, i}
+            <li class="flex min-w-0 items-start gap-2">
+              <textarea rows="2" class="min-w-0 flex-1 rounded-lg border bg-background px-2 py-1 text-sm" maxlength="160" value={r}
+                        oninput={(e) => { rumeurs[i] = e.currentTarget.value; toucher() }} aria-label="Rumeur {i + 1}"></textarea>
+              <button type="button" class="text-xs text-muted-foreground hover:text-foreground" onclick={() => { rumeurs = rumeurs.filter((_, j) => j !== i); toucher() }}>Retirer</button>
+            </li>
+          {:else}<li class="text-sm text-muted-foreground">Aucune : la page 3 garde son espace libre.</li>{/each}
+        </ul>
+        {#if rumeurs.length < d.rumeurs_maxi}
+          <button type="button" class="mt-1 text-xs text-muted-foreground hover:text-foreground" onclick={() => { rumeurs = [...rumeurs, '']; toucher() }}>+ Écrire une rumeur</button>
+        {/if}
+        <div class="mt-3 grid min-w-0 gap-1.5 rounded-lg border border-dashed p-2">
+          <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Pour l'IA (non imprimé)</span>
+          <div class="flex min-w-0 flex-wrap items-center justify-end gap-2">
+            <input class="w-full min-w-0 rounded-lg border bg-background px-2 py-1 text-sm" maxlength="400" bind:value={indices} oninput={toucher}
+                   placeholder="Ce qu'on sait d'elle ou de lui (facultatif) : passions, manies, petites histoires…" aria-label="Indices pour les rumeurs" />
+            <Button size="sm" variant="outline" class="shrink-0" onclick={proposerRumeurs} disabled={demande !== '' || lot !== null}>
+              <Sparkles class="size-3.5" aria-hidden="true" />{demande === 'rumeurs' ? '…' : '8 rumeurs'}</Button>
+          </div>
+          {#if propsRumeurs.length}
+            <ul class="grid gap-1" aria-label="Rumeurs proposées par l'IA">
+              {#each propsRumeurs as t}
+                <li><button type="button" class="w-full rounded-md px-2 py-1 text-left text-sm break-words whitespace-normal hover:bg-secondary disabled:opacity-40"
+                            disabled={rumeurs.includes(t)} onclick={() => prendreRumeur(t)}>+ {t}</button></li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
       </section>
 
       <section class="min-w-0 rounded-2xl border bg-card p-4" aria-label="Droit de réponse">

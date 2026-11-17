@@ -77,9 +77,9 @@ class Base:
         colonnes = {l["name"] for l in self._c.execute("PRAGMA table_info(recidives)")}
         if "macaron" not in colonnes:            # 0.9.2 : place du macaron « Exclusif ! » sur la photo de la une
             self._c.execute("ALTER TABLE recidives ADD COLUMN macaron TEXT NOT NULL DEFAULT 'hd'")
-        for col in ("titre_une", "description_une", "propositions_une"):
+        for col in ("titre_une", "description_une", "propositions_une", "rumeurs", "indices_rumeurs", "propositions_rumeurs"):
             if col not in colonnes:
-                self._c.execute(f"ALTER TABLE recidives ADD COLUMN {col} TEXT NOT NULL DEFAULT '{'[]' if col == 'propositions_une' else ''}'")
+                self._c.execute(f"ALTER TABLE recidives ADD COLUMN {col} TEXT NOT NULL DEFAULT '{'[]' if col in ('propositions_une', 'rumeurs', 'propositions_rumeurs') else ''}'")
         self._c.commit()
         self._c.execute("PRAGMA foreign_keys=ON")
 
@@ -230,6 +230,8 @@ class Base:
         d = dict(l)
         d["photos"] = json.loads(d["photos"] or "[]")
         d["propositions_une"] = json.loads(d.get("propositions_une") or "[]")
+        d["rumeurs"] = json.loads(d.get("rumeurs") or "[]")                      # 0.9.7 : rumeurs de la page 3
+        d["propositions_rumeurs"] = json.loads(d.get("propositions_rumeurs") or "[]")
         d["precedent"] = json.loads(d["precedent"] or "{}") or None
         d["manque_scandale"], d["tag_absent"] = bool(d["manque_scandale"]), bool(d["tag_absent"])
         return d
@@ -257,7 +259,7 @@ class Base:
             return self._c.execute("SELECT id FROM recidives WHERE personne_id = ? AND sejour_du = ?", (pid, du)).fetchone()["id"]
 
     def maj_recidive(self, rid: int, **champs) -> None:
-        for k in ("photos", "precedent", "propositions_une"):
+        for k in ("photos", "precedent", "propositions_une", "rumeurs", "propositions_rumeurs"):
             if k in champs:
                 champs[k] = json.dumps(champs[k] or ({} if k == "precedent" else []), ensure_ascii=False)
         for k in ("manque_scandale", "tag_absent"):
