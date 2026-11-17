@@ -278,3 +278,22 @@ def test_archives_et_simulation(navigateur, adresse, taille):
     page.get_by_role("heading", name="Simuler un journal").wait_for()
     sans_debordement(page)
     assert erreurs == []
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_connexion_ia_du_pc(navigateur, adresse, taille):
+    """0.20.2 : la tuile « IA du PC » ouvre la marche à suivre : réglages, démarrage normal, pannes avec commandes."""
+    page, erreurs = ouvrir(navigateur, adresse, taille, "#/connexion")
+    page.get_by_role("button", name="IA du PC").click()
+    panneau = page.get_by_role("region", name="IA du PC")
+    panneau.get_by_role("heading", name="Allumer normalement").wait_for()
+    panneau.get_by_role("heading", name="En cas de problème").wait_for()
+    panneau.get_by_text("PC joignable, mais le modèle").click()            # une panne se déplie
+    panneau.get_by_text("ollama list").first.wait_for()
+    panneau.get_by_text("Installation (une seule fois").click()
+    panneau.get_by_text("setx OLLAMA_HOST 0.0.0.0").wait_for()
+    panneau.scroll_into_view_if_needed()
+    if __import__("os").environ.get("CAPTURES"):
+        page.screenshot(path=f"{__import__('os').environ['CAPTURES']}/gazette-ia-{taille}.png", full_page=True)
+    sans_debordement(page)
+    assert erreurs == []

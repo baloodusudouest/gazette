@@ -22,11 +22,83 @@ NOMBRE = 5
 ESSAIS = 3
 DELAI = 120               # secondes : le modèle doit parfois se charger sur la carte graphique
 
-MARCHE = ("Sur le PC : ouvrir Ollama (icône près de l'horloge). Une seule fois : dans PowerShell, "
-          "« setx OLLAMA_HOST 0.0.0.0 » puis quitter et rouvrir Ollama, et autoriser le port 11434 dans le pare-feu "
-          "(« New-NetFirewallRule -DisplayName Ollama -Direction Inbound -Protocol TCP -LocalPort 11434 -Action Allow », "
-          "en administrateur) ; le modèle doit être là (« ollama pull qwen2.5:7b »). Dans la stack : "
-          "GAZETTE_OLLAMA_URL=http://<adresse du PC>:11434.")
+MARCHE = (f"Sur le PC : ouvrir Ollama depuis le menu Démarrer (pas depuis un PowerShell administrateur), attendre "
+          f"10 secondes, puis Connexion › Vérifier les sources. Le modèle {MODELE} doit être dans « ollama list ». "
+          "Détails et pannes : Connexion › IA du PC.")
+
+
+def guide(url: str) -> dict:
+    """0.20.2 : la marche à suivre complète affichée dans Connexion › IA du PC : réglages lus, démarrage normal,
+    installation (une seule fois) et pannes connues, avec les commandes PowerShell à copier. Rien de propre à une
+    machine (ni dossier, ni nom) : l'adresse vient de GAZETTE_OLLAMA_URL, le modèle de GAZETTE_OLLAMA_MODELE."""
+    adresse = url or "http://<adresse du PC>:11434"
+    journal = '"$env:LOCALAPPDATA\\Ollama\\server.log"'
+    return {
+        "reglages": [
+            {"nom": "Adresse appelée", "valeur": url or "pas réglée (GAZETTE_OLLAMA_URL vide)"},
+            {"nom": "Modèle", "valeur": MODELE + ("" if os.environ.get("GAZETTE_OLLAMA_MODELE", "").strip()
+                                                  else " (par défaut ; GAZETTE_OLLAMA_MODELE pour en changer)")},
+            {"nom": "Propositions", "valeur": f"{NOMBRE} titres de {MAXI} caractères au plus, {ESSAIS} essais"},
+            {"nom": "Attente", "valeur": f"{DELAI} secondes au plus par demande"},
+        ],
+        "allumer": [
+            "Allumer le PC (ou le sortir de veille).",
+            "Ouvrir Ollama depuis le menu Démarrer. Pas depuis un PowerShell administrateur : lancé de là, il ne lit "
+            "pas tes réglages (dossier des modèles, écoute du réseau). L'icône du lama apparaît près de l'horloge.",
+            "Attendre une dizaine de secondes, puis Connexion › Vérifier les sources : la tuile passe au vert.",
+            "La première demande charge le modèle sur la carte graphique (10 à 30 secondes) ; il reste ensuite prêt 5 minutes.",
+            "En fin de soirée : rien à faire. Ollama peut rester ouvert ; PC éteint, Gazette ne propose rien et on écrit les titres soi-même.",
+        ],
+        "une_fois": [
+            {"texte": "Ollama écoute le réseau de la maison (PowerShell normal), puis quitter et rouvrir Ollama :",
+             "commande": "setx OLLAMA_HOST 0.0.0.0"},
+            {"texte": "Port 11434 ouvert au seul réseau local (PowerShell administrateur) :",
+             "commande": "New-NetFirewallRule -DisplayName Ollama -Direction Inbound -Protocol TCP -LocalPort 11434 "
+                         "-RemoteAddress LocalSubnet -Action Allow"},
+            {"texte": "Si les modèles sont rangés ailleurs que dans le dossier habituel (PowerShell normal), puis "
+                      "quitter et rouvrir Ollama :",
+             "commande": 'setx OLLAMA_MODELS "X:\\chemin\\vers\\models"'},
+            {"texte": "Le modèle utilisé :", "commande": f"ollama pull {MODELE}"},
+            {"texte": "L'adresse du PC fixée dans la box (bail réservé), sinon elle peut changer et "
+                      "GAZETTE_OLLAMA_URL ne la trouve plus.", "commande": ""},
+        ],
+        "pannes": [
+            {"signe": "« PC injoignable » (connexion refusée, délai dépassé)",
+             "faire": ["Le PC est-il allumé et sorti de veille ? Ollama est-il ouvert (icône près de l'horloge) ?",
+                       f"Depuis un téléphone sur le Wi-Fi de la maison, ouvrir {adresse} : la page doit dire « Ollama is running ».",
+                       "Rien ne s'affiche : comparer l'adresse du PC (première commande) à celle appelée ; si elle a changé, "
+                       "corriger GAZETTE_OLLAMA_URL ou réserver l'adresse dans la box. Puis vérifier que la règle "
+                       "de pare-feu « Ollama » existe et est active (seconde commande, True)."],
+             "commandes": ["ipconfig | findstr IPv4", "Get-NetFirewallRule -DisplayName Ollama | Select-Object DisplayName, Enabled"]},
+            {"signe": f"« PC joignable, mais le modèle {MODELE} n'y est pas »",
+             "faire": ["Ollama lit sans doute un autre dossier de modèles. La première commande montre celui lu au démarrage.",
+                       "Mauvais dossier : quitter Ollama (clic droit sur l'icône › Quit) et le rouvrir depuis le menu Démarrer. "
+                       "S'il reste faux : Settings d'Ollama › Model location, ou OLLAMA_MODELS (voir « Installation »).",
+                       f"La deuxième doit lister {MODELE} ; s'il manque vraiment : « ollama pull {MODELE} »."],
+             "commandes": [f"Select-String -Path {journal} -Pattern \"OLLAMA_MODELS:[^ ]*\" | Select-Object -Last 1",
+                           '$env:OLLAMA_HOST="127.0.0.1"; ollama list']},
+            {"signe": "Dans le terminal, « ollama list » répond « connexion refusée »",
+             "faire": ["Avec OLLAMA_HOST=0.0.0.0, la commande cherche Ollama à une adresse qui ne lui convient pas : taper "
+                       "d'abord la première ligne dans ce terminal.",
+                       "Si l'erreur reste, Ollama n'est pas lancé : la seconde commande ne montre aucun « ollama »."],
+             "commandes": ['$env:OLLAMA_HOST="127.0.0.1"', "Get-Process ollama* | Select-Object Name, Id"]},
+            {"signe": "Ollama se ferme tout seul après son ouverture",
+             "faire": ["La fin du journal dit pourquoi : disque des modèles absent, dossier refusé, carte graphique…",
+                       "Il démarre bien quand on y lit « Listening on [::]:11434 »."],
+             "commandes": [f"Get-Content {journal} -Tail 15"]},
+            {"signe": "Très lent (plus d'une minute)",
+             "faire": ["Si le journal dit « AMD driver is too old », Ollama passe par Vulkan, plus lent : mettre à jour le "
+                       "pilote AMD (Adrenalin), puis rouvrir Ollama.",
+                       f"Gazette attend {DELAI} secondes au plus ; au-delà, elle abandonne et le dit."],
+             "commandes": [f"Select-String -Path {journal} -Pattern \"inference compute|driver\" | Select-Object -Last 2"]},
+            {"signe": "Aucun titre proposé, ou trop peu",
+             "faire": [f"Le code écarte les titres trop longs (plus de {MAXI} caractères), en anglais, moqueurs sur le physique "
+                       f"ou déjà parus, et redemande {ESSAIS} fois. Relancer, ou écrire le titre soi-même : la légende de "
+                       "gabarit reste toujours."],
+             "commandes": []},
+        ],
+    }
+
 
 INTERDITS = re.compile(r"\b(je ne peux|désolé|en tant qu|as an ai|sorry|i can)\b", re.I)
 ANGLAIS = re.compile(r"\b(the|and|with|her|his|is|of|you)\b", re.I)
@@ -504,4 +576,5 @@ class Ollama:
         return {"ok": True, "detail": f"PC prêt ({MODELE})"}
 
     def etat(self) -> dict:
-        return {"regle": self.actif, "erreur": self.erreur, "modele": MODELE, "maxi": MAXI, "marche": MARCHE}
+        return {"regle": self.actif, "erreur": self.erreur, "modele": MODELE, "maxi": MAXI, "marche": MARCHE,
+                "guide": guide(self.url)}

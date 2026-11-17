@@ -352,7 +352,7 @@ def test_ia_injoignable_ou_pas_reglee(monter):
         raise ConnectionError("Connection refused")
     main.ETAT["ollama"] = O.Ollama("http://pc:11434", lire=panne)
     r = c.post(f"/api/recidives/{rid}/proposer", json={"cible": "une", "description": "Camille au marché"})
-    assert r.status_code == 503 and "OLLAMA_HOST" in r.json()["detail"]
+    assert r.status_code == 503 and "Connexion › IA du PC" in r.json()["detail"]
     assert c.post("/api/connexion/verifier").json()["ia"]["ok"] is False
     main.ETAT["ollama"] = O.Ollama("http://pc:11434", lire=_faux_ollama(["1. Camille fait son marché en douce"]))
     props = c.post(f"/api/recidives/{rid}/proposer", json={"cible": "une", "description": "Camille au marché"}).json()["propositions"]
@@ -544,3 +544,15 @@ def test_code_barres_de_la_page_4(monter):
     assert C.svg("Reviens vite, Camille !") in html and html.count('class="cb"') == 1      # page 4 seulement
     c.put(f"/api/recidives/{rid}", json={"code_barres": "Le rosé t'attend"})
     assert C.svg("Le rosé t'attend") in c.get(f"/api/recidives/{rid}/apercu").text
+
+
+def test_guide_de_l_ia_du_pc():
+    """0.20.2 : la marche à suivre suit le modèle réglé et l'adresse appelée ; rien de propre à une machine."""
+    from app import ollama
+    g = ollama.guide("http://192.0.2.5:11434")
+    assert g["reglages"][0]["valeur"] == "http://192.0.2.5:11434"
+    assert any(ollama.MODELE in p["signe"] for p in g["pannes"])
+    assert any("ollama pull " + ollama.MODELE == u["commande"] for u in g["une_fois"])
+    assert "192.0.2.5" in " ".join(f for p in g["pannes"] for f in p["faire"])
+    assert ollama.guide("")["reglages"][0]["valeur"].startswith("pas réglée")
+    assert ollama.MODELE in ollama.MARCHE

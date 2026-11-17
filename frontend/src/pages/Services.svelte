@@ -19,6 +19,16 @@
   let e = $state(null)
   let sonde = $state(null)
   let choisi = $state(null)
+  let copie = $state('')            // 0.20.2 : la commande qui vient d'être copiée (Connexion › IA du PC)
+  async function copier(texte) {
+    try { await navigator.clipboard.writeText(texte); copie = texte }
+    catch {           // http sans presse-papiers : on sélectionne la commande, il reste Ctrl+C
+      const el = [...document.querySelectorAll('code[data-commande]')].find((c) => c.textContent === texte)
+      if (el) { const r = document.createRange(); r.selectNodeContents(el); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r) }
+      copie = ''
+    }
+    setTimeout(() => { if (copie === texte) copie = '' }, 2000)
+  }
   let attente = $state(false)
 
   async function lire() {
@@ -37,7 +47,7 @@
     { cle: 'ha', nom: 'Home Assistant', icone: House, cache: null, lit: 'reçoit les séjours sur /ha/sejour (jeton GAZETTE_JETON_HA) ; HA lit /ha/etat', ecrit: 'rien' },
     { cle: 'carnet', nom: 'Carnet', icone: BookUser, cache: null, lit: 'noms et dates de naissance sur /gazette/personnes (jeton commun MAISON_JETON) : fiche créée seule pour un invité connu, saisie assistée, dates comparées', ecrit: 'rien' },
     { cle: 'immich', nom: 'Immich', icone: Images, cache: null, lit: "La Récidive : photos de l'invité entre deux séjours, photos taguées « scandale », aperçus (clé GAZETTE_IMMICH_CLE : asset.read, asset.view, tag.read)", ecrit: 'rien' },
-    { cle: 'ia', nom: 'IA du PC', icone: Sparkles, cache: null, lit: `La Récidive : envoie la description écrite d'une photo (jamais la photo) à Ollama sur le PC, reçoit 5 titres de ${e.ia.maxi} caractères au plus (${e.ia.modele}). ${e.ia.marche}`, ecrit: 'rien' },
+    { cle: 'ia', nom: 'IA du PC', icone: Sparkles, cache: null, lit: `Ollama sur le PC (${e.ia.modele}) : il reçoit des descriptions écrites et les indices de la fiche (jamais une photo, jamais une date de naissance) et rend des propositions (titres de ${e.ia.maxi} caractères au plus, légendes, rumeurs, courrier, horoscope, aides de la Gazette).`, ecrit: 'rien' },
     { cle: 'rendu', nom: 'Rendu PDF', icone: FileText, cache: null, lit: 'Chromium dans le conteneur, polices embarquées', ecrit: 'rien' },
   ] : [])
   function voyant(s) {
@@ -73,6 +83,46 @@
   <Button variant="outline" onclick={verifier} disabled={attente}>{attente ? 'Vérification…' : 'Vérifier les sources'}</Button>
 </header>
 
+{#snippet commande(texte)}
+  <span class="mt-1 flex items-start gap-2">
+    <code data-commande class="min-w-0 flex-1 whitespace-pre-wrap break-all rounded-lg bg-background/70 px-2.5 py-1.5 font-mono text-xs">{texte}</code>
+    <button type="button" class="shrink-0 rounded-lg border px-2 py-1 text-xs text-muted-foreground hover:text-foreground" onclick={() => copier(texte)}
+            aria-label="Copier la commande">{copie === texte ? 'Copié' : 'Copier'}</button>
+  </span>
+{/snippet}
+
+{#snippet guideIa(g)}
+  {#if e.ia.erreur}<p class="mt-3 rounded-xl border border-destructive/60 px-3 py-2 text-sm" role="alert"><span class="text-muted-foreground">Dernière erreur :</span> {e.ia.erreur}</p>{/if}
+  <dl class="mt-4 grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
+    {#each g.reglages as r}<dt class="text-muted-foreground">{r.nom}</dt><dd class="break-all">{r.valeur}</dd>{/each}
+  </dl>
+
+  <h3 class="mt-5 font-semibold">Allumer normalement</h3>
+  <ol class="mt-2 grid list-decimal gap-1.5 pl-5 text-sm">
+    {#each g.allumer as etape}<li>{etape}</li>{/each}
+  </ol>
+
+  <h3 class="mt-5 font-semibold">En cas de problème</h3>
+  <p class="text-xs text-muted-foreground">Les commandes se tapent dans PowerShell sur le PC (menu Démarrer › PowerShell).</p>
+  <div class="mt-2 grid gap-2">
+    {#each g.pannes as p}
+      <details class="rounded-xl border px-3 py-2 open:bg-background/40">
+        <summary class="cursor-pointer text-sm font-medium">{p.signe}</summary>
+        <ul class="mt-2 grid list-disc gap-1 pl-5 text-sm">{#each p.faire as f}<li>{f}</li>{/each}</ul>
+        {#each p.commandes as c}{@render commande(c)}{/each}
+      </details>
+    {/each}
+  </div>
+
+  <details class="mt-4 rounded-xl border px-3 py-2">
+    <summary class="cursor-pointer text-sm font-medium">Installation (une seule fois, déjà faite)</summary>
+    <ol class="mt-2 grid list-decimal gap-2 pl-5 text-sm">
+      {#each g.une_fois as u}<li>{u.texte}{#if u.commande}{@render commande(u.commande)}{/if}</li>{/each}
+    </ol>
+    <p class="mt-2 text-xs text-muted-foreground">Dans la stack : GAZETTE_OLLAMA_URL = adresse du PC et port 11434 ; GAZETTE_OLLAMA_MODELE pour changer de modèle (facultatif).</p>
+  </details>
+{/snippet}
+
 {#if e}
   <div class="grid grid-cols-2 gap-3 md:grid-cols-3" role="group" aria-label="Services">
     {#each services as s}
@@ -94,6 +144,7 @@
       <h2 class="text-lg font-semibold">{s.nom}</h2>
       <p class="mt-2 text-sm"><span class="text-muted-foreground">Lit :</span> {s.lit}</p>
       <p class="text-sm"><span class="text-muted-foreground">Écrit :</span> {s.ecrit}</p>
+      {#if s.cle === 'ia' && e.ia.guide}{@render guideIa(e.ia.guide)}{/if}
       {#if s.cle === 'ha' && e.ha.dernier_corps}<p class="mt-2 text-sm text-muted-foreground">Dernier appel : {e.ha.dernier_corps}</p>{/if}
     </section>
   {/each}

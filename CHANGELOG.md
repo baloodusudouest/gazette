@@ -1,5 +1,10 @@
 # Journal des versions
 
+## 0.20.2 — 17 novembre 2026 (marche à suivre de l'IA du PC)
+- **Connexion › IA du PC** (demande de Julien du 17/11) : le panneau donne maintenant la marche à suivre complète, mise en forme : réglages lus (adresse appelée, modèle, nombre de titres, attente), « Allumer normalement » en cinq étapes, « En cas de problème » (six pannes connues, chacune avec ses gestes et ses commandes PowerShell à copier : PC injoignable, modèle introuvable, `ollama list` refusé dans le terminal, Ollama qui se ferme seul, lenteur, pas de titres), et « Installation » repliée. La dernière erreur s'affiche en tête. `ollama.guide(url)`, rendu par `etat()["guide"]`.
+- Le texte suit le modèle réglé (`GAZETTE_OLLAMA_MODELE`) : il disait toujours `qwen2.5:7b`. Messages d'erreur raccourcis, renvoyant au panneau. Règle de pare-feu proposée limitée au réseau local (`-RemoteAddress LocalSubnet`).
+- Tests : 151 (guide, écran du panneau sur PC et iPhone).
+
 ## 0.20.1 — 17 novembre 2026 (tuile « IA du PC »)
 - **Connexion, tuile « IA du PC »** : avant « Vérifier les sources », elle disait « rien de lu pour l'instant » avec un voyant gris, même réglée. Elle dit maintenant « réglée, à vérifier (PC allumé ?) » (ou « pas réglée : écris les titres toi-même », ou l'erreur de la dernière demande), avec le voyant qui va avec. Le texte était rangé dans `voyant()` au lieu de `detail()` (`pages/Services.svelte`). Relevé par Julien le 17/11 en branchant Ollama.
 
