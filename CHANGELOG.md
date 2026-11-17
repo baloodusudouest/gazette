@@ -1,5 +1,10 @@
 # Journal des versions
 
+## 0.20.0 — 17 novembre 2026 (archives ; simuler un journal)
+- **Archives** (nouvel onglet, demande de Julien du 17/11) : chaque Gazette et chaque Récidive approuvée dont le séjour est fini y est rangée, par année, avec recherche par nom, filtre par année et par journal, lecture et PDF (à imprimer, lecture). Elles quittent la liste Livrets (« n anciens numéros rangés dans les Archives »).
+- **Simuler un journal** (Réglages, tout en haut) : choisir une personne et La Gazette ou La Récidive → un numéro d'essai à part, ouvert dans l'éditeur. Gazette d'essai : fiche copiée « (essai) », le vrai livret n'est pas touché. Récidive d'essai : date du jour, photos depuis le séjour précédent (ou la dernière année). Un essai ne compte jamais (N°, déjà paru, scandales publiés, carnet, archives, Home Assistant, À traiter) ; bandeau « essai » et « Supprimer l'essai » dans l'éditeur, liste des essais en cours dans Réglages.
+- Tests : 149.
+
 ## 0.19.0 — 17 novembre 2026 (livre d'or ; allusions permises)
 - **Livre d'or** (demande de Julien du 17/11) : les mots que la personne a laissés dans le livre d'or de la maison (carte de Home Assistant → fiche de carnet ≥ 2.31) sont donnés à l'IA pour les rumeurs, le courrier des lecteurs et le droit de réponse de La Récidive (les trois derniers mots). Jamais imprimés tels quels ; jamais mêlés aux indices gardés dans « Pour les journaux ».
 - **Allusions coquines permises** (choix de Julien du 17/11) : le filtre de la 0.18.1 n'écarte plus que les moqueries sur l'apparence ; les consignes disent « allusions coquines permises, avec esprit ».

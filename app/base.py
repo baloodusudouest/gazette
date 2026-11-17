@@ -69,12 +69,16 @@ class Base:
         """)
         # 0.9 : séjours d'avant Gazette notés sur la fiche (nombre et date d'arrivée du dernier)
         colonnes = {l["name"] for l in self._c.execute("PRAGMA table_info(personnes)")}
+        if "essai_de" not in colonnes:           # 0.20 : fiche d'essai (Réglages › Simuler) : l'id de la vraie fiche
+            self._c.execute("ALTER TABLE personnes ADD COLUMN essai_de INTEGER NOT NULL DEFAULT 0")
         if "sejours_avant" not in colonnes:
             self._c.execute("ALTER TABLE personnes ADD COLUMN sejours_avant INTEGER NOT NULL DEFAULT 0")
         if "dernier_avant" not in colonnes:
             self._c.execute("ALTER TABLE personnes ADD COLUMN dernier_avant TEXT NOT NULL DEFAULT ''")
         # 0.9.1 : gros titre de la une choisi ou écrit, description et propositions de l'IA
         colonnes = {l["name"] for l in self._c.execute("PRAGMA table_info(recidives)")}
+        if "essai" not in colonnes:              # 0.20 : édition d'essai (Réglages › Simuler), jamais comptée
+            self._c.execute("ALTER TABLE recidives ADD COLUMN essai INTEGER NOT NULL DEFAULT 0")
         if "valides" not in colonnes:            # 0.17 : éléments validés à la relecture
             self._c.execute("ALTER TABLE recidives ADD COLUMN valides TEXT NOT NULL DEFAULT '{}'")
         if "evenement" not in colonnes:          # 0.15 : événement du séjour (pour l'horoscope, gardé pour les suivants)
@@ -104,9 +108,20 @@ class Base:
         d["alias"] = json.loads(d["alias"] or "[]")
         return d
 
-    def personnes(self) -> list[dict]:
+    def personnes(self, essais: bool = False) -> list[dict]:
+        """Les fiches ; 0.20 : sans les fiches d'essai (Réglages › Simuler), sauf `essais`."""
         with self._verrou:
-            return [self._personne(l) for l in self._c.execute("SELECT * FROM personnes ORDER BY nom COLLATE NOCASE")]
+            return [self._personne(l) for l in self._c.execute(
+                "SELECT * FROM personnes" + ("" if essais else " WHERE essai_de = 0") + " ORDER BY nom COLLATE NOCASE")]
+
+    def creer_essai(self, vraie: dict) -> int:
+        """0.20 : une fiche d'essai copiée de la vraie (même date de naissance), pour simuler sa Gazette sans toucher au
+        vrai livret ; jamais reliée à un invité de Home Assistant (aucun alias, nom marqué « (essai) »)."""
+        pid = self.creer_personne(f"{vraie['nom']} (essai)", vraie.get("prenom", ""), vraie["naissance"], vraie.get("pays", "France"))
+        with self._verrou, self._c:
+            self._c.execute("UPDATE personnes SET essai_de = ? WHERE id = ?", (vraie["id"], pid))
+            self._c.execute("UPDATE invites SET personne_id = NULL WHERE personne_id = ?", (pid,))
+        return pid
 
     def personne(self, pid: int) -> dict | None:
         with self._verrou:
@@ -153,7 +168,7 @@ class Base:
         if not c:
             return None
         exacts, prenoms = [], []
-        for p in self.personnes():
+        for p in self.personnes():              # 0.20 : jamais une fiche d'essai
             noms = [p["nom"], *p["alias"]]
             if any(cle_nom(n) == c for n in noms):
                 exacts.append(p)
@@ -273,14 +288,28 @@ class Base:
 
     def recidive_de(self, pid: int, du: str) -> dict | None:
         with self._verrou:
-            l = self._c.execute("SELECT * FROM recidives WHERE personne_id = ? AND sejour_du = ?", (pid, du)).fetchone()
+            l = self._c.execute("SELECT * FROM recidives WHERE personne_id = ? AND sejour_du = ? AND essai = 0", (pid, du)).fetchone()
         return self._recidive(l) if l else None
 
-    def recidives(self, pid: int | None = None) -> list[dict]:
+    def recidives(self, pid: int | None = None, essais: bool = False) -> list[dict]:
+        """0.20 : sans les éditions d'essai, sauf `essais` (alors seulement elles)."""
+        filtre = ["essai = 1" if essais else "essai = 0"] + (["personne_id = ?"] if pid else [])
         with self._verrou:
-            ls = self._c.execute("SELECT * FROM recidives" + (" WHERE personne_id = ?" if pid else "") + " ORDER BY sejour_du DESC",
+            ls = self._c.execute("SELECT * FROM recidives WHERE " + " AND ".join(filtre) + " ORDER BY sejour_du DESC",
                                  (pid,) if pid else ()).fetchall()
         return [self._recidive(l) for l in ls]
+
+    def creer_essai_recidive(self, pid: int, numero: int) -> int:
+        """0.20 : une édition d'essai de La Récidive (date du jour, ou la veille si une vraie occupe déjà ce jour)."""
+        from datetime import timedelta
+        with self._verrou, self._c:
+            for recul in range(60):
+                du = (date.today() - timedelta(days=recul)).isoformat()
+                if not self._c.execute("SELECT 1 FROM recidives WHERE personne_id = ? AND sejour_du = ?", (pid, du)).fetchone():
+                    break
+            cur = self._c.execute("INSERT INTO recidives (personne_id, sejour_du, numero, essai, modifie_le) VALUES (?,?,?,1,?)",
+                                  (pid, du, numero, maintenant()))
+            return cur.lastrowid
 
     def creer_recidive(self, pid: int, du: str, numero: int) -> int:
         with self._verrou, self._c:

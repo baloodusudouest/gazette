@@ -81,13 +81,61 @@
     } catch (err) { rest.message = err.message }
     rest.attente = false
   }
-  onMount(lire)
+  // 0.20 : simuler la Gazette ou La Récidive d'une personne (numéro d'essai à part, jamais compté)
+  let sim = $state({ personnes: [], essais: [], personne: '', journal: 'recidive', message: '', attente: false })
+  async function lireEssais() {
+    try {
+      const [l, e] = await Promise.all([api.get('/api/livrets'), api.get('/api/essais')])
+      sim.personnes = l.livrets.map((x) => ({ id: x.id, nom: x.nom }))
+      sim.essais = e.essais
+    } catch { /* déconnecté */ }
+  }
+  async function simuler() {
+    sim.attente = true; sim.message = ''
+    try { location.hash = (await api.post('/api/essais', { personne_id: +sim.personne, journal: sim.journal })).lien }
+    catch (err) { sim.message = err.message }
+    sim.attente = false
+  }
+  async function supprimerEssai(x) {
+    await api.del(`/api/essais/${x.journal}/${x.id}`)
+    await lireEssais()
+  }
+  onMount(() => { lire(); lireEssais() })
 </script>
 
 <header class="mb-5">
   <p class="etiquette">Gazette</p>
   <h1 class="titre">Réglages</h1>
 </header>
+
+<section class="mb-4 rounded-2xl border border-primary/50 bg-card p-5" aria-label="Simuler">
+  <h2 class="text-lg font-semibold">Simuler un journal</h2>
+  <p class="mt-1 text-sm text-muted-foreground">Pour essayer les réglages : un numéro d'essai à part pour la personne choisie. Il ne compte jamais (N°, déjà paru, carnet, archives, Home Assistant) et se supprime d'un bouton.</p>
+  <div class="mt-3 flex flex-wrap items-center gap-2">
+    <select class="h-10 min-w-0 flex-1 rounded-lg border bg-background px-2 text-sm sm:max-w-xs" bind:value={sim.personne} aria-label="Personne">
+      <option value="">Choisir une personne…</option>
+      {#each sim.personnes as p}<option value={p.id}>{p.nom}</option>{/each}
+    </select>
+    <div class="flex gap-1.5" role="radiogroup" aria-label="Journal à simuler">
+      {#each [['gazette', 'La Gazette'], ['recidive', 'La Récidive']] as [cle, nom]}
+        <button type="button" role="radio" aria-checked={sim.journal === cle} onclick={() => (sim.journal = cle)}
+                class="rounded-full border px-3 py-1.5 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground">{nom}</button>
+      {/each}
+    </div>
+    <Button onclick={simuler} disabled={!sim.personne || sim.attente}>{sim.attente ? 'Création…' : 'Simuler'}</Button>
+  </div>
+  {#if sim.message}<p class="mt-2 text-sm text-destructive" role="alert">{sim.message}</p>{/if}
+  {#if sim.essais.length}
+    <ul class="mt-3 grid gap-1.5 text-sm" aria-label="Essais en cours">
+      {#each sim.essais as x (x.journal + x.id)}
+        <li class="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-1.5">
+          <a class="hover:text-primary" href={x.lien}>{x.journal === 'recidive' ? `La Récidive N° ${x.numero}` : 'La Gazette'} d'essai · {x.nom}</a>
+          <button type="button" class="text-xs text-muted-foreground hover:text-destructive" onclick={() => supprimerEssai(x)}>Supprimer</button>
+        </li>
+      {/each}
+    </ul>
+  {/if}
+</section>
 
 {#if r}
   {#if j}

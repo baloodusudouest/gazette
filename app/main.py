@@ -136,6 +136,8 @@ def _contact(p: dict) -> dict:
     """Ce que carnet sait de cette fiche (genre, personne d'Immich) : le contact unique qui porte son nom ou un alias."""
     if not ETAT["carnet"].actif:
         return {}
+    if p.get("essai_de"):                      # 0.20 : une fiche d'essai lit le contact de la vraie fiche
+        p = ETAT["base"].personne(p["essai_de"]) or p
     trouves = {}
     for n in [p["nom"], *p["alias"]]:
         for c in ETAT["carnet"].chercher(n):
@@ -213,6 +215,8 @@ def _preparer_recidive(rid: int, completer: bool = False) -> None:
         return echec("Immich n'est pas réglé (GAZETTE_IMMICH_CLE vide) : pas de photos.")
     if not immich_id:
         return echec("Pas de personne d'Immich liée à cette fiche dans carnet (ou carnet ne la trouve pas).")
+    if not prec and ed.get("essai"):           # 0.20 : essai sans séjour précédent connu : la dernière année
+        prec = {"du": (date.fromisoformat(ed["sejour_du"]) - timedelta(days=365)).isoformat(), "jusqu_au": ""}
     if not prec:
         return echec("Date du séjour précédent inconnue : la noter sur la fiche (séjours d'avant Gazette).")
     try:
@@ -459,8 +463,10 @@ def livrets():
         for i in s["invites"]:
             ed = _edition_du_sejour(i["personne_id"], s["du"]) if i["personne_id"] else None
             i["edition"] = _resume_edition(ed) if ed and ed["etat"] != "vide" else None
-    return {"livrets": [_resume(p) for p in base.personnes()], "sejours": sejours, "etats": list(ETATS),
-            "recidives": [_resume_edition(ed) for ed in base.recidives()]}
+    ranges = {(a["journal"], a["id"]) for a in _archives()}       # 0.20 : rangés dans les Archives
+    return {"livrets": [_resume(p) for p in base.personnes() if ("gazette", p["id"]) not in ranges], "sejours": sejours,
+            "etats": list(ETATS), "archives": len(ranges),
+            "recidives": [_resume_edition(ed) for ed in base.recidives() if ("recidive", ed["id"]) not in ranges]}
 
 
 def _champs_personne(corps: dict, exiger: bool) -> dict:
@@ -1175,6 +1181,9 @@ def approuver_edition(rid: int):
     if deborde:
         raise HTTPException(409, "Texte trop long : la page " + ", ".join(map(str, deborde))
                             + " déborde. Raccourcis une légende ou le mot des hôtes.")
+    if ed.get("essai"):                        # 0.20 : un essai ne compte jamais (scandales, carnet, numéros)
+        ETAT["base"].maj_recidive(rid, etat="approuve", approuve_le=maintenant())
+        return {"ok": True, "carnet": "essai : rien envoyé à carnet"}
     ETAT["base"].publier(p["id"], [x["id"] for x in vues if x.get("ancien")])
     ETAT["base"].maj_recidive(rid, etat="approuve", approuve_le=maintenant())
     ETAT["base"].noter("approuver", p["id"], f"La Récidive N° {ed['numero_main'] or ed['numero']}")
@@ -1215,6 +1224,106 @@ def _envoyer_a_carnet(p: dict, ed: dict) -> str:
 def _parus_carnet(p: dict, ed: dict) -> list[dict]:
     """0.16 : les numéros parus rangés sur la fiche de carnet, sauf celui de ce séjour."""
     return [x for x in (_contact(p).get("parus") or []) if x.get("le") != ed.get("sejour_du")]
+
+
+# ================================================================ 0.20 : essais (Réglages › Simuler) et archives
+
+@app.get("/api/essais")
+def essais():
+    """Les numéros d'essai en cours : Gazettes (fiches d'essai) et Récidives d'essai."""
+    base: Base = ETAT["base"]
+    res = []
+    for p in base.personnes(essais=True):
+        if p.get("essai_de"):
+            lv = base.livret(p["id"]) or {}
+            res.append({"journal": "gazette", "id": p["id"], "nom": p["nom"], "etat": lv.get("etat", ""), "lien": f"#/livret/{p['id']}"})
+    for ed in base.recidives(essais=True):
+        p = base.personne(ed["personne_id"]) or {"nom": "?"}
+        res.append({"journal": "recidive", "id": ed["id"], "nom": p["nom"], "etat": ed["etat"], "lien": f"#/recidive/{ed['id']}",
+                    "numero": ed["numero_main"] or ed["numero"]})
+    return {"essais": res}
+
+
+@app.post("/api/essais")
+def creer_essai(corps: dict = Body(...)):
+    """{personne_id, journal: gazette | recidive} → un numéro d'essai à part : jamais compté (N°, déjà paru, carnet,
+    archives, Home Assistant), supprimable. Rend le lien de l'éditeur."""
+    base: Base = ETAT["base"]
+    try:
+        p = base.personne(int(corps.get("personne_id")))
+    except (TypeError, ValueError):
+        p = None
+    if not p or p.get("essai_de"):
+        raise HTTPException(404, "Fiche introuvable.")
+    journal_ = corps.get("journal")
+    if journal_ == "gazette":
+        pid = base.creer_essai(p)
+        base.noter("essai", p["id"], "Gazette d'essai créée")
+        demander_preparation(pid)
+        return {"lien": f"#/livret/{pid}"}
+    if journal_ == "recidive":
+        if not ETAT["immich"].actif:
+            raise HTTPException(409, "Immich n'est pas réglé (GAZETTE_IMMICH_CLE vide) : pas de Récidive possible.")
+        n, _ = _numero_et_precedent(p, date.today().isoformat())
+        rid = base.creer_essai_recidive(p["id"], max(2, n))
+        ed = base.recidive(rid)
+        _, prec = _numero_et_precedent(p, ed["sejour_du"])
+        base.maj_recidive(rid, precedent=prec or {})
+        base.noter("essai", p["id"], "Récidive d'essai créée")
+        demander_recidive(rid)
+        return {"lien": f"#/recidive/{rid}"}
+    raise HTTPException(422, "Journal inconnu (gazette ou recidive).")
+
+
+@app.delete("/api/essais/{journal_}/{ident}")
+def supprimer_essai(journal_: str, ident: int):
+    base: Base = ETAT["base"]
+    if journal_ == "gazette":
+        p = base.personne(ident)
+        if not p or not p.get("essai_de"):
+            raise HTTPException(404, "Essai introuvable.")
+        base.supprimer_personne(ident)
+    elif journal_ == "recidive":
+        ed = base.recidive(ident)
+        if not ed or not ed.get("essai"):
+            raise HTTPException(404, "Essai introuvable.")
+        base.supprimer_recidive(ident)
+    else:
+        raise HTTPException(422, "Journal inconnu.")
+    return {"ok": True}
+
+
+def _archives() -> list[dict]:
+    """0.20 : les numéros approuvés dont le séjour est fini — la Gazette du premier séjour, chaque Récidive — du plus
+    récent au plus ancien. Ils quittent la liste Livrets."""
+    base: Base = ETAT["base"]
+    auj = date.today().isoformat()
+    res = []
+    for p in base.personnes():
+        lv = base.livret(p["id"]) or {}
+        sej = base.sejours_de(p["id"])
+        if lv.get("etat") == "approuve" and sej and sej[0]["jusqu_au"] < auj:
+            res.append({"journal": "gazette", "id": p["id"], "personne_id": p["id"], "nom": p["nom"], "numero": 1,
+                        "sejour": sej[0], "approuve_le": lv.get("approuve_le", ""),
+                        "titre": ((lv.get("contenu") or {}).get("une") or {}).get("titre", ""), "lien": f"#/livret/{p['id']}",
+                        "pdf": f"/api/livrets/{p['id']}/pdf"})
+    for ed in base.recidives():
+        if ed["etat"] != "approuve":
+            continue
+        s = next((x for x in base.sejours_de(ed["personne_id"]) if x["du"] == ed["sejour_du"]), None)
+        if not s or s["jusqu_au"] >= auj:
+            continue
+        p = base.personne(ed["personne_id"]) or {"nom": "?"}
+        res.append({"journal": "recidive", "id": ed["id"], "personne_id": ed["personne_id"], "nom": p["nom"],
+                    "numero": ed["numero_main"] or ed["numero"], "sejour": s, "approuve_le": ed["approuve_le"],
+                    "titre": ed.get("titre_une") or R.titre_une(p["nom"]), "lien": f"#/recidive/{ed['id']}",
+                    "pdf": f"/api/recidives/{ed['id']}/pdf"})
+    return sorted(res, key=lambda x: (x["sejour"]["du"], x["nom"]), reverse=True)
+
+
+@app.get("/api/archives")
+def archives():
+    return {"archives": _archives()}
 
 
 # ================================================================ Top 5 culturel

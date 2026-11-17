@@ -115,6 +115,7 @@
 
   <section aria-label="Tous les livrets">
     <h2 class="etiquette mb-3">Tous les livrets</h2>
+    {#if d.archives}<p class="-mt-2 mb-3 text-xs text-muted-foreground">{d.archives} ancien{d.archives > 1 ? 's' : ''} numéro{d.archives > 1 ? 's' : ''} (séjour fini) rangé{d.archives > 1 ? 's' : ''} dans les <a class="underline hover:text-foreground" href="#/archives">Archives</a>.</p>{/if}
     {#if d.livrets.length === 0}
       <p class="text-sm text-muted-foreground">Aucune fiche pour l'instant. Crée la première, ou laisse Home Assistant annoncer un séjour.</p>
     {:else}

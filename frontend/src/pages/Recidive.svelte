@@ -300,6 +300,12 @@
     </div>
   </header>
 
+  {#if ed.essai}
+    <p class="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/60 px-4 py-2 text-sm" role="status">
+      <span>Récidive d'essai (simulation) : photos de la dernière année si aucun séjour précédent ; elle ne compte jamais (N°, déjà paru, carnet, archives).</span>
+      <button type="button" class="text-xs underline hover:text-destructive" onclick={async () => { await api.del(`/api/essais/recidive/${id}`); location.hash = '#/reglages' }}>Supprimer l'essai</button>
+    </p>
+  {/if}
   {#if message}<p class="mb-4 rounded-xl border px-4 py-2 text-sm" role="status">{message}</p>{/if}
   {#if ed.erreur}<p class="mb-4 rounded-xl border border-destructive/60 px-4 py-2 text-sm text-destructive" role="alert">{ed.erreur}</p>{/if}
   {#if ed.etat === 'vide'}

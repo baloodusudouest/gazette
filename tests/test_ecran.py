@@ -261,3 +261,20 @@ def test_valider_chaque_element_puis_approuver(navigateur, adresse, taille):
     page.get_by_role("group", name="La une : N°, accroche, gros titre, macaron").wait_for()
     sans_debordement(page)
     assert erreurs == []
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_archives_et_simulation(navigateur, adresse, taille):
+    """0.20 : la page Archives s'ouvre ; Réglages › Simuler crée une Récidive d'essai, qu'on supprime."""
+    page, erreurs = ouvrir(navigateur, adresse, taille, "#/archives")
+    page.get_by_role("heading", name="Archives").wait_for()
+    page.get_by_label("Chercher un nom").wait_for()
+    page.goto(adresse + "/#/reglages")
+    page.get_by_role("heading", name="Simuler un journal").wait_for()
+    page.get_by_label("Personne").select_option(label="Lou Martin")
+    page.get_by_role("button", name="Simuler", exact=True).click()
+    page.get_by_text("Récidive d'essai (simulation)").wait_for()
+    page.get_by_role("button", name="Supprimer l'essai").click()
+    page.get_by_role("heading", name="Simuler un journal").wait_for()
+    sans_debordement(page)
+    assert erreurs == []

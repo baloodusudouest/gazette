@@ -7,6 +7,7 @@
   import Inbox from '@lucide/svelte/icons/inbox'
   import Network from '@lucide/svelte/icons/network'
   import SlidersHorizontal from '@lucide/svelte/icons/sliders-horizontal'
+  import Archive from '@lucide/svelte/icons/archive'
   import { api } from '$lib/api.js'
   import Connexion from './pages/Connexion.svelte'
   import Livrets from './pages/Livrets.svelte'
@@ -15,9 +16,11 @@
   import ATraiter from './pages/ATraiter.svelte'
   import Services from './pages/Services.svelte'
   import Reglages from './pages/Reglages.svelte'
+  import Archives from './pages/Archives.svelte'
 
   const onglets = [
     { page: 'livrets', nom: 'Livrets', icone: Newspaper },
+    { page: 'archives', nom: 'Archives', icone: Archive },     // 0.20 : anciens numéros
     { page: 'a-traiter', nom: 'À traiter', icone: Inbox },
     { page: 'connexion', nom: 'Connexion', icone: Network },
     { page: 'reglages', nom: 'Réglages', icone: SlidersHorizontal },
@@ -110,6 +113,8 @@
             <ATraiter onchange={compter} ondeconnecte={() => (connecte = false)} />
           {:else if route.page === 'connexion'}
             <Services ondeconnecte={() => (connecte = false)} />
+          {:else if route.page === 'archives'}
+            <Archives ondeconnecte={() => (connecte = false)} />
           {:else if route.page === 'reglages'}
             <Reglages {session} {deconnecter} />
           {:else}

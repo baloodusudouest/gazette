@@ -283,6 +283,12 @@
     </div>
   </header>
 
+  {#if d.personne.essai_de}
+    <p class="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/60 px-4 py-2 text-sm" role="status">
+      <span>Gazette d'essai (simulation) : elle ne compte pas et ne touche pas au vrai livret.</span>
+      <button type="button" class="text-xs underline hover:text-destructive" onclick={async () => { await api.del(`/api/essais/gazette/${id}`); location.hash = '#/reglages' }}>Supprimer l'essai</button>
+    </p>
+  {/if}
   {#if message}<p class="mb-4 rounded-xl border px-4 py-2 text-sm" role="status">{message}</p>{/if}
   {#each Object.entries(place.pages) as [n, p]}
     <p class="mb-3 rounded-xl border px-4 py-2 text-sm {p.ok ? 'border-valide/60 text-valide' : 'border-destructive/60 text-destructive'}" role="status">
