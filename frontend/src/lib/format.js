@@ -20,3 +20,8 @@ export const ETATS = {
   vide: { nom: 'sans photo : la Gazette sert', ton: 'muted' },
 }
 export const PORTEES = { jour: 'le jour même', veille: 'la veille', semaine: 'la semaine', mois: 'le mois', autour: 'autour', annee: "l'année", vide: 'aucune' }
+// 0.22 : nom court d'un modèle de l'IA pour un bouton : « qwen2.5:14b » → « qwen », « mistral-nemo » → « mistral »
+export function nomCourt(modele) {
+  const m = String(modele || '').split(':')[0]
+  return m.match(/^[a-z]+/i)?.[0] || m
+}

@@ -18,6 +18,7 @@
   import FicheForm from '$lib/FicheForm.svelte'
   import Propositions from '$lib/Propositions.svelte'
   import IaBloc from '$lib/IaBloc.svelte'
+  import AutresIa from '$lib/AutresIa.svelte'
   import Element from '$lib/Element.svelte'
   import Relecture from '$lib/Relecture.svelte'
   import { enfiler } from '$lib/fileIa.svelte.js'
@@ -32,6 +33,7 @@
   let photo = $state({})
   let codeBarres = $state('')
   let propsLegende = $state([])
+  let modeleLegende = $state('')     // 0.22 : modèle qui a rendu les légendes proposées
   let ctxPhoto = $state(null)
   let demande = $state('')
   // 0.14 : bouton « IA » du haut — toutes les aides de tous les blocs, une après l'autre
@@ -129,14 +131,17 @@
     const x = l[(i + 1) % l.length]
     photo = { id: x.id, date: x.date, cadrage: 'haut', legende: '', description: '' }; propsLegende = []; ctxPhoto = null; toucher()
   }
-  const legendeEnFile = () => enfiler('Légende de la photo', () => proposerLegende())
-  async function proposerLegende(silencieux = false) {
+  // 0.22 : `deuxieme === true` (« Autres propositions ») : même demande avec le second modèle ; un clic passe un
+  // événement, d'où la comparaison stricte
+  const legendeEnFile = (deuxieme = false) => enfiler('Légende de la photo', () => proposerLegende(false, deuxieme === true))
+  async function proposerLegende(silencieux = false, deuxieme = false) {
     demande = 'legende'
     message = ''
     try {
       await api.put(`/api/livrets/${id}`, corps())           // la photo choisie doit être enregistrée avant
-      const r = await api.post(`/api/livrets/${id}/photo/proposer`, { description: photo.description ?? '' })
+      const r = await api.post(`/api/livrets/${id}/photo/proposer`, { description: photo.description ?? '', ...(deuxieme ? { second: true } : {}) })
       propsLegende = r.propositions
+      modeleLegende = r.modele ?? ''
       ctxPhoto = r.contexte
     } catch (err) { if (!silencieux) message = err.message }
     demande = ''
@@ -329,7 +334,7 @@
         <input class="mb-2 w-full rounded-lg border bg-background px-3 py-2 font-serif text-lg font-semibold {bord('une')}" bind:value={contenu.une.titre} oninput={toucher} aria-label="Gros titre" />
         <textarea class="w-full rounded-lg border bg-background px-3 py-2 text-sm {bord('une')}" rows="3" bind:value={contenu.une.chapo} oninput={toucher} aria-label="Chapeau"></textarea>
         {@render compteur('une')}
-        <IaBloc bind:this={ias.une} nom="La une" pid={id} texte={() => contenu.une.chapo} actions={['titres', 'raccourcir', 'journal', 'traduire']} signes={cible('une', contenu.une.chapo)}
+        <IaBloc second={d.ia?.modele_second ?? ''} bind:this={ias.une} nom="La une" pid={id} texte={() => contenu.une.chapo} actions={['titres', 'raccourcir', 'journal', 'traduire']} signes={cible('une', contenu.une.chapo)}
                 onapply={(a, t) => { if (a === 'titres') contenu.une.titre = t; else contenu.une.chapo = t; toucher() }} />
         <div class="mt-2 grid grid-cols-3 gap-2 text-sm">
           <input class="min-w-0 rounded-lg border bg-background px-2 py-1" bind:value={contenu.une.encart.k} oninput={toucher} aria-label="Encart : rubrique" />
@@ -354,7 +359,7 @@
                 <input class="min-w-0 rounded-lg border bg-background px-2 py-1 text-sm font-semibold" bind:value={b.titre} oninput={toucher} aria-label="Titre de la brève {i + 1}" />
               <textarea class="rounded-lg border bg-background px-2 py-1 text-sm [field-sizing:content] min-h-14" rows="2" bind:value={b.texte} oninput={toucher} aria-label="Texte de la brève {i + 1}"></textarea>
               {@render compteur(`breve:${i}`)}
-              <IaBloc bind:this={ias[`breve:${i}`]} nom="Brève {i + 1}" pid={id} texte={() => b.texte} actions={['titres', 'raccourcir', 'journal', 'traduire']} signes={cible(`breve:${i}`, b.texte)}
+              <IaBloc second={d.ia?.modele_second ?? ''} bind:this={ias[`breve:${i}`]} nom="Brève {i + 1}" pid={id} texte={() => b.texte} actions={['titres', 'raccourcir', 'journal', 'traduire']} signes={cible(`breve:${i}`, b.texte)}
                       onapply={(a, t) => { if (a === 'titres') b.titre = t; else b.texte = t; toucher() }} />
               {#if ouvert?.bloc === 'breve' && ouvert.index === i}<Propositions liste={evts} choisis={pris} tient={tient(`breve:${i}`)} onchoisir={(f) => choisir('breve', f, i)} onfermer={() => (ouvert = null)} />{/if}
               </div>
@@ -378,7 +383,7 @@
                 <input class="min-w-0 rounded-lg border bg-background px-2 py-1 text-sm font-semibold" bind:value={it.titre} oninput={toucher} aria-label="Titre {i + 1}" />
               <textarea class="rounded-lg border bg-background px-2 py-1 text-sm [field-sizing:content] min-h-14" rows="2" bind:value={it.texte} oninput={toucher} aria-label="Texte {i + 1}"></textarea>
               {@render compteur(`p2:${i}`)}
-              <IaBloc bind:this={ias[`p2:${i}`]} nom="Page 2, article {i + 1}" pid={id} texte={() => it.texte} actions={['titres', 'raccourcir', 'journal', 'traduire']} signes={cible(`p2:${i}`, it.texte)}
+              <IaBloc second={d.ia?.modele_second ?? ''} bind:this={ias[`p2:${i}`]} nom="Page 2, article {i + 1}" pid={id} texte={() => it.texte} actions={['titres', 'raccourcir', 'journal', 'traduire']} signes={cible(`p2:${i}`, it.texte)}
                       onapply={(a, t) => { if (a === 'titres') it.titre = t; else it.texte = t; toucher() }} />
               {#if ouvert?.bloc === 'p2' && ouvert.index === i}<Propositions liste={evts} choisis={pris} tient={tient(`p2:${i}`)} onchoisir={(f) => choisir('p2', f, i)} onfermer={() => (ouvert = null)} />{/if}
               </div>
@@ -404,7 +409,7 @@
                 <input class="order-last min-w-0 flex-1 basis-full sm:order-none sm:basis-0 rounded-lg border bg-background px-2 py-1 text-sm" bind:value={c.texte} oninput={toucher} aria-label="Repère {i + 1}" />
               </div>
               {@render compteur(`chrono:${i}`)}
-              <IaBloc bind:this={ias[`chrono:${i}`]} nom="Repère {i + 1}" pid={id} texte={() => c.texte} actions={['raccourcir', 'journal', 'traduire']} signes={cible(`chrono:${i}`, c.texte)}
+              <IaBloc second={d.ia?.modele_second ?? ''} bind:this={ias[`chrono:${i}`]} nom="Repère {i + 1}" pid={id} texte={() => c.texte} actions={['raccourcir', 'journal', 'traduire']} signes={cible(`chrono:${i}`, c.texte)}
                       onapply={(a, t) => { c.texte = t; toucher() }} />
               {#if ouvert?.bloc === 'chrono' && ouvert.index === i}<Propositions liste={annee} choisis={pris} tient={tient(`chrono:${i}`)} onchoisir={(f) => choisir('chrono', f, i)} onfermer={() => (ouvert = null)} />{/if}
               </div>
@@ -473,7 +478,7 @@
                  onchanger={() => { mot = d.livret.mot_defaut; toucher() }} changer="Mot par défaut">
         <textarea class="w-full rounded-lg border bg-background px-3 py-2 font-serif {bord('mot')}" rows="8" bind:value={mot} oninput={toucher} aria-label="Mot des hôtes"></textarea>
         {@render compteur('mot')}
-        <IaBloc bind:this={ias.mot} nom="Le mot des hôtes" pid={id} texte={() => mot} actions={['mot', 'raccourcir']} signes={cible('mot', mot)} onapply={(a, t) => { mot = t; toucher() }} />
+        <IaBloc second={d.ia?.modele_second ?? ''} bind:this={ias.mot} nom="Le mot des hôtes" pid={id} texte={() => mot} actions={['mot', 'raccourcir']} signes={cible('mot', mot)} onapply={(a, t) => { mot = t; toucher() }} />
         <p class="mt-1 text-xs text-muted-foreground">Une ligne vide sépare les paragraphes. Signature : « {d.signature} » (Réglages › Le journal). L'IA s'appuie sur les événements racontés dans la Gazette.</p>
         </Element>
 
@@ -529,6 +534,7 @@
                   {#each propsLegende as t}
                     <li><button type="button" class="w-full rounded-md px-2 py-1 text-left text-sm break-words italic hover:bg-secondary" onclick={() => { photo.legende = t; toucher() }}>« {t} »</button></li>
                   {/each}
+                  <li><AutresIa modele={modeleLegende} second={d.ia?.modele_second ?? ''} attente={demande === 'legende'} onautres={() => legendeEnFile(true)} /></li>
                 </ul>
               {/if}
             </div>

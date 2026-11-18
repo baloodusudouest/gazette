@@ -2,7 +2,15 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
-## Dernier changement (18/11/2026) — 0.21.0 : santé des tâches de fond (socle 0.9.0)
+## Dernier changement (18/11/2026) — 0.22.0 : régénérer avec un second modèle
+- Choix de Julien du 18/11 : premier jet avec le modèle de la stack (`GAZETTE_OLLAMA_MODELE`, **mistral-nemo**) ; « Autres propositions (qwen) » redemande la même chose au second modèle, **qwen2.5:14b** (essai du 18/11 : plus sage, plus lent, 2 titres sur 5 retenus en Récidive).
+- Réglage `modele_second` dans `journal.CHAMPS`/`DEFAUTS` (défaut « qwen2.5:14b », vide permis = bouton caché, `[\w.:/-]*`) : donc dans `/api/reglages`, la sauvegarde de l'Anneau et la restauration. Pas de variable de stack, homelab inchangé.
+- `ollama.py` : `modele: str | None = None` sur `proposer`, `rumeurs`, `courrier`, `horoscope`, `gazette` (et `_demander`, `_brut`) ; `sonder(second="")` ajoute `second`, `second_present` et une phrase au détail, `ok` ne dépend que du modèle habituel.
+- `main.py` : `_modele_demande(corps)` (`"second": true` strict → réglage ; vide → 400), `_ia_etat()` (état + `modele_second`, ligne « Second modèle » dans `guide.reglages`) ; les 7 routes IA rendent `modele` ; `GET /api/livrets/{pid}` rend `ia: {modele, modele_second}`, `GET /api/recidives/{rid}` le rend dans `ia`.
+- Écran : `lib/AutresIa.svelte` (modèle utilisé + bouton, nom court par `format.nomCourt`), utilisé dans `IaBloc.svelte` (prop `second`), `Livret.svelte` (légende de la photo) et `Recidive.svelte` (titres, rumeurs, courrier, horoscope, droit de réponse ; `bis()` : un clic passe un événement, d'où `=== true`). `Element.svelte` et `FicheForm.svelte` n'affichent pas de propositions : inchangés. Le modèle utilisé n'est connu que pour les propositions demandées depuis l'ouverture de la page (pas gardé en base).
+- Tests : `tests/test_second_modele.py`, deux tests d'écran. Jamais essayé sur la vraie installation.
+
+## Changement précédent (18/11/2026) — 0.21.0 : santé des tâches de fond (socle 0.9.0)
 - `app/maison.py` 0.9.0 recopié (ne pas retoucher). `main.cycle` déclare `preparation` et `recidive` (« demande ») et lance `maison.planifier_copie("gazette", [<data>/gazette.db], <data>/copies, "01:10")` (tâche asyncio annulée à l'arrêt, avant la fermeture de la base). `_ouvrier` passe par `_preparer_suivi(tache)` : un tour de `maison.TACHES` par préparation, `_PreparationRatee` (avalée aussitôt) quand le livret ou l'édition garde une erreur ; les autres exceptions repartent vers le `except` de l'ouvrier comme avant. Mode `synchrone` (tests, démo) : non suivi.
 - `/health` fusionne `maison.sante(request, jeton_commun=maison.jetons(), session_ok=...)` dans les deux réponses (normale et de repli). Un seul worker uvicorn (registre en mémoire).
 - Tests : `tests/test_sante_taches.py`. Jamais essayé sur la vraie installation (ni la copie de nuit, ni la remise en place d'une copie).

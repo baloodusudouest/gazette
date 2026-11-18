@@ -442,18 +442,20 @@ class Ollama:
     def actif(self) -> bool:
         return self._lire is not None
 
-    def _demander(self, prompt: str, nombre: int, maxi: int, genre: str, deja: list[str] | None = None) -> list[str]:
+    def _demander(self, prompt: str, nombre: int, maxi: int, genre: str, deja: list[str] | None = None,
+                  modele: str | None = None) -> list[str]:
+        modele = modele or MODELE          # 0.22 : None = le modèle habituel (GAZETTE_OLLAMA_MODELE)
         props: list[str] = []
         for _ in range(ESSAIS):
             try:
-                r = self._lire("/api/generate", {"model": MODELE, "prompt": prompt, "system": SYSTEME, "stream": False,
+                r = self._lire("/api/generate", {"model": modele, "prompt": prompt, "system": SYSTEME, "stream": False,
                                                  "options": {"temperature": 1.05, "top_p": 0.95, "repeat_penalty": 1.15,
                                                              "num_predict": 60 * nombre + 100}})
             except ErreurOllama as ex:
                 self.erreur = ex.detail[:160]
                 if ex.statut == 404:
-                    raise RuntimeError(f"Le PC répond, mais Ollama n'y trouve pas le modèle {MODELE} ({ex.detail}). "
-                                       f"Sur le PC : « ollama list » doit le montrer ; sinon « ollama pull {MODELE} », ou "
+                    raise RuntimeError(f"Le PC répond, mais Ollama n'y trouve pas le modèle {modele} ({ex.detail}). "
+                                       f"Sur le PC : « ollama list » doit le montrer ; sinon « ollama pull {modele} », ou "
                                        "vérifier OLLAMA_MODELS puis quitter et rouvrir Ollama.") from ex
                 raise RuntimeError(f"Ollama a refusé la demande ({ex.detail}).") from ex
             except Exception as ex:  # noqa: BLE001 — PC éteint, Ollama fermé, pare-feu
@@ -472,7 +474,7 @@ class Ollama:
         return props[:nombre]
 
     def proposer(self, description: str, sorte: str = "photo", genre: str = "", prenom: str = "",
-                 deja: list[str] | None = None, contexte: dict | None = None) -> list[str]:
+                 deja: list[str] | None = None, contexte: dict | None = None, modele: str | None = None) -> list[str]:
         """Jusqu'à 5 titres. RuntimeError (avec la marche à suivre) si l'IA n'est pas joignable ou ne rend rien d'utile."""
         if not self.actif:
             raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
@@ -481,21 +483,21 @@ class Ollama:
             raise ValueError("Écris d'abord en quelques mots ce qu'on voit sur la photo.")
         if len(description) < 3:
             description = ""
-        return self._demander(consigne(description, sorte, genre, prenom, deja, contexte), NOMBRE, MAXI, genre, deja)
+        return self._demander(consigne(description, sorte, genre, prenom, deja, contexte), NOMBRE, MAXI, genre, deja, modele)
 
     def rumeurs(self, indices: str, genre: str = "", prenom: str = "", photos: list[str] | None = None,
-                deja: list[str] | None = None, personnes: list[str] | None = None) -> list[str]:
+                deja: list[str] | None = None, personnes: list[str] | None = None, modele: str | None = None) -> list[str]:
         """0.9.7 : jusqu'à 8 rumeurs loufoques (130 caractères au plus) pour la page 3. Indices facultatifs."""
         if not self.actif:
             raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
         indices = " ".join((indices or "").split())[:1200]       # 0.19 : indices + livre d'or
         return self._demander(consigne_rumeurs(indices, genre, prenom, photos or [], deja, personnes), NOMBRE_RUMEURS, MAXI_RUMEUR,
-                              genre, deja)
+                              genre, deja, modele)
 
-    def _brut(self, prompt: str, nombre: int) -> str:
+    def _brut(self, prompt: str, nombre: int, modele: str | None = None) -> str:
         """Une demande, la réponse telle quelle (pour le courrier, qui a son propre format)."""
         try:
-            r = self._lire("/api/generate", {"model": MODELE, "prompt": prompt, "system": SYSTEME, "stream": False,
+            r = self._lire("/api/generate", {"model": modele or MODELE, "prompt": prompt, "system": SYSTEME, "stream": False,
                                              "options": {"temperature": 1.05, "top_p": 0.95, "repeat_penalty": 1.15,
                                                          "num_predict": 130 * nombre + 100}})
         except ErreurOllama as ex:
@@ -507,7 +509,8 @@ class Ollama:
         self.erreur = ""
         return str((r or {}).get("response", ""))
 
-    def courrier(self, indices: str, genre: str = "", prenom: str = "", deja: list[str] | None = None) -> list[dict]:
+    def courrier(self, indices: str, genre: str = "", prenom: str = "", deja: list[str] | None = None,
+                 modele: str | None = None) -> list[dict]:
         """0.11 : jusqu'à 4 fausses lettres de lecteurs avec la réponse de la rédaction (page 4)."""
         if not self.actif:
             raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
@@ -515,7 +518,7 @@ class Ollama:
         res: list[dict] = []
         brut = ""
         for _ in range(ESSAIS):
-            brut = self._brut(consigne_courrier(indices, genre, prenom, deja), NOMBRE_LETTRES)
+            brut = self._brut(consigne_courrier(indices, genre, prenom, deja), NOMBRE_LETTRES, modele)
             for x in lettres(brut, genre):
                 if not proche_de(x["lettre"], deja or []) and x["lettre"].casefold() not in {y["lettre"].casefold() for y in res}:
                     res.append(x)
@@ -528,18 +531,19 @@ class Ollama:
         return res[:NOMBRE_LETTRES]
 
     def horoscope(self, signe_: str, indices: str, genre: str = "", prenom: str = "", deja: list[str] | None = None,
-                  evenement: str = "", avant: list[str] | None = None) -> list[str]:
+                  evenement: str = "", avant: list[str] | None = None, modele: str | None = None) -> list[str]:
         """0.11 : jusqu'à 3 horoscopes loufoques du séjour (page 4)."""
         if not self.actif:
             raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
         indices = " ".join((indices or "").split())[:1200]       # 0.19 : indices + livre d'or
         evenement = " ".join((evenement or "").split())[:200]
         return self._demander(consigne_horoscope(signe_, indices, genre, prenom, deja, evenement, avant), NOMBRE_HOROSCOPES, MAXI_HOROSCOPE,
-                              genre, deja)
+                              genre, deja, modele)
 
     # ------------------------------------------------------------ 0.12 : aides pour la Gazette classique
     def gazette(self, action: str, texte: str, annee: int | None = None, signes: int | None = None, prenom: str = "",
-                genre: str = "", indices: str = "", chez: str = "", evenements: list[str] | None = None) -> list[str]:
+                genre: str = "", indices: str = "", chez: str = "", evenements: list[str] | None = None,
+                modele: str | None = None) -> list[str]:
         """Propositions à choisir pour un bloc de la Gazette : « titres » (5), « raccourcir » (3, `signes` au plus),
         « journal » (3 réécritures façon presse de l'époque), « traduire » (2), « mot » (3 mots d'accueil). Mêmes faits
         que le texte donné : rien d'inventé (sauf le mot des hôtes, écrit d'après les indices)."""
@@ -552,7 +556,7 @@ class Ollama:
         brut = ""
         for _ in range(ESSAIS):
             try:
-                r = self._lire("/api/generate", {"model": MODELE, "prompt": prompt, "system": SYSTEME_GAZETTE, "stream": False,
+                r = self._lire("/api/generate", {"model": modele or MODELE, "prompt": prompt, "system": SYSTEME_GAZETTE, "stream": False,
                                                  "options": {"temperature": 0.7, "top_p": 0.9, "repeat_penalty": 1.1,
                                                              "num_predict": min(1600, max(300, (maxi // 2) * nombre))}})
             except ErreurOllama as ex:
@@ -569,7 +573,9 @@ class Ollama:
         raise RuntimeError("L'IA n'a rien proposé d'utilisable : relance, ou écris le texte toi-même. "
                            f"Début de sa réponse (pour Claude) : « {' '.join(brut.split())[:200] or 'vide'} »")
 
-    def sonder(self) -> dict:
+    def sonder(self, second: str = "") -> dict:
+        """0.22 : `second` (réglage « modele_second ») — dit aussi s'il est sur le PC (`second_present`), sans jamais
+        changer `ok` : il ne sert qu'à « Autres propositions »."""
         if not self.actif:
             return {"ok": None, "detail": "pas réglée (GAZETTE_OLLAMA_URL vide) : pas de propositions de titres"}
         try:
@@ -578,9 +584,15 @@ class Ollama:
             self.erreur = str(ex).splitlines()[0][:160] or type(ex).__name__
             return {"ok": False, "detail": f"PC injoignable ({self.erreur})"}
         noms = [m.get("name", "") for m in (r or {}).get("models", [])]
+        sec, en_plus = {}, ""
+        if second:
+            present = any(meme_modele(n, second) for n in noms)
+            sec = {"second": second, "second_present": present}
+            en_plus = (f" ; second modèle {second} présent" if present
+                       else f" ; second modèle {second} absent (ollama pull {second}) : « Autres propositions » échouera")
         if not any(meme_modele(n, MODELE) for n in noms):
-            return {"ok": False, "detail": f"PC joignable, mais le modèle {MODELE} n'y est pas (ollama pull {MODELE})"}
-        return {"ok": True, "detail": f"PC prêt ({MODELE})"}
+            return {"ok": False, "detail": f"PC joignable, mais le modèle {MODELE} n'y est pas (ollama pull {MODELE})" + en_plus, **sec}
+        return {"ok": True, "detail": f"PC prêt ({MODELE})" + en_plus, **sec}
 
     def etat(self) -> dict:
         return {"regle": self.actif, "erreur": self.erreur, "modele": MODELE, "maxi": MAXI, "marche": MARCHE,

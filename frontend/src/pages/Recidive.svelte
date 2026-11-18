@@ -14,6 +14,7 @@
   import { Button } from '$lib/components/ui/button/index.js'
   import Etat from '$lib/Etat.svelte'
   import Element from '$lib/Element.svelte'
+  import AutresIa from '$lib/AutresIa.svelte'
   import Relecture from '$lib/Relecture.svelte'
   import { enfiler } from '$lib/fileIa.svelte.js'
   import { dateCourte, dateLongue } from '$lib/format.js'
@@ -40,6 +41,11 @@
   let codeBarres = $state('')       // 0.11.4 : message caché dans le code-barres
   let propsHoroscope = $state([])
   let propsMot = $state([])         // 0.18.1 : droit de réponse proposé par l'IA
+  // 0.22 : modèle qui a rendu chaque série ({« une », id de photo, rumeurs, courrier, horoscope, mot : modèle}) ;
+  // « Autres propositions » refait la même demande avec le second modèle (Réglages), qui remplace la série
+  let modeles = $state({})
+  const second = $derived(d?.ia?.modele_second ?? '')
+  const bis = (deuxieme) => (deuxieme === true ? { second: true } : {})    // un clic passe un événement : comparaison stricte
   let modifie = $state(false)
   let message = $state('')
   let attente = $state('')
@@ -120,27 +126,29 @@
   const pret = (description, p) => description.trim().length >= 3 || ctxTexte(p) !== ''
   const cibles = () => [...(pret(descriptionUne, photoUne()) ? ['une'] : []),
                         ...photos.filter((p) => !p.retiree && pret(p.description ?? '', p)).map((p) => p.id)]
-  const proposerRumeurs = () => enfiler('Rumeurs', proposerRumeurs_)
-  async function proposerRumeurs_() {
+  const proposerRumeurs = (deuxieme = false) => enfiler('Rumeurs', () => proposerRumeurs_(deuxieme))
+  async function proposerRumeurs_(deuxieme = false) {
     demande = 'rumeurs'
     message = ''
     try {
-      const r = await api.post(`/api/recidives/${id}/rumeurs`, { indices })
+      const r = await api.post(`/api/recidives/${id}/rumeurs`, { indices, ...bis(deuxieme) })
       propsRumeurs = r.propositions
+      modeles = { ...modeles, rumeurs: r.modele ?? '' }
       if (indices.trim() && r.carnet) message = `Indices : ${r.carnet}.`
       toucher()
     }
     catch (err) { message = err.message }
     demande = ''
   }
-  const proposerPage4 = (quoi) => enfiler(quoi === 'courrier' ? 'Courrier des lecteurs' : 'Horoscope', () => proposerPage4_(quoi))
-  async function proposerPage4_(quoi) {
+  const proposerPage4 = (quoi, deuxieme = false) => enfiler(quoi === 'courrier' ? 'Courrier des lecteurs' : 'Horoscope', () => proposerPage4_(quoi, deuxieme))
+  async function proposerPage4_(quoi, deuxieme = false) {
     demande = quoi
     message = ''
     try {
-      const r = await api.post(`/api/recidives/${id}/${quoi}`, quoi === 'horoscope' ? { indices, evenement } : { indices })
+      const r = await api.post(`/api/recidives/${id}/${quoi}`, { ...(quoi === 'horoscope' ? { indices, evenement } : { indices }), ...bis(deuxieme) })
       if (quoi === 'courrier') propsCourrier = r.propositions
       else propsHoroscope = r.propositions
+      modeles = { ...modeles, [quoi]: r.modele ?? '' }
       toucher()
     } catch (err) { message = err.message }
     demande = ''
@@ -171,15 +179,16 @@
     if (!echecs) message = `Propositions prêtes pour ${liste.length} texte${liste.length > 1 ? 's' : ''} : touche celles qui te plaisent, puis Enregistrer.`
     lot = null
   }
-  const proposer = (cible) => enfiler(cible === 'une' ? 'Gros titre' : 'Légende d\'une photo', () => proposer_(cible))
-  async function proposer_(cible) {
+  const proposer = (cible, deuxieme = false) => enfiler(cible === 'une' ? 'Gros titre' : 'Légende d\'une photo', () => proposer_(cible, deuxieme))
+  async function proposer_(cible, deuxieme = false) {
     const description = cible === 'une' ? descriptionUne : photos.find((p) => p.id === cible)?.description ?? ''
     demande = cible
     message = ''
     try {
-      const r = await api.post(`/api/recidives/${id}/proposer`, { cible, description })
+      const r = await api.post(`/api/recidives/${id}/proposer`, { cible, description, ...bis(deuxieme) })
       if (cible === 'une') propsUne = r.propositions
       else { const p = photos.find((x) => x.id === cible); p.propositions = r.propositions }
+      modeles = { ...modeles, [cible]: r.modele ?? '' }
       toucher()
     } catch (err) { message = err.message }
     demande = ''
@@ -234,10 +243,14 @@
     const x = propsCourrier.find((y) => !courrier.some((z) => z.lettre === y.lettre))
     if (x) { courrier[i] = { ...x }; toucher() } else proposerPage4('courrier')
   }
-  const proposerMot = () => enfiler('Droit de réponse', async () => {
+  const proposerMot = (deuxieme = false) => enfiler('Droit de réponse', async () => {
     demande = 'mot'
     message = ''
-    try { propsMot = (await api.post(`/api/recidives/${id}/mot`, { texte: mot })).propositions }
+    try {
+      const r = await api.post(`/api/recidives/${id}/mot`, { texte: mot, ...bis(deuxieme) })
+      propsMot = r.propositions
+      modeles = { ...modeles, mot: r.modele ?? '' }
+    }
     catch (err) { message = err.message }
     demande = ''
   })
@@ -275,6 +288,7 @@
         {#each props as t}
           <li><button type="button" class="w-full rounded-md px-2 py-1 text-left text-sm break-words whitespace-normal hover:bg-secondary" onclick={() => choisir(t)}>« {t} » <span class="text-xs text-muted-foreground">{t.length}</span></button></li>
         {/each}
+        <li><AutresIa modele={modeles[cible]} {second} attente={demande === cible} onautres={() => proposer(cible, true)} /></li>
       </ul>
     {/if}
   </div>
@@ -434,6 +448,7 @@
                 <li><button type="button" class="w-full rounded-md px-2 py-1 text-left text-sm break-words whitespace-normal hover:bg-secondary disabled:opacity-40"
                             disabled={rumeurs.includes(t)} onclick={() => prendreRumeur(t)}>+ {t}</button></li>
               {/each}
+              <li><AutresIa modele={modeles.rumeurs} {second} attente={demande === 'rumeurs'} onautres={() => proposerRumeurs(true)} /></li>
             </ul>
           {/if}
         </div>
@@ -478,6 +493,7 @@
                     disabled={courrier.some((y) => y.lettre === x.lettre)} onclick={() => prendreLettre(x)}>
               + « {x.lettre} » <span class="text-muted-foreground">— {x.signe}</span> <span class="text-primary">La rédaction : {x.reponse}</span></button>
           {/each}
+          {#if propsCourrier.length}<AutresIa modele={modeles.courrier} {second} attente={demande === 'courrier'} onautres={() => proposerPage4('courrier', true)} />{/if}
         </div>
 
         <h3 class="etiquette mt-5 mb-2">Horoscope du séjour{d.signe ? ` · ${d.signe}` : ''}</h3>
@@ -501,6 +517,7 @@
           {#each propsHoroscope as t}
             <button type="button" class="w-full rounded-md px-2 py-1 text-left text-sm break-words whitespace-normal hover:bg-secondary" onclick={() => { horoscope = t; toucher() }}>« {t} »</button>
           {/each}
+          {#if propsHoroscope.length}<AutresIa modele={modeles.horoscope} {second} attente={demande === 'horoscope'} onautres={() => proposerPage4('horoscope', true)} />{/if}
         </div>
         </Element>
 
@@ -514,6 +531,7 @@
             {#each propsMot as t}
               <li><button type="button" class="w-full rounded-md px-2 py-1 text-left font-serif text-sm break-words whitespace-pre-line hover:bg-secondary" onclick={() => { mot = t; propsMot = []; toucher() }}>{t}</button></li>
             {/each}
+            <li><AutresIa modele={modeles.mot} {second} attente={demande === 'mot'} onautres={() => proposerMot(true)} /></li>
           </ul>
         {/if}
         </Element>

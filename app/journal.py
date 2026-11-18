@@ -31,6 +31,9 @@ CHAMPS = {
     "r_accroche_homme": ("Accroche sous le titre (homme)", "{prenom} est remplacé ; modifiable dans chaque édition", 80),
     "r_accroche_autre": ("Accroche sous le titre (genre inconnu)", "{prenom} est remplacé ; sans « il » ni « elle »", 80),
     "r_mot_modele": ("Droit de réponse par défaut", "le mot des hôtes de la page 4 ; {salut} (« Chère Camille », « Cher Paul ») et {prenom} sont remplacés ; une ligne vide sépare les paragraphes", 1500),
+    # 0.22 : second modèle de l'IA du PC, pour « Autres propositions » (choix de Julien du 18/11 : on génère avec le
+    # modèle habituel, GAZETTE_OLLAMA_MODELE, on régénère avec celui-ci). Un réglage de Gazette, pas de la stack.
+    "modele_second": ("Second modèle de l'IA", "nom dans « ollama list » (ex. qwen2.5:14b) ; sert au bouton « Autres propositions » ; vide : bouton caché", 80),
 }
 LIBELLES = {**{k: v[0] for k, v in CHAMPS.items()}, "larousse": "Larousse, Journaux de l'année"}
 MOT = ("Le {date}, le monde tournait comme le racontent ces pages. Ce soir, c'est {chez} que l'on vous attend.\n\n"
@@ -45,7 +48,7 @@ DEFAUTS = {"titre": "La Gazette", "sous_titre": "Le monde tel qu'il était le jo
            "mot_modele": MOT, "accent": "#9E1B1B", "larousse": True,
            "r_titre": "La Récidive", "r_accroche_femme": "Elle est revenue, nous aussi",
            "r_accroche_homme": "Il est revenu, nous aussi", "r_accroche_autre": "{prenom} est de retour, nous aussi",
-           "r_mot_modele": R_MOT}
+           "r_mot_modele": R_MOT, "modele_second": "qwen2.5:14b"}
 # Anciennes variables de la stack, lues une seule fois (premier démarrage) pour une clé absente de la base
 VARIABLES = {"titre": "GAZETTE_TITRE", "signature": "GAZETTE_SIGNATURE", "lieu": "GAZETTE_LIEU",
              "larousse": "GAZETTE_LAROUSSE"}
@@ -114,6 +117,8 @@ def valider(corps: dict, actuel: dict) -> dict:
             raise ValueError(f"{libelle} : à remplir.")
         if cle == "accent" and not re.fullmatch(r"#[0-9a-fA-F]{6}", v):
             raise ValueError("Couleur d'accent : au format #RRGGBB.")
+        if cle == "modele_second" and not re.fullmatch(r"[\w.:/-]*", v):
+            raise ValueError("Second modèle de l'IA : un nom comme dans « ollama list » (ex. qwen2.5:14b), sans espace.")
         j[cle] = v
     if "larousse" in corps:
         if not isinstance(corps["larousse"], bool):

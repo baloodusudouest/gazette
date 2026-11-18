@@ -1,5 +1,14 @@
 # Journal des versions
 
+## 0.22.0 — 18 novembre 2026 (régénérer avec un second modèle)
+- **« Autres propositions (qwen) »** (choix de Julien du 18/11 : « on génère avec mistral, on régénère avec qwen ») : le premier jet garde le modèle de la stack (`GAZETTE_OLLAMA_MODELE`, aujourd'hui **mistral-nemo**) ; sous chaque série de propositions, un bouton redemande la même chose au second modèle, **qwen2.5:14b** par défaut (essai du 18/11 : plus sage, plus lent, 2 titres sur 5 retenus en Récidive). Les nouvelles propositions remplacent les anciennes, comme une nouvelle demande. Le modèle utilisé est indiqué discrètement sous les propositions.
+  - Partout où l'on demande des propositions : aides de la Gazette (titres, raccourcir, version journal, traduire, mot des hôtes), légende de la photo de la page 4, et dans La Récidive gros titre et légendes, rumeurs, courrier, horoscope, droit de réponse.
+- **Réglage `modele_second`** (Réglages › Le journal › L'IA du PC ; un réglage de Gazette, pas une variable de la stack) : nom tel que dans « ollama list », sans espace ; vide = bouton caché. Il part avec les autres réglages dans la sauvegarde de l'Anneau (ce n'est pas un secret).
+- API : les 7 routes qui appellent l'IA (`/api/livrets/{pid}/photo/proposer`, `/api/livrets/{pid}/ia`, `/api/recidives/{rid}/proposer`, `/rumeurs`, `/courrier`, `/horoscope`, `/mot`) acceptent `"second": true` dans le corps → second modèle ; réglage vide → 400 avec un message clair. Elles rendent aussi `modele`. `ollama.Ollama` : `proposer`, `rumeurs`, `courrier`, `horoscope` et `gazette` (dont la légende et le droit de réponse) prennent `modele=None` (None = modèle habituel) ; filtres, essais et longueurs inchangés.
+- **Connexion › Vérifier les sources** dit si le second modèle est sur le PC (`second_present`, d'après `/api/tags`), sans changer le voyant de l'IA ; « IA du PC » montre le second modèle dans les réglages lus.
+- Tests : `tests/test_second_modele.py` (8) ; écrans : `test_autres_propositions_second_modele`, `test_autres_propositions_absent_sans_reglage` (PC et iPhone). Démo : l'IA simulée répond d'autres titres avec qwen2.5:14b.
+- Jamais essayé sur la vraie installation (ni qwen2.5:14b appelé depuis le NAS, ni sa durée réelle sous les 120 s d'attente).
+
 ## 0.21.0 — 18 novembre 2026 (santé des tâches de fond)
 - **Tâches suivies dans `/health`** (module commun `maison.py` du socle 0.9.1) : `/health` garde tous ses champs et ajoute `version_socle`, `taches` et `copie_base`. Les messages d'erreur des tâches n'y paraissent qu'avec le jeton commun `MAISON_JETON` ou une session.
   - À la demande (jamais d'orange dans l'Anneau) : `preparation` (livret de la Gazette) et `recidive` (édition de La Récidive), une préparation par tour de la file. Une préparation qui finit avec une erreur notée sur le livret ou l'édition compte comme ratée.

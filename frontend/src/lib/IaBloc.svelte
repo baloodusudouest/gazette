@@ -3,24 +3,29 @@
   // mot des hôtes). Des propositions à choisir : un toucher les applique au bloc ; rien n'est enregistré sans Julien.
   // 0.14 : les propositions de chaque aide restent affichées ensemble ; `tout()` (bouton « IA » du haut de la page)
   // demande toutes les aides du bloc d'un coup.
+  // 0.22 : `second` (réglage « Second modèle de l'IA ») : « Autres propositions » sous chaque série refait la même
+  // aide avec ce modèle ; le modèle utilisé est indiqué sous les propositions.
   import Sparkles from '@lucide/svelte/icons/sparkles'
   import { api } from '$lib/api.js'
+  import AutresIa from '$lib/AutresIa.svelte'
   import { enfiler } from '$lib/fileIa.svelte.js'
 
-  let { pid, texte, actions, signes = null, onapply, nom = 'un bloc' } = $props()
+  let { pid, texte, actions, signes = null, onapply, nom = 'un bloc', second = '' } = $props()
   const NOMS = { titres: 'Titres', raccourcir: 'Raccourcir', journal: 'Version journal', traduire: 'Traduire', mot: '3 mots' }
   let res = $state({})            // {action: [propositions]}
+  let modeles = $state({})        // {action: modèle qui a rendu ces propositions}
   let attente = $state('')
   let erreur = $state('')
 
   // 0.17 : chaque demande passe par la file commune de l'IA (une à la fois, à la suite de celles en cours)
-  async function demander(action) {
+  async function demander(action, deuxieme = false) {
     attente = action
     erreur = ''
     try {
-      const props = await enfiler(`${nom} (${NOMS[action].toLowerCase()})`, async () =>
-        (await api.post(`/api/livrets/${pid}/ia`, { action, texte: texte(), signes: action === 'raccourcir' ? signes : null })).propositions)
-      res = { ...res, [action]: props }
+      const r = await enfiler(`${nom} (${NOMS[action].toLowerCase()})`, async () =>
+        await api.post(`/api/livrets/${pid}/ia`, { action, texte: texte(), signes: action === 'raccourcir' ? signes : null, ...(deuxieme ? { second: true } : {}) }))
+      res = { ...res, [action]: r.propositions }
+      modeles = { ...modeles, [action]: r.modele ?? '' }
     } catch (err) { erreur = err.message }
     attente = ''
     return erreur
@@ -66,6 +71,7 @@
           <li><button type="button" class="w-full rounded-md px-2 py-1 text-left text-sm break-words whitespace-pre-line hover:bg-secondary"
                       onclick={() => appliquer(action, t)}>{t}</button></li>
         {/each}
+        <li><AutresIa modele={modeles[action]} {second} attente={attente === action} onautres={() => demander(action, true)} /></li>
       </ul>
     {/if}
   {/each}

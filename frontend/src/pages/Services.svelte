@@ -49,7 +49,7 @@
     { cle: 'ha', nom: 'Home Assistant', icone: House, cache: null, lit: 'reçoit les séjours sur /ha/sejour (jeton GAZETTE_JETON_HA) ; HA lit /ha/etat', ecrit: 'rien' },
     { cle: 'carnet', nom: 'Carnet', icone: BookUser, cache: null, lit: 'noms et dates de naissance sur /gazette/personnes (jeton commun MAISON_JETON) : fiche créée seule pour un invité connu, saisie assistée, dates comparées', ecrit: 'rien' },
     { cle: 'immich', nom: 'Immich', icone: Images, cache: null, lit: "La Récidive : photos de l'invité entre deux séjours, photos taguées « scandale », aperçus (clé GAZETTE_IMMICH_CLE : asset.read, asset.view, tag.read)", ecrit: 'rien' },
-    { cle: 'ia', nom: 'IA du PC', icone: Sparkles, cache: null, lit: `Ollama sur le PC (${e.ia.modele}) : il reçoit des descriptions écrites et les indices de la fiche (jamais une photo, jamais une date de naissance) et rend des propositions (titres de ${e.ia.maxi} caractères au plus, légendes, rumeurs, courrier, horoscope, aides de la Gazette).`, ecrit: 'rien' },
+    { cle: 'ia', nom: 'IA du PC', icone: Sparkles, cache: null, lit: `Ollama sur le PC (${e.ia.modele}) : il reçoit des descriptions écrites et les indices de la fiche (jamais une photo, jamais une date de naissance) et rend des propositions (titres de ${e.ia.maxi} caractères au plus, légendes, rumeurs, courrier, horoscope, aides de la Gazette).${e.ia.modele_second ? ` « Autres propositions » redemande la même chose à ${e.ia.modele_second} (Réglages › Le journal ; « Vérifier les sources » dit s'il est sur le PC).` : ''}`, ecrit: 'rien' },
     { cle: 'rendu', nom: 'Rendu PDF', icone: FileText, cache: null, lit: 'Chromium dans le conteneur, polices embarquées', ecrit: 'rien' },
   ] : [])
   function voyant(s) {

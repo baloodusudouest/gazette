@@ -297,3 +297,54 @@ def test_connexion_ia_du_pc(navigateur, adresse, taille):
         page.screenshot(path=f"{__import__('os').environ['CAPTURES']}/gazette-ia-{taille}.png", full_page=True)
     sans_debordement(page)
     assert erreurs == []
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_autres_propositions_second_modele(navigateur, adresse, taille):
+    """0.22 : après 5 titres (modèle habituel), « Autres propositions (qwen) » refait la demande avec le second modèle :
+    les nouvelles propositions remplacent les anciennes et le modèle utilisé est indiqué dessous."""
+    page, erreurs = ouvrir(navigateur, adresse, taille)
+    page.locator("a[href^='#/recidive/']").first.click()
+    page.get_by_role("heading", name="Lou Martin").wait_for()
+    # un essai précédent a pu tout valider : montrer aussi les éléments validés
+    page.get_by_text("Montrer aussi les validés").or_(page.get_by_text("Revoir les éléments validés")).first.wait_for()
+    if page.get_by_text("Revoir les éléments validés").is_visible():
+        page.get_by_text("Revoir les éléments validés").click()
+    else:
+        page.get_by_label("Montrer aussi les validés").check()
+    une = page.get_by_role("region", name="Une")
+    une.locator("input[aria-label='Description de la photo de la une']").fill("Lou sur une plage, lunettes de soleil")
+    une.get_by_role("button", name="5 titres").click()
+    une.get_by_text("« Les vacances secrètes de Lou »").wait_for()
+    une.get_by_text("Modèle : qwen2.5:7b").wait_for()
+    une.get_by_role("button", name="Autres propositions (qwen)").click()
+    une.get_by_text("« La vérité éclate sur la plage »").wait_for()
+    une.get_by_text("Modèle : qwen2.5:14b").wait_for()
+    assert une.get_by_text("« Les vacances secrètes de Lou »").count() == 0          # remplacées, comme une nouvelle demande
+    sans_debordement(page)
+    assert erreurs == []
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_autres_propositions_absent_sans_reglage(navigateur, adresse, taille):
+    """0.22 : réglage « Second modèle de l'IA » vide : pas de bouton « Autres propositions » (Gazette, légende de la photo)."""
+    page, erreurs = ouvrir(navigateur, adresse, taille, "#/livret/2")
+    page.get_by_role("heading", name="Lou Martin").wait_for()
+    poser = "async (v) => (await fetch('/api/reglages', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({modele_second: v})})).status"
+    assert page.evaluate(poser, "") == 200
+    try:
+        page.reload()
+        page.get_by_role("heading", name="Lou Martin").wait_for()
+        photos = page.get_by_role("radiogroup", name="Photo de la page 4")
+        if not photos.is_visible():
+            page.get_by_role("button", name="Chercher dans Immich").click()
+        if not page.get_by_role("radiogroup", name="Cadrage").is_visible():
+            photos.locator("[aria-checked='false']").first.click()
+        page.get_by_role("button", name="5 légendes").click()
+        legendes = page.get_by_role("list", name="Légendes proposées")
+        legendes.get_by_text("Modèle : qwen2.5:7b").wait_for()
+        assert legendes.get_by_role("button", name="Autres propositions").count() == 0
+    finally:
+        assert page.evaluate(poser, "qwen2.5:14b") == 200
+    sans_debordement(page)
+    assert erreurs == []

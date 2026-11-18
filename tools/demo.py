@@ -66,9 +66,12 @@ NOTORIETE = [("Gustav Exemple", 90), ("Ringo Exemple", 120), ("Arthur Exemple", 
 
 
 def ollama_simule(chemin: str, corps: dict | None):
-    """0.9.1 : l'IA du PC simulée (titres fixes)."""
+    """0.9.1 : l'IA du PC simulée (titres fixes). 0.22 : d'autres titres avec le second modèle (« Autres propositions »)."""
     if corps is None:
-        return {"models": [{"name": "qwen2.5:7b"}]}
+        return {"models": [{"name": "qwen2.5:7b"}, {"name": "qwen2.5:14b"}]}
+    if corps.get("model") == "qwen2.5:14b":
+        return {"response": "1. Lou sort enfin du silence\n2. La vérité éclate sur la plage\n3. Révélations à l'heure de la sieste\n"
+                            "4. Les aveux du parasol\n5. Un été sous haute surveillance"}
     return {"response": "1. Flagrant délit au soleil\n2. Les vacances secrètes de Lou\n3. Elle nie tout en bloc\n"
                         "4. Photo volée, sourire avoué\n5. Le scandale de l'été"}
 

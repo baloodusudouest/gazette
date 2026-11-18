@@ -184,6 +184,18 @@
           <span class="text-xs text-muted-foreground">{r.champs.r_mot_modele.aide}</span>
         </label>
       </div>
+
+      <!-- 0.22 : second modèle de l'IA du PC (« Autres propositions ») -->
+      <h3 class="mt-6 text-base font-semibold">L'IA du PC</h3>
+      <p class="mt-1 text-sm text-muted-foreground">Le premier jet vient du modèle de la stack ; le bouton « Autres propositions » redemande la même chose à un second modèle.</p>
+      <div class="mt-3 grid gap-3 sm:grid-cols-2">
+        <label class="grid gap-1 text-sm">
+          <span class="text-muted-foreground">{r.champs.modele_second.libelle}</span>
+          <input class="h-10 rounded-lg border bg-background px-3 font-mono" maxlength={r.champs.modele_second.maxi} bind:value={j.modele_second}
+                 oninput={() => (modifie = true)} placeholder="(vide : pas de bouton)" spellcheck="false" autocomplete="off" />
+          <span class="text-xs text-muted-foreground">{r.champs.modele_second.aide}</span>
+        </label>
+      </div>
       <div class="mt-4 flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={!modifie || envoiJ}>Enregistrer</Button>
         {#if !modifie && !messageJ}<span class="text-xs text-muted-foreground">rien à enregistrer</span>{/if}

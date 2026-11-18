@@ -24,6 +24,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from . import __version__, anniversaire, code_barres, culture, journal, maison, recidive as R, rendu, rendu_recidive
 from .carnet import Carnet
 from .immich import Immich
+from . import ollama as ia
 from .ollama import ACTIONS_GAZETTE, MAXI as MAXI_TITRE, Ollama, sans_numero, texte_contexte
 from .auth import COMMUN, DUREE, Sessions, en_https
 from .base import ETATS, Base, cle_nom, maintenant
@@ -472,6 +473,27 @@ def _journal() -> dict:
     return journal.charger(ETAT["base"])
 
 
+def _modele_demande(corps) -> str | None:
+    """0.22 : `{"second": true}` dans le corps d'une demande à l'IA → le second modèle (réglage `modele_second`) ;
+    sinon None, le modèle habituel (GAZETTE_OLLAMA_MODELE). Réglage vide : refus 400 (le bouton est caché)."""
+    if not isinstance(corps, dict) or corps.get("second") is not True:
+        return None
+    m = str(_journal().get("modele_second") or "").strip()
+    if not m:
+        raise HTTPException(400, "Second modèle de l'IA pas réglé (Réglages › Le journal › Second modèle de l'IA) : "
+                                 "« Autres propositions » est coupé.")
+    return m
+
+
+def _ia_etat() -> dict:
+    """État de l'IA pour les écrans, avec le second modèle réglé (vide : pas de bouton « Autres propositions ») ; il
+    s'ajoute aux réglages lus de Connexion › IA du PC."""
+    e, second = ETAT["ollama"].etat(), str(_journal().get("modele_second") or "").strip()
+    e["guide"]["reglages"].insert(2, {"nom": "Second modèle", "valeur": (f"{second} (« Autres propositions » ; Réglages › Le journal)"
+                                                                        if second else "pas réglé (Réglages › Le journal) : pas de bouton « Autres propositions »")})
+    return {**e, "modele_second": second}
+
+
 ANNUAIRE = maison.Annuaire()
 
 
@@ -608,6 +630,7 @@ def livret(pid: int):
     return {"personne": p, "livret": {**lv, "mot_defaut": rendu.mot_par_defaut(p, naissance, j),
                                       "code_barres_defaut": rendu.message_code_barres(_prenom(p)), "cadrages": R.CADRAGES,
                                       "immich": ETAT["immich"].actif},
+            "ia": {"modele": ia.MODELE, "modele_second": _ia_etat()["modele_second"]},
             "sejours": _sejours_de(pid), "anniversaires": _anniversaires_de(p), "signature": j["signature"]}
 
 
@@ -736,6 +759,7 @@ def proposer_legende_livret(pid: int, corps: dict = Body(default={})):
     """0.13 : {description} → 5 légendes façon presse de l'année de naissance pour la photo choisie, d'après la
     description de Julien, l'album parlant et les personnes d'Immich. Rien n'est choisi à sa place."""
     p = _personne_ou_404(pid)
+    modele = _modele_demande(corps)
     lv = ETAT["base"].livret(pid)
     ph = dict(lv["photo"])
     if not ph.get("id"):
@@ -751,14 +775,15 @@ def proposer_legende_livret(pid: int, corps: dict = Body(default={})):
                                     f"Prise le {ph['date']}" if ph.get("date") else "") if t)
     contact = _contact(p) or {}
     try:
-        props = ETAT["ollama"].gazette("legende", texte, int(p["naissance"][:4]), None, _prenom(p), contact.get("genre", ""))
+        props = ETAT["ollama"].gazette("legende", texte, int(p["naissance"][:4]), None, _prenom(p), contact.get("genre", ""),
+                                       modele=modele)
     except ValueError as ex:
         raise HTTPException(422, str(ex))
     except RuntimeError as ex:
         raise HTTPException(503, str(ex))
     ETAT["base"].maj_livret(pid, photo={**ph, "description": description, "propositions": props})
     ETAT["base"].noter("ia", pid, f"légende de la photo : {len(props)} proposition(s)")
-    return {"propositions": props, "contexte": ph.get("contexte") or {}}
+    return {"propositions": props, "contexte": ph.get("contexte") or {}, "modele": modele or ia.MODELE}
 
 
 def _valides(v) -> dict:
@@ -783,6 +808,7 @@ def ia_livret(pid: int, corps: dict = Body(...)):
     {action: titres | raccourcir | journal | traduire | mot, texte, signes?}. Rend des propositions ; rien n'est
     changé dans le livret (Julien choisit, puis enregistre)."""
     p = _personne_ou_404(pid)
+    modele = _modele_demande(corps)
     action = str(corps.get("action") or "")
     if action not in ACTIONS_GAZETTE:
         raise HTTPException(422, "Aide inconnue.")
@@ -795,13 +821,13 @@ def ia_livret(pid: int, corps: dict = Body(...)):
     try:
         props = ETAT["ollama"].gazette(action, str(corps.get("texte") or ""), int(p["naissance"][:4]), signes,
                                        _prenom(p), contact.get("genre", ""), contact.get("journaux", ""), _journal()["chez"],
-                                       evenements)
+                                       evenements, modele=modele)
     except ValueError as ex:
         raise HTTPException(422, str(ex))
     except RuntimeError as ex:
         raise HTTPException(503, str(ex))
     ETAT["base"].noter("ia", pid, f"{action} : {len(props)} proposition(s)")
-    return {"propositions": props}
+    return {"propositions": props, "modele": modele or ia.MODELE}
 
 
 @app.post("/api/livrets/{pid}/mot/ajouter")
@@ -957,7 +983,7 @@ def edition(rid: int):
             "code_barres_defaut": R.code_barres(_prenom(p)), "code_barres_maxi": code_barres.MAXI,
             "indices_carnet": _contact(p).get("journaux") or "", "deja_paru": _deja_paru(p["id"], rid), "macarons": R.MACARONS, "rumeurs_maxi": R.RUMEURS, "lettres_maxi": R.LETTRES,
             "signe": R.signe(p.get("naissance", ""))[0], "cadrages": R.CADRAGES,
-            "ia": {**ETAT["ollama"].etat(), "maxi": MAXI_TITRE}}
+            "ia": {**_ia_etat(), "maxi": MAXI_TITRE}}
 
 
 @app.put("/api/recidives/{rid}")
@@ -1051,6 +1077,7 @@ def proposer_titres(rid: int, corps: dict = Body(...)):
     l'IA du PC d'après la description écrite par Julien (la photo ne part pas). La description et les propositions
     sont gardées ; rien n'est choisi à sa place. PC injoignable : 503 avec la marche à suivre."""
     ed, p = _edition_ou_404(rid)
+    modele = _modele_demande(corps)
     cible = str(corps.get("cible") or "")
     description = " ".join(str(corps.get("description") or "").split())[:400]
     photo = next((x for x in ed["photos"] if x["id"] == cible), None)
@@ -1060,7 +1087,7 @@ def proposer_titres(rid: int, corps: dict = Body(...)):
     contexte = _contexte_photo(ed, une if cible == "une" else photo)
     try:
         props = ETAT["ollama"].proposer(description, "une" if cible == "une" else "photo", ed["genre"], _prenom(p),
-                                        deja=_deja_paru(p["id"], rid), contexte=contexte)
+                                        deja=_deja_paru(p["id"], rid), contexte=contexte, modele=modele)
     except ValueError as ex:
         raise HTTPException(422, str(ex))
     except RuntimeError as ex:
@@ -1071,7 +1098,7 @@ def proposer_titres(rid: int, corps: dict = Body(...)):
         photos = [{**x, "description": description, "propositions": props} if x["id"] == cible else x for x in ed["photos"]]
         ETAT["base"].maj_recidive(rid, photos=photos)
     ETAT["base"].noter("recidive", p["id"], f"{len(props)} titre(s) proposé(s) par l'IA ({'une' if cible == 'une' else 'photo'})")
-    return {"propositions": props}
+    return {"propositions": props, "modele": modele or ia.MODELE}
 
 
 @app.post("/api/recidives/{rid}/rumeurs")
@@ -1079,6 +1106,7 @@ def proposer_rumeurs(rid: int, corps: dict = Body(default={})):
     """0.9.7 : {indices} (facultatif, ce qu'on sait de l'invité) → 8 rumeurs loufoques inventées par l'IA du PC, pour la
     rubrique « Les rumeurs de la rédaction » (page 3). Rien n'est choisi à la place de Julien."""
     ed, p = _edition_ou_404(rid)
+    modele = _modele_demande(corps)
     indices = " ".join(str(corps.get("indices") or "").split())[:400]
     gardees = [x for x in ed["photos"] if not x.get("retiree")]
     ctxs = [_contexte_photo(ed, x) for x in gardees]          # 0.12 : albums et personnes des photos
@@ -1088,12 +1116,13 @@ def proposer_rumeurs(rid: int, corps: dict = Body(default={})):
         vues += [f"(numéro de {x.get('le', '')[:4]}) {d}" for d in (x.get("descriptions") or [])[:3]]
     gens = list(dict.fromkeys(g for c in ctxs for g in c.get("personnes") or []))
     try:
-        props = ETAT["ollama"].rumeurs(_avec_livre(p, indices), ed["genre"], _prenom(p), vues, deja=_deja_paru(p["id"], rid), personnes=gens)
+        props = ETAT["ollama"].rumeurs(_avec_livre(p, indices), ed["genre"], _prenom(p), vues, deja=_deja_paru(p["id"], rid), personnes=gens,
+                                       modele=modele)
     except RuntimeError as ex:
         raise HTTPException(503, str(ex))
     ETAT["base"].maj_recidive(rid, indices_rumeurs=indices, propositions_rumeurs=props)
     ETAT["base"].noter("recidive", p["id"], f"{len(props)} rumeur(s) proposée(s) par l'IA")
-    return {"propositions": props, "carnet": _garder_indices(p, indices)}
+    return {"propositions": props, "carnet": _garder_indices(p, indices), "modele": modele or ia.MODELE}
 
 
 def _avec_livre(p: dict, indices: str) -> str:
@@ -1129,29 +1158,32 @@ def _garder_indices(p: dict, indices: str) -> str:
 def proposer_courrier(rid: int, corps: dict = Body(default={})):
     """0.11 : 4 fausses lettres de lecteurs, avec la réponse de la rédaction, pour la page 4. Rien n'est choisi."""
     ed, p = _edition_ou_404(rid)
+    modele = _modele_demande(corps)
     indices = " ".join(str(corps.get("indices") or ed.get("indices_rumeurs") or "").split())[:400]
     try:
-        props = ETAT["ollama"].courrier(_avec_livre(p, indices), ed["genre"], _prenom(p), deja=_deja_paru(p["id"], rid))
+        props = ETAT["ollama"].courrier(_avec_livre(p, indices), ed["genre"], _prenom(p), deja=_deja_paru(p["id"], rid),
+                                        modele=modele)
     except RuntimeError as ex:
         raise HTTPException(503, str(ex))
     ETAT["base"].maj_recidive(rid, propositions_courrier=props)
-    return {"propositions": props}
+    return {"propositions": props, "modele": modele or ia.MODELE}
 
 
 @app.post("/api/recidives/{rid}/horoscope")
 def proposer_horoscope(rid: int, corps: dict = Body(default={})):
     """0.11 : 3 horoscopes loufoques du séjour, d'après le signe (calculé de la date de naissance, jamais imprimée)."""
     ed, p = _edition_ou_404(rid)
+    modele = _modele_demande(corps)
     indices = " ".join(str(corps.get("indices") or ed.get("indices_rumeurs") or "").split())[:400]
     evenement = " ".join(str(corps.get("evenement") if "evenement" in corps else ed.get("evenement") or "").split())[:200]
     try:
         props = ETAT["ollama"].horoscope(R.signe(p.get("naissance", ""))[0], indices, ed["genre"], _prenom(p),
                                          deja=_deja_paru(p["id"], rid), evenement=evenement,
-                                         avant=_evenements_avant(p["id"], ed))
+                                         avant=_evenements_avant(p["id"], ed), modele=modele)
     except RuntimeError as ex:
         raise HTTPException(503, str(ex))
     ETAT["base"].maj_recidive(rid, propositions_horoscope=props, evenement=evenement)
-    return {"propositions": props}
+    return {"propositions": props, "modele": modele or ia.MODELE}
 
 
 @app.post("/api/recidives/{rid}/mot")
@@ -1159,15 +1191,17 @@ def proposer_droit(rid: int, corps: dict = Body(default={})):
     """0.18.1 : 3 versions du droit de réponse (mot des hôtes, page 4), d'après les indices, l'événement du séjour et ce
     que raconte le numéro (gros titre, rumeurs). Rien n'est choisi à la place de Julien."""
     ed, p = _edition_ou_404(rid)
+    modele = _modele_demande(corps)
     faits = [ed.get("titre_une") or "", ed.get("evenement") or "", *(ed.get("rumeurs") or [])[:4]]
     try:
         props = ETAT["ollama"].gazette("droit", str(corps.get("texte") or ""), None, None, _prenom(p), ed["genre"],
-                                       _avec_livre(p, ed.get("indices_rumeurs") or ""), _journal()["chez"], [x for x in faits if x.strip()])
+                                       _avec_livre(p, ed.get("indices_rumeurs") or ""), _journal()["chez"], [x for x in faits if x.strip()],
+                                       modele=modele)
     except ValueError as ex:
         raise HTTPException(422, str(ex))
     except RuntimeError as ex:
         raise HTTPException(503, str(ex))
-    return {"propositions": props}
+    return {"propositions": props, "modele": modele or ia.MODELE}
 
 
 @app.post("/api/recidives/{rid}/preparer")
@@ -1535,7 +1569,7 @@ def etat_connexions():
                    "dernier_corps": base.reglage("ha_dernier_resume")},
             "rendu": {"polices": rendu.polices_presentes()},
             "larousse": _journal()["larousse"],
-            "carnet": ETAT["carnet"].etat(), "immich": ETAT["immich"].etat(), "ia": ETAT["ollama"].etat(),
+            "carnet": ETAT["carnet"].etat(), "immich": ETAT["immich"].etat(), "ia": _ia_etat(),
             "rendu_recidive": {"polices": rendu_recidive.polices_presentes()}}
 
 
@@ -1550,7 +1584,8 @@ def verifier_sources():
         r["carnet"] = {"ok": None, "detail": "pas réglé (MAISON_JETON vide)"}
     for cle in ("immich", "ollama"):        # 0.20.3 : une sonde qui plante ne fait plus tomber toute la vérification
         try:
-            r["ia" if cle == "ollama" else cle] = ETAT[cle].sonder()
+            r["ia" if cle == "ollama" else cle] = (ETAT[cle].sonder(_ia_etat()["modele_second"]) if cle == "ollama"
+                                                   else ETAT[cle].sonder())
         except Exception as ex:  # noqa: BLE001
             r["ia" if cle == "ollama" else cle] = {"ok": False, "detail": f"vérification impossible ({type(ex).__name__} : {ex})"[:200]}
     return r
