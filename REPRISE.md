@@ -2,6 +2,9 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
+## Changement (18/11/2026) — 0.26.0
+- `banque` : sorte `courrier` (`lettre()` coupe sur « ::: », `MAXI_SIGNE`, `MAXI_REPONSE`, `pour_ia` au format à étiquettes) ; `recidive_banque` rend des {lettre, signe, reponse} gardés dans `propositions_courrier` ; `_banque_rendue` compare une lettre par son texte ; `_avec_banque` dans `/courrier`. Chats remplacés par des chiens (banque, exemples IA, fiche, prompt).
+
 ## Correctif (18/11/2026) — 0.25.1
 - `banque.lire` : `_section` accepte un titre sans « # » ; ligne sans puce sous une section = élément, sauf `_bavardage` ; `_reparer_prenom` (double espace → {prenom} pour `EXIGE_PRENOM` = rumeur, titre) ; `mesurer` écarte « sans {prenom} ». `rendre` : élision qu'/que, d'/de devant le prénom.
 

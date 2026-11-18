@@ -264,9 +264,9 @@ def _accord(genre: str, prenom: str) -> str:
 def consigne_courrier(indices: str, genre: str, prenom: str, deja: list[str] | None = None, fiche: str = "") -> str:
     """0.11.1 : format à étiquettes (Lettre / Signature / Réponse), mieux suivi par les petits modèles que « ::: »."""
     return ("Exemple du ton et du format voulus :\n"
-            "Lettre : Depuis que Marc est reparti, mon chat refuse de manger : il réclame ses imitations de mouette. Que faire ?\n"
+            "Lettre : Depuis que Marc est reparti, mon chien refuse de manger : il réclame ses imitations de mouette. Que faire ?\n"
             "Signature : Un voisin inquiet\n"
-            "Réponse : La rédaction conseille de prolonger le séjour, pour le bien du chat.\n\n"
+            "Réponse : La rédaction conseille de prolonger le séjour, pour le bien du chien.\n\n"
             + _feuilleton(deja or [])
             + f"Écris {NOMBRE_LETTRES} fausses lettres de lecteurs, drôles et affectueuses, pour la rubrique « Courrier des "
               f"lecteurs » d'un faux journal à scandale sur {prenom}, offert par ses hôtes. {_accord(genre, prenom)}.\n"

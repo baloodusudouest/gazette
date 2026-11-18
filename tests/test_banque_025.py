@@ -25,6 +25,10 @@ FICHIER = """# Banque d'essai
 - EXCLUSIF : {prenom} fuit avec la télécommande
 - {prenom} et un titre beaucoup trop long pour tenir sur la une du journal
 titre | {prenom} sème la panique au marché
+# COURRIER DES LECTEURS
+- Depuis le départ de {prenom}, mon chien boude et réclame ses imitations de mouette. Que faire ? ::: Un voisin inquiet ::: La rédaction conseille de prolonger le séjour.
+- Lettre sans séparateur pour {prenom}, donc refusée par la lecture.
+- {prenom} a emprunté mon arrosoir et le rend toujours plein de confettis. ::: Le jardin d'à côté
 """
 
 
@@ -49,7 +53,9 @@ def test_lecture_du_fichier():
     assert len(lus["horoscope"]) == 1 and len(lus["mot"]) == 4
     assert lus["titre"] == ["{prenom} démasqué{e} au rayon fromages", "EXCLUSIF : {prenom} fuit avec la télécommande",
                             "{prenom} sème la panique au marché"]
-    assert ecarts == {"doublon dans le fichier": 1, "trop court": 1, "balise inconnue": 1, "trop long": 1}
+    assert len(lus["courrier"]) == 2 and B.lettre(lus["courrier"][1])["reponse"] == ""
+    assert ecarts == {"doublon dans le fichier": 1, "trop court": 1, "balise inconnue": 1, "trop long": 1,
+                      "lettre sans « ::: »": 1}
 
 
 def test_rendre():
@@ -66,7 +72,7 @@ def test_fichier_de_claude_s_importe_en_entier():
     if not f.exists():
         return
     lus, ecarts = B.lire(f.read_text())
-    assert {k: len(v) for k, v in lus.items()} == {"rumeur": 1000, "horoscope": 1000, "mot": 1000, "titre": 1000} and not ecarts
+    assert all(len(lus[k]) == 1000 for k in ("rumeur", "horoscope", "mot", "titre")) and not ecarts
 
 
 # ---------------------------------------------------------------- import, état, export, vider
@@ -74,15 +80,15 @@ def test_fichier_de_claude_s_importe_en_entier():
 def test_import_puis_reimport_sans_doublon(monter):
     c = monter()
     r = c.post("/api/banque/import", json={"texte": FICHIER, "source": "essai.txt"}).json()
-    assert r["ajoutes"] == {"rumeur": 3, "horoscope": 1, "mot": 4, "titre": 3} and r["deja"] == 0
+    assert r["ajoutes"] == {"rumeur": 3, "horoscope": 1, "mot": 4, "titre": 3, "courrier": 2} and r["deja"] == 0
     r2 = c.post("/api/banque/import", json={"texte": FICHIER, "source": "essai.txt"}).json()
-    assert r2["ajoutes"] == {"rumeur": 0, "horoscope": 0, "mot": 0, "titre": 0} and r2["deja"] == 11
-    assert c.get("/api/banque").json()["comptes"] == {"rumeur": 3, "horoscope": 1, "mot": 4, "titre": 3}
+    assert r2["ajoutes"] == {"rumeur": 0, "horoscope": 0, "mot": 0, "titre": 0, "courrier": 0} and r2["deja"] == 13
+    assert c.get("/api/banque").json()["comptes"] == {"rumeur": 3, "horoscope": 1, "mot": 4, "titre": 3, "courrier": 2}
     exp = c.get("/api/banque/export").text
     assert "# RUMEURS" in exp
-    assert sum(len(v) for v in B.lire(exp)[0].values()) == 11                      # l'export se réimporte
+    assert sum(len(v) for v in B.lire(exp)[0].values()) == 13                      # l'export se réimporte
     assert c.delete("/api/banque?sorte=titre").json()["retires"] == 3
-    assert c.delete("/api/banque").json()["comptes"] == {"rumeur": 0, "horoscope": 0, "mot": 0, "titre": 0}
+    assert c.delete("/api/banque").json()["comptes"] == {"rumeur": 0, "horoscope": 0, "mot": 0, "titre": 0, "courrier": 0}
 
 
 def test_import_illisible(monter):
@@ -107,6 +113,9 @@ def test_piocher_pour_la_recidive(monter):
     photo = main.ETAT["base"].recidive(rid)["photos"][0]["id"]
     c.post(f"/api/recidives/{rid}/banque", json={"sorte": "titre", "cible": photo})
     assert main.ETAT["base"].recidive(rid)["photos"][0]["propositions"]
+    lettres = c.post(f"/api/recidives/{rid}/banque", json={"sorte": "courrier"}).json()["propositions"]   # 0.26
+    assert len(lettres) == 2 and all(set(x) == {"lettre", "signe", "reponse"} and "Camille" in x["lettre"] for x in lettres)
+    assert main.ETAT["base"].recidive(rid)["propositions_courrier"] == lettres
     assert c.post(f"/api/recidives/{rid}/banque", json={"sorte": "autre"}).status_code == 422
 
 
@@ -189,4 +198,4 @@ def test_elision_devant_le_prenom():
     t = "On murmure au marché qu'{prenom} aurait confondu un tracteur avec un lit."
     assert B.rendre(t, "Paul", "homme", "") == "On murmure au marché que Paul aurait confondu un tracteur avec un lit."
     assert B.rendre(t, "Audrey", "femme", "") == "On murmure au marché qu'Audrey aurait confondu un tracteur avec un lit."
-    assert B.rendre("Le chat de {prenom}", "Émile", "homme", "") == "Le chat d'Émile"
+    assert B.rendre("Le chien de {prenom}", "Émile", "homme", "") == "Le chien d'Émile"

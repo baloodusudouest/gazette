@@ -15,7 +15,7 @@ R_OUV = [
     "Selon nos informations,", "D'après une source proche du dossier,", "On murmure au marché d'Agen :",
     "Un voisin l'affirme :", "Notre envoyé spécial est formel :", "Au comptoir, on raconte que, chaque soir,",
     "Selon un pigeon voyageur bien informé,", "Des témoins l'assurent :", "Rumeur persistante :",
-    "La rédaction l'a appris de source sûre :", "D'après le facteur,", "Un chat du quartier confirme :",
+    "La rédaction l'a appris de source sûre :", "D'après le facteur,", "Un chien du quartier confirme :",
     "Le bruit court :", "Selon des sources non vérifiées,", "Nos espions rapportent que, depuis l'été,",
     "Le boulanger est formel :", "Le GPS de la voiture a parlé :", "Révélation du rayon fromages :",
     "Les murs de la chambre d'amis chuchotent :", "Il paraîtrait que, certains mardis,",
@@ -30,7 +30,7 @@ R_ACT = [
     "{prenom} aurait nommé sa plante verte « Directrice générale »", "{prenom} saurait imiter le cri du canard colvert",
     "{prenom} aurait fait une offre pour racheter la Garonne", "{prenom} parlerait couramment le langage des chèvres",
     "{prenom} aurait inventé une danse pour accompagner le lave-vaisselle", "{prenom} cacherait une réserve secrète de croissants",
-    "{prenom} aurait voulu inscrire son chat au concours de belote", "{prenom} aurait battu le record de sieste du département",
+    "{prenom} aurait voulu inscrire son chien au concours de belote", "{prenom} aurait battu le record de sieste du département",
     "{prenom} aurait fait signer un contrat de confidentialité à un hérisson", "{prenom} aurait confondu la boîte aux lettres et le frigo",
     "{prenom} tiendrait un journal intime en alexandrins", "{prenom} aurait offert un bouquet à la machine à café",
     "{prenom} aurait tenté de négocier avec un radar", "{prenom} aurait été aperçu{e} en train de saluer les ronds-points",
@@ -113,7 +113,7 @@ H_PRED = [
     "la télécommande sera de votre côté", "votre café aura exactement la bonne température",
     "un inconnu vous demandera votre recette secrète", "vous serez l'invité{e} d'honneur d'un apéritif improvisé",
     "une chanson oubliée vous trottera dans la tête toute la journée", "les feux passeront au vert à votre approche",
-    "vous battrez votre record de crêpes retournées", "un chat vous choisira comme humain préféré",
+    "vous battrez votre record de crêpes retournées", "un chien vous choisira comme humain préféré",
     "vous découvrirez un talent caché pour le yodel", "la boulangerie gardera la dernière baguette pour vous",
     "votre parapluie restera sec, par pure solidarité", "un souvenir d'enfance frappera à la porte",
     "une carte postale arrivera de nulle part", "vous trouverez enfin le bon côté du drap-housse",
@@ -134,7 +134,7 @@ H_CONSEIL = [
     "Ne prêtez pas votre parapluie à Mars.", "Appelez la personne qui vous fait rire.",
     "Évitez de négocier avec les mouettes.", "Arrosez vos plantes, elles parlent de vous.",
     "Gardez une pièce dans votre poche droite.", "Saluez la Lune avant de dormir.",
-    "Ne jouez pas aux cartes contre un chat.", "Prenez le chemin des écoliers.",
+    "Ne jouez pas aux cartes contre un chien.", "Prenez le chemin des écoliers.",
     "Offrez un compliment avant midi.", "Dansez trente secondes en cuisine.", "Laissez la dernière olive à quelqu'un d'autre.",
     "Écrivez une carte postale à l'ancienne.", "Goûtez un fruit que vous ne connaissez pas.",
     "Ne lisez pas les petites lignes du ciel.", "Faites confiance à votre premier fou rire.",
@@ -185,7 +185,7 @@ M_DEBUT = [
     "{salut}, bienvenue dans la seule maison du Lot-et-Garonne qui imprime ses propres ragots.",
     "{salut}, la maison a compté les jours jusqu'à votre arrivée.",
     "{salut}, nos hôtes de marque ont droit à leur journal : vous voici en première page.",
-    "{salut}, la maison vous salue, le jardin aussi, et même le chat, à sa façon.",
+    "{salut}, la maison vous salue, le jardin aussi, et même le chien, à sa façon.",
     "{salut}, ici, les nouvelles sont fraîches et les confitures maison.",
     "{salut}, prenez place : ce journal se lit mieux avec une tasse à la main.",
     "{salut}, la rédaction a le plaisir de vous accueillir {chez}.",
@@ -198,7 +198,7 @@ M_DEBUT = [
 M_MILIEU = [
     "Tout ce que vous lirez ici est rigoureusement inventé, à part notre joie de vous recevoir.",
     "Les rumeurs de ce numéro n'engagent que la rédaction, qui assume tout.",
-    "Nous avons interrogé les voisins, le facteur et le chat : tous confirment que vous êtes attendu{e}.",
+    "Nous avons interrogé les voisins, le facteur et le chien : tous confirment que vous êtes attendu{e}.",
     "Le petit-déjeuner est servi à l'heure qui vous plaira, la rédaction ne juge pas.",
     "Si vous entendez du bruit la nuit, ce n'est que la maison qui raconte des histoires.",
     "Le jardin vous attend pour une promenade, les tomates pour une dégustation.",
@@ -233,7 +233,7 @@ M_MILIEU = [
     "Les hôtes ne garantissent ni la météo ni l'exactitude des faits, seulement l'accueil.",
     "Ici, on ne compte ni les parts de gâteau ni les éclats de rire.",
     "La page des rumeurs a été écrite tard le soir, ceci explique cela.",
-    "Le chat de la maison a validé votre venue d'un clignement d'yeux.",
+    "Le chien de la maison a validé votre venue d'un clignement d'yeux.",
     "Si un article vous choque, sachez qu'il en existe une version encore pire, censurée par nos soins.",
     "Nous espérons que ce journal vous fera sourire autant qu'il nous a fait rire en l'écrivant.",
 ]
@@ -272,7 +272,7 @@ def mots():
 T_PRE = ["", "", "", "", "EXCLUSIF : ", "Scandale : ", "Révélations : ", "Choc : ", "Incroyable : ", "Dernière heure : ", "Affaire : "]
 T_COEUR = [
     "{prenom} démasqué{e} au rayon fromages", "{prenom} fuit avec la télécommande", "{prenom} pris{e} la main dans le pot de confiture",
-    "{prenom} avoue tout au chat", "{prenom} et le mystère du dernier croissant", "{prenom} sème la panique au marché",
+    "{prenom} avoue tout au chien", "{prenom} et le mystère du dernier croissant", "{prenom} sème la panique au marché",
     "{prenom} surpris{e} en pleine sieste", "{prenom} rafle tous les pruneaux", "{prenom} brise le silence",
     "{prenom} et le pigeon : l'enquête", "{prenom} relance le scandale du gâteau", "{prenom} détourne la playlist",
     "{prenom} pris{e} en flagrant délit de fou rire", "{prenom} et la chaussette disparue", "{prenom} fait trembler la cuisine",
@@ -281,10 +281,10 @@ T_COEUR = [
     "{prenom} ridiculise le grille-pain", "{prenom} et la nuit de tous les excès", "{prenom} squatte le canapé",
     "{prenom} et le secret de la piscine", "{prenom} s'empare du barbecue", "{prenom} en garde à vue chez le boulanger",
     "{prenom} et le complot des chaussons", "{prenom} cité{e} dans l'affaire du fromage", "{prenom} ose tout",
-    "{prenom} : la photo qui dérange", "{prenom} et son double maléfique", "{prenom} hypnotise le chat",
+    "{prenom} : la photo qui dérange", "{prenom} et son double maléfique", "{prenom} hypnotise le chien",
     "{prenom} et la fondue de la discorde", "{prenom} change de vie (pour un week-end)", "{prenom} négocie avec un radar",
     "{prenom} et les pruneaux de la honte", "{prenom} perd la tête au loto", "{prenom} démissionne du rangement",
-    "{prenom} pris{e} en photo sans maquillage du chat", "{prenom} et le tablier de la discorde", "{prenom} vole la vedette",
+    "{prenom} pris{e} en photo sans maquillage du chien", "{prenom} et le tablier de la discorde", "{prenom} vole la vedette",
     "{prenom} recherché{e} par la brigade du goûter", "{prenom} fait exploser l'audimat du salon", "{prenom} sur la piste du dessert",
     "{prenom} défie la Garonne", "{prenom} et l'énigme du placard", "{prenom} se lâche en terrasse",
     "{prenom} et l'apéritif qui a tout changé", "{prenom} en plein délire", "{prenom} refuse de rendre le plaid",
@@ -313,7 +313,7 @@ T_COEUR = [
     "{prenom} intouchable", "{prenom} et la tondeuse folle", "{prenom} jure qu'on l'a piégé{e}",
     "{prenom} et la nuit au clair de lune", "{prenom} en roue libre", "{prenom} fait la une, encore",
     "{prenom} et le pique-nique de la honte", "{prenom} dérape au bowling", "{prenom} et la poule savante",
-    "{prenom} mène l'enquête", "{prenom} et le pain perdu retrouvé", "{prenom} tient tête au chat",
+    "{prenom} mène l'enquête", "{prenom} et le pain perdu retrouvé", "{prenom} tient tête au chien",
     "{prenom} et le secret de famille", "{prenom} se fait remarquer", "{prenom} et les bulles de la discorde",
     "{prenom} libère le hamac", "{prenom} et l'orage de minuit", "{prenom} dans la tourmente",
 ]
@@ -340,10 +340,118 @@ def titres():
     return res
 
 
+# ------------------------------------------------------------------ COURRIER DES LECTEURS (lettre ::: signature ::: réponse)
+C_LETTRE = [
+    "Depuis le départ de {prenom}, mon chien refuse de manger : il réclame ses imitations de mouette.",
+    "{prenom} m'a emprunté mon arrosoir et me le rend toujours rempli de confettis.",
+    "Chaque fois que {prenom} passe devant chez moi, mes géraniums se mettent à pousser plus vite.",
+    "J'ai vu {prenom} saluer le rond-point de la sortie d'Agen avec une révérence parfaite.",
+    "Depuis que {prenom} a dormi dans la chambre d'amis, l'oreiller ne veut plus servir à personne d'autre.",
+    "{prenom} a appris à mon perroquet une chanson que je n'arrive plus à lui faire oublier.",
+    "Mon coq refuse de chanter tant que {prenom} n'est pas réveillé{e}.",
+    "{prenom} a gagné notre concours de belote sans jamais regarder ses cartes.",
+    "Depuis le passage de {prenom}, la boulangerie ne vend plus que des croissants en forme de cœur.",
+    "Ma tondeuse a démarré toute seule en entendant le nom de {prenom}.",
+    "{prenom} a laissé un mot sur mon pare-brise : « Bravo pour le créneau ». Je suis ému.",
+    "Le chien du voisin ne remue la queue que pour {prenom}, et cela me vexe un peu.",
+    "{prenom} a goûté ma confiture de figues et a pleuré de joie. Dois-je en refaire ?",
+    "Depuis la visite de {prenom}, mes poules pondent des œufs presque carrés.",
+    "J'ai croisé {prenom} au marché en train de négocier le prix d'un melon avec beaucoup d'éloquence.",
+    "{prenom} a rangé ma cuisine pendant que je dormais. Je ne retrouve plus rien, mais c'est magnifique.",
+    "Mon aspirateur robot suit {prenom} partout comme un petit chien.",
+    "{prenom} m'a raconté une histoire si drôle que mon dentier est tombé dans la soupe.",
+    "Depuis le séjour de {prenom}, la Garonne coule un peu plus joyeusement, il me semble.",
+    "{prenom} a battu mon record de sieste dans le hamac. Je demande une revanche.",
+    "La cloche de l'église a sonné treize coups le jour de l'arrivée de {prenom}.",
+    "{prenom} a appris la valse à mon épouvantail. Il ne veut plus garder le champ.",
+    "J'ai prêté un livre à {prenom} et il m'est revenu avec un marque-page en dentelle.",
+    "Mon GPS ne parle plus que de {prenom} depuis qu'il l'a guidé{e} jusqu'ici.",
+    "{prenom} a fait rire ma tante, qui n'avait pas ri depuis le Tour de France de 1987.",
+    "Depuis que {prenom} est passé{e} au potager, mes tomates se tiennent plus droites.",
+    "{prenom} a reconnu à l'aveugle les douze confitures de ma grand-mère.",
+    "Je soupçonne {prenom} d'avoir fini le dernier morceau de fromage et d'avoir accusé le chien.",
+    "{prenom} a garé sa voiture si droit que le géomètre est venu prendre des photos.",
+    "Mon parapluie refuse de s'ouvrir quand {prenom} n'est pas là pour l'admirer.",
+    "{prenom} a offert des chouquettes à toute la rue, et maintenant tout le monde attend son retour.",
+    "Depuis le passage de {prenom}, mon grille-pain ne brûle plus rien. Est-ce un miracle ?",
+    "{prenom} a chanté sous la douche et toute la vallée a applaudi.",
+    "Les canards du lac font la queue pour dire bonjour à {prenom}.",
+    "{prenom} a appelé ma plante verte par son prénom. Elle a fleuri dans la nuit.",
+    "J'ai invité {prenom} à prendre le café et il est resté trois heures à parler de pruneaux.",
+    "{prenom} a lu mon horoscope à voix haute et tout s'est réalisé avant midi.",
+    "Depuis que {prenom} a dormi ici, le réveil sonne avec plus de douceur.",
+    "{prenom} a gagné une partie de pétanque contre le président du club, devant témoins.",
+    "Mon chien a déménagé dans la valise de {prenom}. Comment le récupérer ?",
+    "{prenom} a fait une tarte si bonne que le facteur a sonné trois fois.",
+    "Ma voisine prétend que {prenom} lui a appris à siffler avec deux doigts en une soirée.",
+    "{prenom} a trié mes chaussettes par couleur, par taille et par humeur.",
+    "Depuis la venue de {prenom}, le Wi-Fi capte même dans la cave.",
+    "{prenom} a raconté une blague au marchand de légumes, qui m'a fait une remise de dix pour cent.",
+    "Le hérisson du jardin ne sort plus que lorsque {prenom} est sur la terrasse.",
+    "{prenom} a fait la vaisselle en chantant de l'opéra. Les assiettes brillent encore.",
+    "J'ai trouvé une plume de paon dans ma boîte aux lettres, signée {prenom}.",
+    "{prenom} a répondu à toutes les questions du quiz de la radio locale avant l'animateur.",
+    "Depuis le départ de {prenom}, la maison paraît bien calme, et le frigo bien plein.",
+]
+C_QUESTION = ["", "", " Que faire ?", " Est-ce normal ?", " Dois-je m'inquiéter ?", " Faut-il prévenir le maire ?",
+              " Qui peut m'aider ?", " Est-ce contagieux ?", " Que me conseillez-vous ?", " Dois-je porter plainte ?",
+              " La rédaction peut-elle enquêter ?", " Est-ce un signe ?", " Comment l'en remercier ?", " Faut-il s'en réjouir ?"]
+C_SIGNE = [
+    "Un voisin inquiet", "Une tomate du jardin", "Le canapé du salon", "Une poule de Moirax", "Le facteur, ému",
+    "Une lectrice fidèle d'Agen", "Le hamac de la terrasse", "Un pruneau sous le choc", "La tondeuse du voisin",
+    "Un pigeon voyageur", "Le chien de la maison", "Une habituée du marché", "La cafetière, en larmes",
+    "Un supporter du SUA", "Le géranium du balcon", "Une cousine éloignée", "Le boulanger du coin",
+    "Une grenouille de la mare", "L'épouvantail du champ", "Le grille-pain de la cuisine", "Un lecteur assidu",
+    "Le parapluie de l'entrée", "Une voisine curieuse", "Le coq du poulailler", "La boîte aux lettres",
+    "Un admirateur discret", "Le hérisson du jardin", "Une confiture de figues", "Le réveil de la chambre d'amis",
+    "Le club de belote", "Une fourmi travailleuse", "Le GPS de la voiture", "La cloche de l'église",
+    "Un canard du lac", "La plante verte du salon", "Un témoin qui préfère rester anonyme", "La radio locale",
+    "Le marchand de légumes", "Une chaise longue fatiguée", "L'oreiller de la chambre d'amis",
+]
+C_REPONSE = [
+    "La rédaction conseille de prolonger le séjour.", "Nous transmettons, sans garantie de résultat.",
+    "La rédaction a ouvert une enquête, entre deux siestes.", "Rien d'anormal : c'est l'effet habituel de notre invité{e}.",
+    "Nous vous recommandons la patience, et une part de gâteau.", "La rédaction plaide coupable, avec le sourire.",
+    "Nos experts se penchent sur votre cas avec le plus grand sérieux.", "C'est un signe, et il est excellent.",
+    "Courage : le prochain séjour est déjà dans les tuyaux.", "La rédaction vous remercie pour ce témoignage bouleversant.",
+    "Nous n'avons pas les moyens de lutter, et nous n'en avons pas envie.", "La rédaction confirme et en redemande.",
+    "Votre lettre a été lue à voix haute au petit-déjeuner.", "Nous classons l'affaire, faute de preuves et de sérieux.",
+    "La rédaction décline toute responsabilité, mais pas l'apéritif.", "Nous vous suggérons de vous asseoir et de savourer.",
+    "La rédaction a vérifié : tout est vrai, et même pire.", "Gardez cette lettre : elle prendra de la valeur.",
+    "C'est contagieux, et c'est tant mieux.", "La rédaction vous envoie tout son soutien et un pot de confiture.",
+    "Nous avons posé la question à l'intéressé{e}, qui a éclaté de rire.", "Patience : ce genre de miracle se reproduit souvent ici.",
+    "La rédaction ne peut rien pour vous, à part rire avec vous.", "Affaire suivie de près par notre service des rumeurs.",
+    "Nous vous conseillons de prévenir les voisins, et de mettre la bouilloire.", "Ne changez rien, c'est parfait.",
+    "Le comité de rédaction a voté : c'est une bonne nouvelle.", "Votre cas n'est pas isolé : la maison entière est touchée.",
+    "La rédaction prend note et prépare une édition spéciale.", "Rassurez-vous, la science non plus n'a pas d'explication.",
+]
+
+
+def courrier():
+    combos = [(l, q, si, r) for l in C_LETTRE for q in C_QUESTION for si in C_SIGNE for r in C_REPONSE]
+    random.shuffle(combos)
+    res, cles, par = [], set(), {}
+    for l, q, si, r in combos:
+        if par.get(l, 0) >= 20 or par.get(("s", si), 0) >= 26 or par.get(("r", r), 0) >= 34:
+            continue
+        if q and l.endswith("?"):
+            continue
+        t = f"{l}{q} ::: {si} ::: {r}"
+        if B.cle("courrier", t) in cles or B.mesurer("courrier", t):
+            continue
+        res.append(t)
+        cles.add(B.cle("courrier", t))
+        for k in (l, ("s", si), ("r", r)):
+            par[k] = par.get(k, 0) + 1
+        if len(res) == N:
+            break
+    return res
+
+
 if __name__ == "__main__":
-    parts = {"RUMEURS": rumeurs(), "HOROSCOPES": horoscopes(), "MOTS": mots(), "TITRES": titres()}
+    parts = {"RUMEURS": rumeurs(), "HOROSCOPES": horoscopes(), "MOTS": mots(), "TITRES": titres(), "COURRIER": courrier()}
     lignes = ["# Banque d'inspiration de Gazette — fabriquée par Claude le 18/11/2026",
-              "# Balises : {prenom} {salut} {chez} {il} {e} — à importer dans Réglages › Banque d'inspiration", ""]
+              "# Balises : {prenom} {salut} {chez} {il} {e} — courrier : lettre ::: signature ::: réponse — à importer dans Réglages › Banque d'inspiration", ""]
     for nom, textes in parts.items():
         print(nom, len(textes))
         lignes += [f"# {nom}", *[f"- {t}" for t in textes], ""]

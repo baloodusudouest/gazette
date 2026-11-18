@@ -1,6 +1,6 @@
 # Prompt pour remplir la banque d'inspiration de Gazette (ChatGPT, Gemini…)
 
-But : que l'IA te rende **un seul fichier `.txt`, déjà au bon format**, avec les quatre sortes, prêt à importer dans **Gazette › Réglages › Banque d'inspiration › Importer un fichier**.
+But : que l'IA te rende **un seul fichier `.txt`, déjà au bon format**, avec les cinq sortes, prêt à importer dans **Gazette › Réglages › Banque d'inspiration › Importer un fichier**.
 
 ## Mode d'emploi
 
@@ -21,7 +21,7 @@ Tu vas produire UN SEUL FICHIER TEXTE nommé banque-gazette.txt, que je téléch
 CONTEXTE
 Les textes servent à « La Gazette » et « La Récidive », deux petits journaux humoristiques imprimés à un seul exemplaire pour les invités d'une maison de campagne près d'Agen (Lot-et-Garonne). La Gazette accueille un invité pour son premier séjour ; La Récidive est un faux journal à scandale pour les invités qui reviennent. Le ton est celui d'une presse people parodique, tendre, loufoque et absurde : on se moque des situations, jamais des personnes.
 
-CE QUE TU DOIS ÉCRIRE : 1000 textes de chaque sorte, 4000 en tout.
+CE QUE TU DOIS ÉCRIRE : 1000 textes de chaque sorte, 5000 en tout.
 1. RUMEURS : une seule phrase de 130 signes au plus, avec {prenom}. Une fausse information absurde, au conditionnel, rapportée par une source farfelue.
    Exemples : Selon nos informations, {prenom} aurait tenté d'adopter un rond-point. / D'après le facteur, {prenom} parlerait couramment le langage des chèvres.
 2. HOROSCOPES : 240 signes au plus, deux ou trois phrases : une configuration astrale absurde, une prédiction loufoque et bienveillante, un conseil saugrenu. {prenom} facultatif.
@@ -30,6 +30,8 @@ CE QUE TU DOIS ÉCRIRE : 1000 textes de chaque sorte, 4000 en tout.
    Exemple : {salut}, les draps sont frais et les ragots sont prêts. Tout ce que vous lirez ici est rigoureusement inventé, à part notre joie de vous recevoir. Faites comme chez vous, et même un peu mieux.
 4. TITRES : un gros titre de presse à scandale de 50 signes au plus, avec {prenom}.
    Exemples : {prenom} démasqué{e} au rayon fromages / EXCLUSIF : {prenom} fuit avec la télécommande
+5. COURRIER (courrier des lecteurs) : une fausse lettre de lecteur sur l'invité, avec sa signature et la réponse de la rédaction, sur UNE seule ligne, les trois parties séparées par « ::: » (espace, trois deux-points, espace) : lettre ::: signature ::: réponse. La lettre : deux phrases au plus, 400 signes au plus, avec {prenom}, écrite à la première personne par un correspondant loufoque. La signature : 60 signes au plus, un correspondant anonyme et drôle (un voisin, un objet, un animal de la maison). La réponse : une phrase courte et piquante de la rédaction, 200 signes au plus.
+   Exemple : Depuis le départ de {prenom}, mon chien refuse de manger : il réclame ses imitations de mouette. Que faire ? ::: Un voisin inquiet ::: La rédaction conseille de prolonger le séjour.
 
 BALISES (exactement ainsi, avec les accolades, en minuscules, sans accent) :
 - {prenom} : le prénom de l'invité.
@@ -57,13 +59,15 @@ FORMAT EXACT DU FICHIER (il est lu par un programme) :
 - texte
 # TITRES
 - texte
-Une ligne de section par sorte (« # RUMEURS », « # HOROSCOPES », « # MOTS », « # TITRES »), puis un texte par ligne commençant par « - » (tiret et espace). Rien d'autre dans le fichier : ni numéros, ni guillemets autour des textes, ni gras, ni emoji, ni commentaire. Chaque texte tient sur une seule ligne.
+# COURRIER
+- lettre ::: signature ::: réponse
+Une ligne de section par sorte (« # RUMEURS », « # HOROSCOPES », « # MOTS », « # TITRES », « # COURRIER »), puis un texte par ligne commençant par « - » (tiret et espace). Rien d'autre dans le fichier : ni numéros, ni guillemets autour des textes, ni gras, ni emoji, ni commentaire. Chaque texte tient sur une seule ligne.
 
 MÉTHODE (avec l'outil de code)
-1. Crée le fichier et un contrôle en Python : pour chaque texte, remplace {prenom} par « Maximilien », {salut} par « Chère Maximilien », {chez} par « à la maison », {il} par « elle », {e} par « e », puis vérifie la longueur (rumeur ≤ 130, horoscope ≤ 240, mot ≤ 700, titre ≤ 60) ; refuse aussi toute autre balise entre accolades, les textes de moins de 12 signes et les doublons (comparés sans accents, sans majuscules et sans ponctuation).
+1. Crée le fichier et un contrôle en Python : pour chaque texte, remplace {prenom} par « Maximilien », {salut} par « Chère Maximilien », {chez} par « à la maison », {il} par « elle », {e} par « e », puis vérifie la longueur (rumeur ≤ 130, horoscope ≤ 240, mot ≤ 700, titre ≤ 60 ; pour le courrier, coupe sur « ::: » : lettre ≤ 400, signature ≤ 60, réponse ≤ 200) ; refuse une rumeur, un titre ou une lettre sans {prenom} ; refuse aussi toute autre balise entre accolades, les textes de moins de 12 signes et les doublons (comparés sans accents, sans majuscules et sans ponctuation).
 2. Écris les textes par lots de 50 à 100 dans des listes Python, passe-les au contrôle et ajoute au fichier seulement ceux qui passent. Remplace les refusés par de nouveaux textes.
-3. Garde les quatre sortes regroupées sous leur section, dans l'ordre RUMEURS, HOROSCOPES, MOTS, TITRES. Le plus simple : quatre listes en mémoire, et le fichier entièrement réécrit après chaque lot.
-4. Après chaque lot, affiche seulement le compteur (par exemple « rumeurs 300/1000 · horoscopes 0/1000 · mots 0/1000 · titres 0/1000 »), pas les textes.
+3. Garde les quatre sortes regroupées sous leur section, dans l'ordre RUMEURS, HOROSCOPES, MOTS, TITRES, COURRIER. Le plus simple : cinq listes en mémoire, et le fichier entièrement réécrit après chaque lot.
+4. Après chaque lot, affiche seulement le compteur (par exemple « rumeurs 300/1000 · horoscopes 0/1000 · mots 0/1000 · titres 0/1000 · courrier 0/1000 »), pas les textes.
 5. Continue sans me demander mon avis jusqu'à 1000 textes de chaque sorte. Si tu dois t'arrêter (longueur de réponse), dis-le, et quand j'écris « continue », reprends exactement là où tu en étais, dans le même fichier.
 6. À la fin, relis tout le fichier avec le contrôle, affiche le décompte final et donne-moi le lien de téléchargement de banque-gazette.txt.
 

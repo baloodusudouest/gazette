@@ -1,5 +1,11 @@
 # Journal des versions
 
+## 0.26.0 — 18 novembre 2026 (courrier des lecteurs dans la banque, plus de chats)
+- **Courrier des lecteurs dans la banque d'inspiration** (demande de Julien du 18/11) : section « # COURRIER » (aussi « Courrier des lecteurs », « Lettres »), une lettre par ligne au format « lettre ::: signature ::: réponse » (réponse facultative) ; lettre ≤ 400 signes avec {prenom}, signature ≤ 60, réponse ≤ 200. Bouton « Banque » à côté de « 4 lettres » dans La Récidive (4 lettres, jamais déjà parues) ; l'IA reçoit des lettres de la banque comme exemples, au format à étiquettes qu'elle doit rendre. Réglages : 5 compteurs.
+- **Plus aucun chat** (demande de Julien) : les chats deviennent des chiens dans la banque fabriquée par Claude, l'exemple du courrier donné à l'IA, l'exemple de la fiche complète et le prompt ChatGPT/Gemini.
+- Banque de Claude : 1000 lettres ajoutées (`tools/banque_gen.py`, `banque/gazette-banque-claude.txt`, 5000 textes) ; prompt ChatGPT/Gemini avec la 5e sorte.
+- Tests : 245. Jamais essayé sur la vraie installation.
+
 ## 0.25.1 — 18 novembre 2026 (import de la banque plus tolérant)
 - Vu sur deux fichiers de ChatGPT et Gemini envoyés par Julien le 18/11 (aucun texte lu) :
   - section écrite **sans « # »** (« RUMEURS », « **Titres :** ») : reconnue ;

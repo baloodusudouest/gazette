@@ -269,9 +269,9 @@
 
   <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Banque d'inspiration">
     <h2 class="text-lg font-semibold">Banque d'inspiration</h2>
-    <p class="mt-1 text-sm text-muted-foreground">Rumeurs, horoscopes, mots des hôtes et titres scandale importés d'un fichier texte. Le bouton « Banque » des éditeurs y pioche des propositions (même sans l'IA du PC) ; l'IA en reçoit quelques-unes comme exemples de ton. Rien n'est imprimé sans ton choix, et rien ne revient deux fois pour la même personne.</p>
+    <p class="mt-1 text-sm text-muted-foreground">Rumeurs, horoscopes, mots des hôtes, titres scandale et courrier des lecteurs importés d'un fichier texte. Le bouton « Banque » des éditeurs y pioche des propositions (même sans l'IA du PC) ; l'IA en reçoit quelques-unes comme exemples de ton. Rien n'est imprimé sans ton choix, et rien ne revient deux fois pour la même personne.</p>
     {#if banq.comptes}
-      <ul class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Contenu de la banque">
+      <ul class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5" aria-label="Contenu de la banque">
         {#each Object.entries(banq.comptes) as [sorte, n]}
           <li class="flex min-w-0 flex-col rounded-lg border bg-background px-3 py-2">
             <span class="text-2xl font-semibold tabular-nums">{n}</span>
@@ -291,7 +291,7 @@
         <button type="button" class="text-sm text-muted-foreground underline-offset-4 hover:text-destructive hover:underline" onclick={() => viderBanque('')}>Tout vider</button>
       {/if}
     </div>
-    <p class="mt-2 text-xs text-muted-foreground">Format : sections « # RUMEURS », « # HOROSCOPES », « # MOTS », « # TITRES », puis une ligne « - texte » par élément. Balises : {'{prenom}'}, {'{salut}'} (« Chère Camille »), {'{chez}'}, {'{il}'} (il / elle), {'{e}'} (accord). Les doublons sont ignorés : tu peux réimporter sans risque.</p>
+    <p class="mt-2 text-xs text-muted-foreground">Format : sections « # RUMEURS », « # HOROSCOPES », « # MOTS », « # TITRES », « # COURRIER », puis une ligne « - texte » par élément (courrier : « lettre ::: signature ::: réponse »). Balises : {'{prenom}'}, {'{salut}'} (« Chère Camille »), {'{chez}'}, {'{il}'} (il / elle), {'{e}'} (accord). Les doublons sont ignorés : tu peux réimporter sans risque.</p>
     {#if banq.message}<p class="mt-2 text-sm" role="status">{banq.message}</p>{/if}
   </section>
 

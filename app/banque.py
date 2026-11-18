@@ -12,6 +12,8 @@ Format du fichier (texte UTF-8, plusieurs fichiers ou morceaux recollés possibl
     - {salut}, la maison a rangé ses secrets : il ne reste que le vôtre.
     # TITRES
     - {prenom} démasqué{e} au rayon fromages
+    # COURRIER
+    - Depuis le départ de {prenom}, mon chien boude. Que faire ? ::: Un voisin inquiet ::: Prolonger le séjour.
 
 Une section commence par une ligne « # RUMEURS » (ou HOROSCOPES, MOTS, TITRES ; « # » facultatif, singulier,
 accents et casse indifférents) ; sous une section, chaque ligne non vide est un élément (puce « - », « * », « • » ou
@@ -26,18 +28,22 @@ from __future__ import annotations
 import re
 import unicodedata
 
-SORTES = ("rumeur", "horoscope", "mot", "titre")
-NOMS = {"rumeur": "Rumeurs", "horoscope": "Horoscopes", "mot": "Mots des hôtes", "titre": "Titres scandale"}
+SORTES = ("rumeur", "horoscope", "mot", "titre", "courrier")
+NOMS = {"rumeur": "Rumeurs", "horoscope": "Horoscopes", "mot": "Mots des hôtes", "titre": "Titres scandale",
+        "courrier": "Courrier des lecteurs"}
 # Longueur maximale une fois les balises remplacées (prénom de 10 lettres) : celle des cases de Gazette
-MAXI = {"rumeur": 130, "horoscope": 240, "mot": 700, "titre": 60}
+MAXI = {"rumeur": 130, "horoscope": 240, "mot": 700, "titre": 60, "courrier": 400}   # courrier : la lettre
+MAXI_SIGNE, MAXI_REPONSE = 60, 200          # 0.26 : courrier des lecteurs « lettre ::: signature ::: réponse »
 MINI = 12
 BALISES = ("prenom", "salut", "chez", "il", "e")
 _SECTIONS = {"rumeur": "rumeur", "rumeurs": "rumeur", "horoscope": "horoscope", "horoscopes": "horoscope",
              "mot": "mot", "mots": "mot", "mot des hotes": "mot", "mots des hotes": "mot", "droit de reponse": "mot",
              "titre": "titre", "titres": "titre", "titres scandale": "titre", "titre scandale": "titre",
-             "titres type scandale": "titre", "legende": "titre", "legendes": "titre"}
+             "titres type scandale": "titre", "legende": "titre", "legendes": "titre",
+             "courrier": "courrier", "courriers": "courrier", "courrier des lecteurs": "courrier",
+             "lettre": "courrier", "lettres": "courrier", "lettres de lecteurs": "courrier", "courrier du lecteur": "courrier"}
 ESSAI_PRENOM = "Maximilien"      # 10 lettres : sert à mesurer un texte à l'import
-EXIGE_PRENOM = ("rumeur", "titre")  # 0.25.1 : une rumeur ou un titre sans {prenom} est écarté
+EXIGE_PRENOM = ("rumeur", "titre", "courrier")  # 0.25.1 : sans {prenom}, écarté (0.26 : lettre aussi)
 
 
 def plat(t: str) -> str:
@@ -87,9 +93,24 @@ def mesurer(sorte: str, texte: str) -> str | None:
     if inconnues:
         return "balise inconnue {" + ", ".join(sorted(inconnues)) + "}"
     essai = rendre(texte, ESSAI_PRENOM, "femme", "à la maison")
+    if sorte == "courrier":
+        lettre_ = lettre(essai or "")
+        if not lettre_:
+            return "lettre sans « ::: » (lettre ::: signature ::: réponse)"
+        if len(lettre_["lettre"]) > MAXI["courrier"] or len(lettre_["signe"]) > MAXI_SIGNE or len(lettre_["reponse"]) > MAXI_REPONSE:
+            return f"trop long (lettre {MAXI['courrier']}, signature {MAXI_SIGNE}, réponse {MAXI_REPONSE} signes au plus)"
+        return None
     if not essai or len(essai) > MAXI[sorte]:
         return f"trop long (plus de {MAXI[sorte]} signes)"
     return None
+
+
+def lettre(texte: str) -> dict | None:
+    """0.26 : « lettre ::: signature ::: réponse » (réponse facultative ; « | » accepté) → {lettre, signe, reponse}."""
+    morceaux = [m.strip() for m in re.split(r"\s*(?::::|\|\|\||\s\|\s)\s*", texte or "")]
+    if len(morceaux) not in (2, 3) or len(morceaux[0]) < MINI or not morceaux[1]:
+        return None
+    return {"lettre": morceaux[0], "signe": morceaux[1], "reponse": morceaux[2] if len(morceaux) == 3 else ""}
 
 
 def lire(contenu: str) -> tuple[dict[str, list[str]], dict[str, int]]:
@@ -106,7 +127,7 @@ def lire(contenu: str) -> tuple[dict[str, list[str]], dict[str, int]]:
             courante = s
             continue
         sorte, texte = courante, None
-        m = re.match(r"^\s*(rumeurs?|horoscopes?|mots?|titres?)\s*[|;\t]\s*(.+)$", ligne, re.I)
+        m = re.match(r"^\s*(rumeurs?|horoscopes?|mots?|titres?|courriers?)\s*[|;\t]\s*(.+)$", ligne, re.I)
         if m:
             sorte, texte = _SECTIONS[plat(m.group(1))], m.group(2)
         elif courante and (re.match(r"^\s*(?:[-*•–—]|\d{1,4}\s*[.)\-:–—])\s*\S", ligne) or not _bavardage(ligne)):
@@ -159,7 +180,16 @@ def pour_ia(textes: list[str], sorte: str) -> str:
     """Les exemples donnés à l'IA du PC : pour le ton, jamais à recopier."""
     if not textes:
         return ""
-    quoi = {"rumeur": "rumeurs", "horoscope": "horoscopes", "mot": "mots des hôtes", "titre": "titres"}[sorte]
+    quoi = {"rumeur": "rumeurs", "horoscope": "horoscopes", "mot": "mots des hôtes", "titre": "titres",
+            "courrier": "lettres de lecteurs"}[sorte]
+    if sorte == "courrier":                  # au format que l'IA doit rendre (étiquettes), pas « ::: »
+        lignes = []
+        for t in textes:
+            x = lettre(t)
+            if x:
+                lignes.append(f"Lettre : {x['lettre']}\nSignature : {x['signe']}" + (f"\nRéponse : {x['reponse']}" if x["reponse"] else ""))
+        return ("Exemples de lettres tirées de notre banque, pour le ton seulement (n'en recopie aucune) :\n\n"
+                + "\n\n".join(lignes)) if lignes else ""
     return (f"Exemples de {quoi} tirés de notre banque, pour le ton seulement (n'en recopie aucun, invente autre "
             "chose) :\n" + "\n".join(f"- {t}" for t in textes))
 

@@ -1035,7 +1035,13 @@ def _banque_rendue(sorte: str, p: dict, genre: str, n: int, exclure: list[str]) 
     res: list[tuple[int, str]] = []
     for x in ETAT["base"].banque_tirer(sorte, n * 6 + 10):
         t = B.rendre(x["texte"], _prenom(p), genre, _journal()["chez"])
-        if not t or ia.proche_de(t, exclure + [y for _, y in res]) or (interdits and not FI.filtrer([t], interdits)[0]):
+        if not t:
+            continue
+        # 0.26 : une lettre se compare par son texte (pas sa signature ni sa réponse)
+        comparer = (B.lettre(t) or {}).get("lettre", t) if sorte == "courrier" else t
+        autres = [((B.lettre(y) or {}).get("lettre", y) if sorte == "courrier" else y) for _, y in res]
+        exclus = [x2.split(" ::: ")[0] for x2 in exclure] if sorte == "courrier" else exclure
+        if ia.proche_de(comparer, exclus + autres) or (interdits and not FI.filtrer([t], interdits)[0]):
             continue
         res.append((x["id"], t))
         if len(res) >= n:
@@ -1075,7 +1081,7 @@ def banque_import(corps: dict = Body(...)):
     lus, ecarts = B.lire(texte)
     if not any(lus.values()):
         raise HTTPException(422, "Rien de lisible : il faut des sections « # RUMEURS », « # HOROSCOPES », « # MOTS », "
-                                 "« # TITRES » et une ligne « - texte » par élément." +
+                                 "« # TITRES », « # COURRIER » et une ligne « - texte » par élément." +
                             (f" Écartés : {', '.join(f'{n} {k}' for k, n in ecarts.items())}." if ecarts else ""))
     source = " ".join(str(corps.get("source") or "fichier").split())[:80]
     ajoutes, deja = {}, 0
@@ -1118,7 +1124,8 @@ def recidive_banque(rid: int, corps: dict = Body(...)):
     deja = _deja_paru(p["id"], rid) + ([*_mots_parus(p, sauf_rid=rid)] if sorte == "mot" else [])
     deja += [ed.get("titre_une") or "", *(ed.get("rumeurs") or []), ed.get("horoscope") or "", ed.get("mot") or "",
              *[x.get("legende", "") for x in ed["photos"]]]
-    n = {"titre": 5, "rumeur": 8, "horoscope": 3, "mot": 3}[sorte]
+    deja += [f"{x.get('lettre', '')} ::: {x.get('signe', '')} ::: {x.get('reponse', '')}" for x in ed.get("courrier") or []]
+    n = {"titre": 5, "rumeur": 8, "horoscope": 3, "mot": 3, "courrier": 4}[sorte]
     tire = _banque_rendue(sorte, p, ed["genre"], n, [x for x in deja if x.strip()])
     if not tire:
         raise HTTPException(404, f"La banque n'a rien (de neuf) en {B.NOMS[sorte].lower()} pour {_prenom(p)} : "
@@ -1133,6 +1140,9 @@ def recidive_banque(rid: int, corps: dict = Body(...)):
         ETAT["base"].maj_recidive(rid, propositions_rumeurs=props)
     elif sorte == "horoscope":
         ETAT["base"].maj_recidive(rid, propositions_horoscope=props)
+    elif sorte == "courrier":                       # 0.26 : {lettre, signe, reponse}, comme ceux de l'IA
+        props = [x for x in (B.lettre(t) for t in props) if x]
+        ETAT["base"].maj_recidive(rid, propositions_courrier=props)
     return {"propositions": props, "modele": "banque"}
 
 
@@ -1367,6 +1377,7 @@ def proposer_courrier(rid: int, corps: dict = Body(default={})):
     modele = _modele_demande(corps)
     indices = " ".join(str(corps.get("indices") or ed.get("indices_rumeurs") or "").split())[:400]
     fiche_txt, tirage = _tirage(p, "recidive", rid, "courrier")
+    fiche_txt = _avec_banque(fiche_txt, "courrier", p, ed["genre"], _deja_paru(p["id"], rid))   # 0.26
     try:
         props = ETAT["ollama"].courrier(_avec_livre(p, indices), ed["genre"], _prenom(p), deja=_deja_paru(p["id"], rid),
                                         modele=modele, fiche=fiche_txt)

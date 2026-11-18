@@ -194,11 +194,12 @@
     message = ''
     try {
       const r = await api.post(`/api/recidives/${id}/banque`, { sorte, cible })
-      const cle = sorte === 'titre' ? cible : { rumeur: 'rumeurs', horoscope: 'horoscope', mot: 'mot' }[sorte]
+      const cle = sorte === 'titre' ? cible : { rumeur: 'rumeurs', horoscope: 'horoscope', mot: 'mot', courrier: 'courrier' }[sorte]
       if (sorte === 'titre' && cible === 'une') propsUne = r.propositions
       else if (sorte === 'titre') { const p = photos.find((x) => x.id === cible); p.propositions = r.propositions }
       else if (sorte === 'rumeur') propsRumeurs = r.propositions
       else if (sorte === 'horoscope') propsHoroscope = r.propositions
+      else if (sorte === 'courrier') propsCourrier = r.propositions
       else propsMot = r.propositions
       modeles = { ...modeles, [cle]: "banque d'inspiration" }
     } catch (err) { message = err.message }
@@ -526,8 +527,13 @@
         <div class="mt-2 grid min-w-0 gap-1.5 rounded-lg border border-dashed p-2" class:hidden={!courrierAFaire}>
           <div class="flex flex-wrap items-center justify-between gap-2">
             <span class="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">Pour l'IA (non imprimé) · d'après les indices des rumeurs</span>
+            <div class="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" class="shrink-0" onclick={() => piocher('courrier')} disabled={demande === 'banque:courrier:une'}
+                    title="4 lettres tirées de la banque d'inspiration (sans l'IA)">
+              <Library class="size-3.5" aria-hidden="true" />{demande === 'banque:courrier:une' ? '…' : 'Banque'}</Button>
             <Button size="sm" variant="outline" class="shrink-0" onclick={() => proposerPage4('courrier')} disabled={demande === 'courrier'}>
               <Sparkles class="size-3.5" aria-hidden="true" />{demande === 'courrier' ? '…' : '4 lettres'}</Button>
+            </div>
           </div>
           {#each propsCourrier as x}
             <button type="button" class="w-full rounded-md px-2 py-1 text-left text-sm break-words whitespace-normal hover:bg-secondary disabled:opacity-40"
