@@ -10,6 +10,7 @@
   import Eye from '@lucide/svelte/icons/eye'
   import RefreshCw from '@lucide/svelte/icons/refresh-cw'
   import Sparkles from '@lucide/svelte/icons/sparkles'
+  import NotebookPen from '@lucide/svelte/icons/notebook-pen'
   import { api } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import Etat from '$lib/Etat.svelte'
@@ -308,6 +309,9 @@
       <Button variant="outline" onclick={proposerTout} disabled={lot !== null || demande !== '' || !['a_relire', 'approuve'].includes(ed.etat)}
               title="5 titres proposés par l'IA du PC pour chaque photo décrite">
         <Sparkles class="size-4" aria-hidden="true" />{lot ? `IA ${lot.fait}/${lot.total}…` : 'IA'}</Button>
+      <!-- 0.23 : la fiche complète de la personne (carnet 2.33), aussi depuis le bloc « Pour l'IA » des rumeurs -->
+      <Button variant="outline" href={`#/fiche/${d.personne.id}?retour=recidive/${id}`} title="Tout ce qu'on sait de la personne, pour l'IA (rangé dans carnet)">
+        <NotebookPen class="size-4" aria-hidden="true" />Fiche complète</Button>
       <Button variant="outline" onclick={enregistrer} disabled={!modifie || attente !== ''}>{attente === 'enregistrer' ? 'Enregistrement…' : 'Enregistrer'}</Button>
       <Button onclick={approuver} disabled={attente !== '' || !['a_relire', 'approuve'].includes(ed.etat) || ed.etat === 'approuve' && !modifie}>
         {attente === 'approuver' ? 'Contrôle…' : ed.etat === 'approuve' && !modifie ? 'Approuvée' : 'Approuver'}</Button>
@@ -441,7 +445,12 @@
             <Button size="sm" variant="outline" class="shrink-0" onclick={proposerRumeurs} disabled={demande === 'rumeurs'}>
               <Sparkles class="size-3.5" aria-hidden="true" />{demande === 'rumeurs' ? '…' : '8 rumeurs'}</Button>
           </div>
-          <p class="text-[0.7rem] text-muted-foreground">Gardé dans carnet (fiche › Pour les journaux), repris au prochain séjour.</p>
+          <!-- 0.23 : la fiche complète (carnet 2.33) nourrit toutes les demandes à l'IA ; la ligne reste propre au séjour -->
+          <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
+            <p class="min-w-0 text-[0.7rem] text-muted-foreground">{d.fiche_complete ? "Indices propres à ce séjour ; l'IA reçoit aussi 3 à 5 détails de la fiche complète." : 'Gardé dans carnet (fiche › Pour les journaux), repris au prochain séjour.'}</p>
+            <Button size="sm" variant="outline" class="shrink-0" href={`#/fiche/${d.personne.id}?retour=recidive/${id}`}>
+              <NotebookPen class="size-3.5" aria-hidden="true" />Fiche complète</Button>
+          </div>
           {#if propsRumeurs.length}
             <ul class="grid gap-1" aria-label="Rumeurs proposées par l'IA">
               {#each propsRumeurs as t}

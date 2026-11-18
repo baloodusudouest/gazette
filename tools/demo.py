@@ -22,6 +22,7 @@ from app import main  # noqa: E402
 from app.base import Base  # noqa: E402
 from app.config import Config  # noqa: E402
 from tests import fixtures as F  # noqa: E402
+from tests.carnet_simule import CarnetFiche  # noqa: E402
 
 MDP = "demo-demo-demo"
 JETON = "jeton-de-demo"
@@ -34,8 +35,33 @@ CARNET = [  # carnet simulé, personnes inventées
     {"carnet_id": "d2", "nom": "Sacha Exemple", "nom_carnet": "Sacha Exemple", "prenom": "Sacha",
      "naissance": None, "jour": 3, "mois": 5, "annee": None},
     {"carnet_id": "d3", "nom": "Lou MARTIN", "nom_carnet": "Lou Martin", "prenom": "Lou",
-     "naissance": "1988-07-08", "jour": 8, "mois": 7, "annee": 1988, "genre": "femme", "immich_id": "10000000-0001"},
+     "naissance": "1988-07-08", "jour": 8, "mois": 7, "annee": 1988, "genre": "femme", "immich_id": "10000000-0001",
+     "personne_id": "pm-demo-lou"},
 ]
+
+
+def carnet_fiche_simule() -> CarnetFiche:
+    """0.23 : carnet 2.33 simulé — la fiche complète de Lou Martin (détails inventés). Camille Fabre n'est pas dans
+    carnet : sa fiche dit « carnet ne trouve pas cette personne »."""
+    f = CarnetFiche()
+    f.personnes["pm-demo-lou"] = {"pepites": [], "suggestions": [
+        {"rubrique": "metier", "texte": "Garde forestière", "source": "carnet"},
+        {"rubrique": "animaux", "texte": "Pistache", "source": "carnet"}],
+        "connu": {"metier": "Garde forestière", "conjoint": [], "enfants": [], "animaux": ["Pistache"],
+                  "alimentation": {"allergies": [], "intolerances": [], "non_aimes": [], "plaisirs": []},
+                  "immich_id": "10000000-0001"}}
+    for rub, texte in (("plats-aimes", "Adore les cannelés"), ("manies", "Range les épices par ordre alphabétique"),
+                       ("ton", "Taquin mais tendre"), ("interdits", "Le concours de chant raté")):
+        f.pepite("pm-demo-lou", rub, texte)
+    return f
+
+
+def sillage_simule(url: str, jeton: str, immich_id: str) -> dict:
+    """0.23 : Sillage simulé — deux étapes du chemin de Lou Martin (inventées)."""
+    if immich_id != "10000000-0001":
+        return {"contrat": 1, "etapes": []}
+    return {"contrat": 1, "etapes": [{"nom": "Tour de Corse à vélo", "annee": 2018, "photos": 40},
+                                     {"nom": "Vendanges", "annee": 2026, "photos": 12}]}
 # 0.9 : Immich simulé pour La Récidive (Lou Martin revient) — une petite image grise pour chaque photo
 GRIS = base64.b64decode("/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAx"
                         "NDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAI"
@@ -94,8 +120,12 @@ def configurer(data: Path) -> None:
     b.fermer()
     main.ETAT.clear()
     main.ETAT["carnet_lire"] = lambda url, jeton: CARNET
+    main.ETAT["carnet_fiche"] = carnet_fiche_simule()             # 0.23 : fiche complète (carnet 2.33)
+    main.ETAT["carnet_paru"] = lambda url, jeton, pid, cle, corps: None     # numéros parus : rien ne sort
+    main.ETAT["carnet_ecrire"] = lambda url, jeton, pid, texte: None
+    main.ETAT["sillage_lire"] = sillage_simule
     main.ETAT["cfg"] = Config(password=MDP, data=data, static=RACINE / "app" / "static", attente_connexion=False,
-                              carnet_url="http://carnet.demo", carnet_jeton="jeton-de-demo",
+                              carnet_url="http://carnet.demo", carnet_jeton="jeton-de-demo", sillage_url="http://sillage.demo",
                               sources_actives=False, synchrone=True, jeton_ha=JETON)
     main.ETAT["anneau_lire"] = anneau_simule
     main.ETAT["immich_lire"] = immich_simule

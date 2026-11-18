@@ -66,6 +66,18 @@ class Base:
                 approuve_le TEXT NOT NULL DEFAULT '', modifie_le TEXT NOT NULL DEFAULT '', UNIQUE (personne_id, sejour_du));
             CREATE TABLE IF NOT EXISTS scandales_publies (
                 asset_id TEXT NOT NULL, personne_id INTEGER NOT NULL, le TEXT NOT NULL, PRIMARY KEY (asset_id, personne_id));
+            -- 0.23 : pépites de la fiche complète tirées pour chaque demande à l'IA (journal « gazette » : id de la
+            -- fiche, « recidive » : id de l'édition ; cible : une, id de photo, rumeurs, courrier, horoscope, droit, mot).
+            -- À l'approbation, les pépites des tirages dont un texte a été retenu reçoivent `parue_le` dans carnet.
+            CREATE TABLE IF NOT EXISTS tirages (
+                id INTEGER PRIMARY KEY, journal TEXT NOT NULL, numero INTEGER NOT NULL, cible TEXT NOT NULL,
+                personne TEXT NOT NULL, pepites TEXT NOT NULL DEFAULT '[]', propositions TEXT NOT NULL DEFAULT '[]',
+                le TEXT NOT NULL, marque_le TEXT NOT NULL DEFAULT '');
+            -- un numéro supprimé emporte ses tirages (un identifiant repris ne doit pas hériter de vieux tirages)
+            CREATE TRIGGER IF NOT EXISTS tirages_recidive AFTER DELETE ON recidives BEGIN
+                DELETE FROM tirages WHERE journal = 'recidive' AND numero = old.id; END;
+            CREATE TRIGGER IF NOT EXISTS tirages_personne AFTER DELETE ON personnes BEGIN
+                DELETE FROM tirages WHERE journal = 'gazette' AND numero = old.id; END;
         """)
         # 0.9 : séjours d'avant Gazette notés sur la fiche (nombre et date d'arrivée du dernier)
         colonnes = {l["name"] for l in self._c.execute("PRAGMA table_info(personnes)")}
@@ -270,6 +282,7 @@ class Base:
             self._c.execute("UPDATE livrets SET etat = 'a_preparer', contenu = '{}', propositions = '{}', mot = '', "
                             "prepare_le = '', approuve_le = '', erreur = '', photo = '{}', photos_choix = '[]', "
                             "valides = '{}', code_barres = '', modifie_le = ? WHERE personne_id = ?", (maintenant(), pid))
+            self._c.execute("DELETE FROM tirages WHERE journal = 'gazette' AND numero = ?", (pid,))     # 0.23
 
     def relier_invites(self) -> None:
         """Après la création ou le renommage d'une fiche : relie les invités restés sans fiche."""
@@ -383,6 +396,29 @@ class Base:
         with self._verrou, self._c:
             for a in assets:
                 self._c.execute("INSERT OR IGNORE INTO scandales_publies VALUES (?,?,?)", (a, pid, maintenant()))
+
+    # ------------------------------------------------------------ 0.23 : tirages de pépites pour l'IA
+    TIRAGES_GARDES = 40                 # par numéro et par cible : les plus anciens partent
+
+    def garder_tirage(self, journal: str, numero: int, cible: str, personne: str, pepites: list[str], propositions: list) -> None:
+        """Quelles pépites (identifiants de carnet) ont servi à quelles propositions de l'IA."""
+        with self._verrou, self._c:
+            self._c.execute("INSERT INTO tirages (journal, numero, cible, personne, pepites, propositions, le) VALUES (?,?,?,?,?,?,?)",
+                            (journal, numero, str(cible)[:80], personne, json.dumps(list(pepites)),
+                             json.dumps(propositions, ensure_ascii=False), maintenant()))
+            self._c.execute("DELETE FROM tirages WHERE journal = ? AND numero = ? AND cible = ? AND id NOT IN (SELECT id FROM "
+                            "tirages WHERE journal = ? AND numero = ? AND cible = ? ORDER BY id DESC LIMIT ?)",
+                            (journal, numero, cible, journal, numero, cible, self.TIRAGES_GARDES))
+
+    def tirages(self, journal: str, numero: int) -> list[dict]:
+        with self._verrou:
+            ls = self._c.execute("SELECT * FROM tirages WHERE journal = ? AND numero = ? ORDER BY id", (journal, numero)).fetchall()
+        return [{**dict(l), "pepites": json.loads(l["pepites"]), "propositions": json.loads(l["propositions"])} for l in ls]
+
+    def tirages_marques(self, ids: list[int]) -> None:
+        with self._verrou, self._c:
+            for i in ids:
+                self._c.execute("UPDATE tirages SET marque_le = ? WHERE id = ?", (maintenant(), i))
 
     # ------------------------------------------------------------ « Ignorer » (tuiles d'À traiter)
     def ignorer(self, sorte: str, cle: str) -> None:

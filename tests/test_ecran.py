@@ -348,3 +348,83 @@ def test_autres_propositions_absent_sans_reglage(navigateur, adresse, taille):
         assert page.evaluate(poser, "qwen2.5:14b") == 200
     sans_debordement(page)
     assert erreurs == []
+
+
+# ---------------------------------------------------------------- 0.23 : fiche complète d'une personne
+
+def _ouvrir_fiche_de_lou(navigateur, adresse, taille):
+    page, erreurs = ouvrir(navigateur, adresse, taille)
+    page.locator("a[href^='#/recidive/']").first.click()
+    page.get_by_role("heading", name="Lou Martin").wait_for()
+    page.get_by_role("link", name="Fiche complète").first.click()
+    page.get_by_text("Fiche complète · pour les journaux").wait_for()
+    page.get_by_role("region", name="Jauge").wait_for()
+    return page, erreurs
+
+
+def _jauge(page) -> int:
+    return int(page.get_by_role("progressbar", name="Pépites").get_attribute("aria-valuenow"))
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_fiche_complete(navigateur, adresse, taille):
+    """Depuis La Récidive : rubriques repliables, exemples, suggestion → pépite, vrac rangé, jauge, interdits masqués."""
+    from app import main
+    page, erreurs = _ouvrir_fiche_de_lou(navigateur, adresse, taille)
+    for famille in ("Vie et entourage", "Goûts et passions", "Caractère et manies", "Histoires", "Pour les journaux"):
+        page.get_by_role("region", name=famille).wait_for()
+    # sujets interdits masqués par défaut
+    interdits = page.get_by_role("region", name="Sujets interdits")
+    assert interdits.get_by_text("Le concours de chant raté").count() == 0
+    interdits.get_by_role("button", name="Afficher").click()
+    interdits.get_by_text("Le concours de chant raté").wait_for()
+    interdits.get_by_role("button", name="Masquer").click()
+    # déjà connu (carnet, Sillage) : une suggestion grisée devient une pépite d'un geste
+    connu = page.get_by_role("region", name="Déjà connu")
+    connu.get_by_text("Tour de Corse à vélo (2018)").or_(page.get_by_text("Tour de Corse à vélo (2018)")).first.wait_for()
+    avant = _jauge(page)
+    connu.get_by_role("button", name="Ajouter").first.click()
+    page.wait_for_function(f"document.querySelector('[aria-label=Pépites]').getAttribute('aria-valuenow') == '{avant + 1}'")
+    # une rubrique repliable : un exemple à toucher remplit le champ
+    page.get_by_role("region", name="Caractère et manies").get_by_text("Peurs et phobies", exact=True).click()
+    page.get_by_role("group", name="Exemples pour Peurs et phobies").get_by_role("button").first.click()
+    assert page.get_by_label("Nouvelle pépite : Peurs et phobies").input_value() == "Peur des araignées"
+    # vrac : rangé par mots-clés, modifiable avant d'ajouter
+    texte = f"Déteste les endives ({taille})"
+    page.get_by_label("Ligne vrac").fill(texte)
+    page.wait_for_function("document.querySelector('[aria-label=\"Rubrique de la ligne vrac\"]')?.value === 'plats-detestes'")
+    page.get_by_role("region", name="Vrac").get_by_role("button", name="Ajouter").click()
+    page.get_by_text("Ajouté dans « Plats détestés ».").wait_for()
+    page.wait_for_function(f"document.querySelector('[aria-label=Pépites]').getAttribute('aria-valuenow') == '{avant + 2}'")
+    assert any(p["texte"] == texte for p in main.ETAT["carnet"]._fiche.personnes["pm-demo-lou"]["pepites"])
+    sans_debordement(page)
+    assert erreurs == []
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_fiche_contact_introuvable(navigateur, adresse, taille):
+    """Camille Fabre n'est pas dans carnet : message clair, rien à écrire."""
+    page, erreurs = ouvrir(navigateur, adresse, taille, "#/fiche/1")
+    page.get_by_text("carnet ne trouve pas cette personne").wait_for()
+    assert page.get_by_label("Ligne vrac").count() == 0
+    sans_debordement(page)
+    assert erreurs == []
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_fiche_carnet_arrete_lecture_seule(navigateur, adresse, taille):
+    """carnet arrêté : la dernière fiche lue s'affiche en lecture seule, « carnet injoignable »."""
+    from app import main
+    page, erreurs = _ouvrir_fiche_de_lou(navigateur, adresse, taille)
+    faux = main.ETAT["carnet"]._fiche
+    faux.arrete = True
+    try:
+        page.reload()
+        page.get_by_text("carnet injoignable : fiche en lecture seule").wait_for()
+        page.get_by_role("region", name="Goûts et passions").get_by_text("Plats aimés", exact=True).click()
+        page.get_by_text("Adore les cannelés").wait_for()
+        assert page.get_by_label("Ligne vrac").count() == 0 and page.get_by_role("button", name="Ajouter").count() == 0
+        sans_debordement(page)
+    finally:
+        faux.arrete = False
+    assert erreurs == []

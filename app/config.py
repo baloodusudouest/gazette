@@ -4,7 +4,8 @@
 (MAISON_PASSWORD, MAISON_JETON), la lecture seule (MAISON_LECTURE_SEULE, forçable par GAZETTE_LECTURE_SEULE), le
 jeton de Home Assistant (GAZETTE_JETON_HA) et l'adresse de carnet dans la stack (GAZETTE_CARNET_URL). 0.9 : l'adresse
 et la clé d'Immich (GAZETTE_IMMICH_URL, GAZETTE_IMMICH_CLE) pour La Récidive ; 0.9.1 : l'IA du PC (GAZETTE_OLLAMA_URL). Le titre du
-journal, le lieu, les hôtes, le mot par défaut, la couleur et Larousse se règlent dans l'appli (journal.py)."""
+journal, le lieu, les hôtes, le mot par défaut, la couleur et Larousse se règlent dans l'appli (journal.py). 0.23 : l'adresse
+de Sillage (GAZETTE_SILLAGE_URL, défaut http://sillage:8093) pour les étapes proposées dans la fiche complète."""
 from __future__ import annotations
 
 import os
@@ -45,6 +46,7 @@ class Config:
     immich_url: str = ""                 # 0.9 : GAZETTE_IMMICH_URL (http://immich_server:2283 dans la stack)
     immich_cle: str = ""                 # 0.9 : GAZETTE_IMMICH_CLE, clé d'API dédiée ; vide : pas de Récidive
     ollama_url: str = ""                 # 0.9.1 : GAZETTE_OLLAMA_URL (Ollama du PC, http://<PC>:11434) ; vide : pas d'IA
+    sillage_url: str = ""                # 0.23 : GAZETTE_SILLAGE_URL (http://sillage:8093 par défaut) ; vide : pas de Sillage
 
 
 def charger() -> Config:
@@ -63,4 +65,5 @@ def charger() -> Config:
         immich_url=os.environ.get("GAZETTE_IMMICH_URL", "").strip().rstrip("/") or "http://immich_server:2283",
         immich_cle=os.environ.get("GAZETTE_IMMICH_CLE", "").strip(),
         ollama_url=os.environ.get("GAZETTE_OLLAMA_URL", "").strip().rstrip("/"),
+        sillage_url=os.environ.get("GAZETTE_SILLAGE_URL", "").strip().rstrip("/") or "http://sillage:8093",
     )

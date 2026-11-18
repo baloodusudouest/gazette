@@ -27,5 +27,6 @@ services:
       - GAZETTE_IMMICH_CLE=${GAZETTE_IMMICH_CLE:-}     # 0.9 : clé d'API dédiée (asset.read, asset.view, tag.read ; 0.12 : album.read, person.read) ; vide : pas de Récidive
       - GAZETTE_OLLAMA_URL=${GAZETTE_OLLAMA_URL:-}     # 0.9.1 : Ollama du PC (http://<adresse du PC>:11434) ; vide : pas de titres proposés
       # - GAZETTE_OLLAMA_MODELE=qwen2.5:7b             # 0.9.6 : facultative, autre modèle installé sur le PC
+      # - GAZETTE_SILLAGE_URL=http://sillage:8093      # 0.23 : facultative, Sillage vu depuis le conteneur (étapes proposées dans la fiche complète)
     volumes:
       - ${GAZETTE_DATA_DIR}:/data                      # gazette.db (fiches, livrets, réglages, cache des sources)

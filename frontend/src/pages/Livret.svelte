@@ -12,6 +12,7 @@
   import Replace from '@lucide/svelte/icons/replace'
   import Plus from '@lucide/svelte/icons/plus'
   import Sparkles from '@lucide/svelte/icons/sparkles'
+  import NotebookPen from '@lucide/svelte/icons/notebook-pen'
   import { api } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import Etat from '$lib/Etat.svelte'
@@ -479,6 +480,12 @@
         <textarea class="w-full rounded-lg border bg-background px-3 py-2 font-serif {bord('mot')}" rows="8" bind:value={mot} oninput={toucher} aria-label="Mot des hôtes"></textarea>
         {@render compteur('mot')}
         <IaBloc second={d.ia?.modele_second ?? ''} bind:this={ias.mot} nom="Le mot des hôtes" pid={id} texte={() => mot} actions={['mot', 'raccourcir']} signes={cible('mot', mot)} onapply={(a, t) => { mot = t; toucher() }} />
+        <!-- 0.23 : la fiche complète (carnet 2.33) : l'IA en tire 3 à 5 détails pour le mot d'accueil -->
+        <p class="mt-2 flex min-w-0 flex-wrap items-center justify-between gap-2 text-[0.7rem] text-muted-foreground">
+          <span class="min-w-0">Pour l'IA (non imprimé) : ce qu'on sait de {d.personne.prenom || d.personne.nom}.</span>
+          <Button size="sm" variant="outline" class="shrink-0" href={`#/fiche/${id}?retour=livret/${id}`}>
+            <NotebookPen class="size-3.5" aria-hidden="true" />Fiche complète</Button>
+        </p>
         <p class="mt-1 text-xs text-muted-foreground">Une ligne vide sépare les paragraphes. Signature : « {d.signature} » (Réglages › Le journal). L'IA s'appuie sur les événements racontés dans la Gazette.</p>
         </Element>
 

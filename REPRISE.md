@@ -2,7 +2,18 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
-## Dernier changement (18/11/2026) — 0.22.0 : régénérer avec un second modèle
+## Dernier changement (18/11/2026) — 0.23.0 : fiche complète d'une personne
+- Version retenue le 18/11 (conseil + arbitrages de Julien) : rubriques complètes + pépites, rangées dans **carnet 2.33** (déployer carnet d'abord ; sans lui, tout marche comme en 0.22). Spécification : chantier « Fiche complète » (Gazette 0.23, carnet 2.33, Sillage 0.20).
+- `app/fiche.py` (pur) : `charger_rubriques` (contrôle `rubriques_journaux.json`, **copie à l'identique** de celui de carnet ; `tests/test_fiche.py` vérifie son empreinte SHA-256 : si carnet change le fichier, recopier et mettre l'empreinte à jour), `SUGGESTIONS` (exemples par rubrique), `tirer` (3 à 5, jamais parues d'abord, jamais interdits ni « ton »), `pour_ia`, `ton`, `interdits`, `filtrer` (mots ≥ 4 lettres hors `MOTS_VIDES`, prolongements dès 5 lettres), `ranger` (vrac par `MOTS_CLES`, aliments + négation → plats aimés/détestés), `preremplir` (suggestions de carnet si présentes, sinon `suggestions_connues` depuis `connu` et `parus` ; + étapes de Sillage), `jauge`, `proche`.
+- `app/carnet.py` : `ErreurFiche(statut, message, ancien)` ; `fiche(personne_id, forcer)` (30 s de mémoire pour l'IA, dernière fiche bien lue gardée dans `reglages` clé `fiche:<personne_id>` → lecture seule si carnet injoignable), `ajouter_pepite`, `modifier_pepite`, `effacer_pepite`, `marquer_parues`. 404 « Not Found » ou 405 = carnet d'avant 2.33 (`ancien`). Injectable : `ETAT["carnet_fiche"]`.
+- `app/sillage.py` : `Sillage.etapes(immich_id)` (`/externe/personnes/{immich_id}/etapes`, contrat 1, 60 au plus, 10 min de mémoire) ; adresse `GAZETTE_SILLAGE_URL` (`config.sillage_url`, défaut `http://sillage:8093`), jeton `MAISON_JETON`. Injectable : `ETAT["sillage_lire"]`.
+- `app/base.py` : table `tirages` (journal, numero = id de fiche ou d'édition, cible, personne carnet, pépites, propositions, marque_le) ; déclencheurs qui l'effacent avec l'édition ou la fiche ; `remettre_livret` l'efface aussi.
+- `app/main.py` : section « 0.23 » — `_fiche_ia`, `_tirage`, `_garder_tirage`, `_interdits_du_numero` (personne + autres invités du même séjour + `contexte.personnes` des photos, cherchés dans carnet par nom), `_filtrer` (422 si tout est écarté), `_marquer_parues` (à l'approbation, pas pour un essai ; date du jour), `_etat_fiche`, routes `/api/fiches…`. `ollama.py` : paramètre `fiche` des consignes (titres, rumeurs, courrier, horoscope, mot, droit). Avec la fiche : `indices_carnet` vide, `_garder_indices` n'écrit plus le texte libre, le mot des hôtes n'envoie plus `journaux`.
+- Écran : `pages/Fiche.svelte` (route `#/fiche/<id>?retour=…` dans `App.svelte`), boutons dans `Recidive.svelte` (en-tête et bloc des rumeurs) et `Livret.svelte` (sous le mot). Brouillon `localStorage` clé `gazette-fiche-<id>`.
+- Le filtre ne s'applique pas aux aides de la Gazette sur les textes historiques (titres, raccourcir, version journal, traduire) : elles ne parlent pas de la personne.
+- Tests : `tests/test_fiche.py`, `tests/carnet_simule.py`, `tests/conftest.py` (aucun test ne sort vers carnet ni Sillage : par défaut carnet « d'avant 2.33 »), trois tests d'écran. 206 tests. Jamais essayé sur la vraie installation.
+
+## Changement précédent (18/11/2026) — 0.22.0 : régénérer avec un second modèle
 - Choix de Julien du 18/11 : premier jet avec le modèle de la stack (`GAZETTE_OLLAMA_MODELE`, **mistral-nemo**) ; « Autres propositions (qwen) » redemande la même chose au second modèle, **qwen2.5:14b** (essai du 18/11 : plus sage, plus lent, 2 titres sur 5 retenus en Récidive).
 - Réglage `modele_second` dans `journal.CHAMPS`/`DEFAUTS` (défaut « qwen2.5:14b », vide permis = bouton caché, `[\w.:/-]*`) : donc dans `/api/reglages`, la sauvegarde de l'Anneau et la restauration. Pas de variable de stack, homelab inchangé.
 - `ollama.py` : `modele: str | None = None` sur `proposer`, `rumeurs`, `courrier`, `horoscope`, `gazette` (et `_demander`, `_brut`) ; `sonder(second="")` ajoute `second`, `second_present` et une phrase au détail, `ok` ne dépend que du modèle habituel.
@@ -10,7 +21,7 @@
 - Écran : `lib/AutresIa.svelte` (modèle utilisé + bouton, nom court par `format.nomCourt`), utilisé dans `IaBloc.svelte` (prop `second`), `Livret.svelte` (légende de la photo) et `Recidive.svelte` (titres, rumeurs, courrier, horoscope, droit de réponse ; `bis()` : un clic passe un événement, d'où `=== true`). `Element.svelte` et `FicheForm.svelte` n'affichent pas de propositions : inchangés. Le modèle utilisé n'est connu que pour les propositions demandées depuis l'ouverture de la page (pas gardé en base).
 - Tests : `tests/test_second_modele.py`, deux tests d'écran. Jamais essayé sur la vraie installation.
 
-## Changement précédent (18/11/2026) — 0.21.0 : santé des tâches de fond (socle 0.9.0)
+## Changement plus ancien (18/11/2026) — 0.21.0 : santé des tâches de fond (socle 0.9.0)
 - `app/maison.py` 0.9.0 recopié (ne pas retoucher). `main.cycle` déclare `preparation` et `recidive` (« demande ») et lance `maison.planifier_copie("gazette", [<data>/gazette.db], <data>/copies, "01:10")` (tâche asyncio annulée à l'arrêt, avant la fermeture de la base). `_ouvrier` passe par `_preparer_suivi(tache)` : un tour de `maison.TACHES` par préparation, `_PreparationRatee` (avalée aussitôt) quand le livret ou l'édition garde une erreur ; les autres exceptions repartent vers le `except` de l'ouvrier comme avant. Mode `synchrone` (tests, démo) : non suivi.
 - `/health` fusionne `maison.sante(request, jeton_commun=maison.jetons(), session_ok=...)` dans les deux réponses (normale et de repli). Un seul worker uvicorn (registre en mémoire).
 - Tests : `tests/test_sante_taches.py`. Jamais essayé sur la vraie installation (ni la copie de nuit, ni la remise en place d'une copie).
@@ -53,6 +64,7 @@
 
 ## Prochaine étape
 
+- 0.23.0 : déployer carnet 2.33.0 (et Sillage 0.20.0) d'abord ; ouvrir la fiche complète d'un habitué depuis La Récidive, ajouter quelques pépites et un sujet interdit, vérifier dans carnet que les pépites arrivent (et l'inverse) ; demander des rumeurs avec la vraie IA et vérifier qu'elles s'appuient sur la fiche ; approuver et vérifier « parue le » dans la fiche.
 - 0.20.0 : essayer Réglages › Simuler (Gazette et Récidive d'une vraie personne), puis supprimer les essais ; vérifier l'onglet Archives après un premier séjour fini.
 - 0.19.0 : déployer carnet 2.31.0, le paquet HA livre_dor.yaml v2 et la carte v1.2, renvoyer le livre d'or à carnet ; vérifier que les rumeurs y font allusion.
 - 0.17.0 : relire une Gazette et une Récidive avec les quatre gestes (Valider, IA, Changer, Refuser) ; vérifier le gros bouton Approuver et le retour en rouge d'une page trop pleine ; essayer le mot des hôtes de la Gazette avec la vraie IA.

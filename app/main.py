@@ -22,7 +22,9 @@ from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 
 from . import __version__, anniversaire, code_barres, culture, journal, maison, recidive as R, rendu, rendu_recidive
-from .carnet import Carnet
+from . import fiche as FI
+from .carnet import Carnet, ErreurFiche
+from .sillage import Sillage
 from .immich import Immich
 from . import ollama as ia
 from .ollama import ACTIONS_GAZETTE, MAXI as MAXI_TITRE, Ollama, sans_numero, texte_contexte
@@ -303,7 +305,9 @@ async def cycle(app: FastAPI):
     ETAT.setdefault("sources", Sources(base, actives=cfg.sources_actives, larousse=larousse))
     ETAT["sources"].larousse_actif = larousse
     ETAT["carnet"] = Carnet(cfg.carnet_url, cfg.carnet_jeton, base, lire=ETAT.get("carnet_lire"),
-                            ecrire=ETAT.get("carnet_ecrire"), paru=ETAT.get("carnet_paru"))
+                            ecrire=ETAT.get("carnet_ecrire"), paru=ETAT.get("carnet_paru"), fiche=ETAT.get("carnet_fiche"))
+    # 0.23 : Sillage (étapes du chemin d'une personne) pour les suggestions de la fiche complète, même jeton commun
+    ETAT["sillage"] = Sillage(lambda: cfg.sillage_url, cfg.carnet_jeton, lire=ETAT.get("sillage_lire"))
     ETAT["immich"] = Immich(cfg.immich_url, cfg.immich_cle, cfg.data / "photos", lire=ETAT.get("immich_lire"))
     ETAT["ollama"] = Ollama(cfg.ollama_url, lire=ETAT.get("ollama_lire"))
     maison.TACHES.declarer(TACHE_GAZETTE, type="demande")
@@ -781,6 +785,7 @@ def proposer_legende_livret(pid: int, corps: dict = Body(default={})):
         raise HTTPException(422, str(ex))
     except RuntimeError as ex:
         raise HTTPException(503, str(ex))
+    props = _filtrer(props, _interdits_du_numero(p))          # 0.23 : sujets interdits de la personne
     ETAT["base"].maj_livret(pid, photo={**ph, "description": description, "propositions": props})
     ETAT["base"].noter("ia", pid, f"légende de la photo : {len(props)} proposition(s)")
     return {"propositions": props, "contexte": ph.get("contexte") or {}, "modele": modele or ia.MODELE}
@@ -818,14 +823,21 @@ def ia_livret(pid: int, corps: dict = Body(...)):
         signes = None
     contact = _contact(p) if action == "mot" else {}
     evenements = _evenements_du_livret(ETAT["base"].livret(pid)) if action == "mot" else None
+    # 0.23 : mot des hôtes — 3 à 5 pépites de la fiche complète + ton ; avec la fiche, l'ancien texte « Pour les
+    # journaux » n'est plus envoyé (il est versé dans la fiche)
+    fiche_txt, tirage = _tirage(p, "gazette", pid, "mot") if action == "mot" else ("", {})
+    indices = "" if (action == "mot" and _fiche_ia(p)) else contact.get("journaux", "")
     try:
         props = ETAT["ollama"].gazette(action, str(corps.get("texte") or ""), int(p["naissance"][:4]), signes,
-                                       _prenom(p), contact.get("genre", ""), contact.get("journaux", ""), _journal()["chez"],
-                                       evenements, modele=modele)
+                                       _prenom(p), contact.get("genre", ""), indices, _journal()["chez"],
+                                       evenements, modele=modele, fiche=fiche_txt)
     except ValueError as ex:
         raise HTTPException(422, str(ex))
     except RuntimeError as ex:
         raise HTTPException(503, str(ex))
+    if action == "mot":
+        props = _filtrer(props, _interdits_du_numero(p))
+        _garder_tirage(tirage, props)
     ETAT["base"].noter("ia", pid, f"{action} : {len(props)} proposition(s)")
     return {"propositions": props, "modele": modele or ia.MODELE}
 
@@ -898,7 +910,10 @@ def approuver(pid: int):
                             + " déborde. Raccourcis un bloc en rouge, masque-le ou remplace-le par une proposition en vert.")
     ETAT["base"].maj_livret(pid, etat="approuve", approuve_le=maintenant())
     ETAT["base"].noter("approuver", pid)
-    return {"ok": True}
+    if p.get("essai_de"):                      # 0.20 : un essai ne compte jamais
+        return {"ok": True}
+    # 0.23 : les pépites tirées pour le mot des hôtes retenu reçoivent `parue_le` dans carnet
+    return {"ok": True, "fiche": _marquer_parues("gazette", pid, [lv.get("mot") or ""])}
 
 
 @app.post("/api/livrets/{pid}/culture")
@@ -981,7 +996,8 @@ def edition(rid: int):
                                        "accroche_defaut": R.accroche(ed["genre"], _prenom(p), _journal())},
             "signature": j["signature"], "places": R.PLACES, "titre_defaut": R.titre_une(p["nom"]),
             "code_barres_defaut": R.code_barres(_prenom(p)), "code_barres_maxi": code_barres.MAXI,
-            "indices_carnet": _contact(p).get("journaux") or "", "deja_paru": _deja_paru(p["id"], rid), "macarons": R.MACARONS, "rumeurs_maxi": R.RUMEURS, "lettres_maxi": R.LETTRES,
+            "indices_carnet": "" if _fiche_ia(p) else (_contact(p).get("journaux") or ""),       # 0.23 : fiche complète
+            "fiche_complete": bool(_fiche_ia(p)), "deja_paru": _deja_paru(p["id"], rid), "macarons": R.MACARONS, "rumeurs_maxi": R.RUMEURS, "lettres_maxi": R.LETTRES,
             "signe": R.signe(p.get("naissance", ""))[0], "cadrages": R.CADRAGES,
             "ia": {**_ia_etat(), "maxi": MAXI_TITRE}}
 
@@ -1085,13 +1101,16 @@ def proposer_titres(rid: int, corps: dict = Body(...)):
         raise HTTPException(404, "Photo introuvable dans cette édition.")
     une = next((x for x in ed["photos"] if not x.get("retiree")), None)      # la photo de la une : la première gardée
     contexte = _contexte_photo(ed, une if cible == "une" else photo)
+    fiche_txt, tirage = _tirage(p, "recidive", rid, cible)          # 0.23 : pépites de la fiche complète
     try:
         props = ETAT["ollama"].proposer(description, "une" if cible == "une" else "photo", ed["genre"], _prenom(p),
-                                        deja=_deja_paru(p["id"], rid), contexte=contexte, modele=modele)
+                                        deja=_deja_paru(p["id"], rid), contexte=contexte, modele=modele, fiche=fiche_txt)
     except ValueError as ex:
         raise HTTPException(422, str(ex))
     except RuntimeError as ex:
         raise HTTPException(503, str(ex))
+    props = _filtrer(props, _interdits_du_numero(p, ed))
+    _garder_tirage(tirage, props)
     if cible == "une":
         ETAT["base"].maj_recidive(rid, description_une=description, propositions_une=props)
     else:
@@ -1115,11 +1134,14 @@ def proposer_rumeurs(rid: int, corps: dict = Body(default={})):
     for x in _parus_carnet(p, ed)[:3]:          # 0.16 : photos des numéros précédents (fiche de carnet), en clin d'œil
         vues += [f"(numéro de {x.get('le', '')[:4]}) {d}" for d in (x.get("descriptions") or [])[:3]]
     gens = list(dict.fromkeys(g for c in ctxs for g in c.get("personnes") or []))
+    fiche_txt, tirage = _tirage(p, "recidive", rid, "rumeurs")
     try:
         props = ETAT["ollama"].rumeurs(_avec_livre(p, indices), ed["genre"], _prenom(p), vues, deja=_deja_paru(p["id"], rid), personnes=gens,
-                                       modele=modele)
+                                       modele=modele, fiche=fiche_txt)
     except RuntimeError as ex:
         raise HTTPException(503, str(ex))
+    props = _filtrer(props, _interdits_du_numero(p, ETAT["base"].recidive(rid)))
+    _garder_tirage(tirage, props)
     ETAT["base"].maj_recidive(rid, indices_rumeurs=indices, propositions_rumeurs=props)
     ETAT["base"].noter("recidive", p["id"], f"{len(props)} rumeur(s) proposée(s) par l'IA")
     return {"propositions": props, "carnet": _garder_indices(p, indices), "modele": modele or ia.MODELE}
@@ -1142,6 +1164,8 @@ def _garder_indices(p: dict, indices: str) -> str:
     contact = _contact(p)
     if not contact.get("personne_id"):
         return "pas gardé : carnet ne trouve pas cette personne"
+    if _fiche_ia(p):                       # 0.23 : carnet 2.33 — indices gardés avec le numéro, plus de texte libre
+        return "gardé avec le numéro à l'approbation (fiche complète)"
     if (contact.get("journaux") or "") == indices:
         return "déjà dans carnet"
     if ETAT["cfg"].lecture_seule:
@@ -1160,11 +1184,14 @@ def proposer_courrier(rid: int, corps: dict = Body(default={})):
     ed, p = _edition_ou_404(rid)
     modele = _modele_demande(corps)
     indices = " ".join(str(corps.get("indices") or ed.get("indices_rumeurs") or "").split())[:400]
+    fiche_txt, tirage = _tirage(p, "recidive", rid, "courrier")
     try:
         props = ETAT["ollama"].courrier(_avec_livre(p, indices), ed["genre"], _prenom(p), deja=_deja_paru(p["id"], rid),
-                                        modele=modele)
+                                        modele=modele, fiche=fiche_txt)
     except RuntimeError as ex:
         raise HTTPException(503, str(ex))
+    props = _filtrer(props, _interdits_du_numero(p, ed))
+    _garder_tirage(tirage, props)
     ETAT["base"].maj_recidive(rid, propositions_courrier=props)
     return {"propositions": props, "modele": modele or ia.MODELE}
 
@@ -1176,12 +1203,15 @@ def proposer_horoscope(rid: int, corps: dict = Body(default={})):
     modele = _modele_demande(corps)
     indices = " ".join(str(corps.get("indices") or ed.get("indices_rumeurs") or "").split())[:400]
     evenement = " ".join(str(corps.get("evenement") if "evenement" in corps else ed.get("evenement") or "").split())[:200]
+    fiche_txt, tirage = _tirage(p, "recidive", rid, "horoscope")
     try:
         props = ETAT["ollama"].horoscope(R.signe(p.get("naissance", ""))[0], indices, ed["genre"], _prenom(p),
                                          deja=_deja_paru(p["id"], rid), evenement=evenement,
-                                         avant=_evenements_avant(p["id"], ed), modele=modele)
+                                         avant=_evenements_avant(p["id"], ed), modele=modele, fiche=fiche_txt)
     except RuntimeError as ex:
         raise HTTPException(503, str(ex))
+    props = _filtrer(props, _interdits_du_numero(p, ed))
+    _garder_tirage(tirage, props)
     ETAT["base"].maj_recidive(rid, propositions_horoscope=props, evenement=evenement)
     return {"propositions": props, "modele": modele or ia.MODELE}
 
@@ -1193,14 +1223,17 @@ def proposer_droit(rid: int, corps: dict = Body(default={})):
     ed, p = _edition_ou_404(rid)
     modele = _modele_demande(corps)
     faits = [ed.get("titre_une") or "", ed.get("evenement") or "", *(ed.get("rumeurs") or [])[:4]]
+    fiche_txt, tirage = _tirage(p, "recidive", rid, "droit")
     try:
         props = ETAT["ollama"].gazette("droit", str(corps.get("texte") or ""), None, None, _prenom(p), ed["genre"],
                                        _avec_livre(p, ed.get("indices_rumeurs") or ""), _journal()["chez"], [x for x in faits if x.strip()],
-                                       modele=modele)
+                                       modele=modele, fiche=fiche_txt)
     except ValueError as ex:
         raise HTTPException(422, str(ex))
     except RuntimeError as ex:
         raise HTTPException(503, str(ex))
+    props = _filtrer(props, _interdits_du_numero(p, ed))
+    _garder_tirage(tirage, props)
     return {"propositions": props, "modele": modele or ia.MODELE}
 
 
@@ -1281,7 +1314,12 @@ def approuver_edition(rid: int):
     ETAT["base"].publier(p["id"], [x["id"] for x in vues if x.get("ancien")])
     ETAT["base"].maj_recidive(rid, etat="approuve", approuve_le=maintenant())
     ETAT["base"].noter("approuver", p["id"], f"La Récidive N° {ed['numero_main'] or ed['numero']}")
-    return {"ok": True, "carnet": _envoyer_a_carnet(p, ETAT["base"].recidive(rid))}
+    # 0.23 : les pépites tirées pour les textes retenus (même retouchés) reçoivent `parue_le` dans carnet
+    retenus = [ed.get("titre_une") or "", *[x.get("legende", "") for x in vues], *(ed.get("rumeurs") or []),
+               ed.get("horoscope") or "", ed.get("mot") or "",
+               *[f"{x.get('lettre', '')} {x.get('signe', '')} {x.get('reponse', '')}" for x in ed.get("courrier") or []]]
+    return {"ok": True, "carnet": _envoyer_a_carnet(p, ETAT["base"].recidive(rid)),
+            "fiche": _marquer_parues("recidive", rid, retenus)}
 
 
 def _envoyer_a_carnet(p: dict, ed: dict) -> str:
@@ -1318,6 +1356,272 @@ def _envoyer_a_carnet(p: dict, ed: dict) -> str:
 def _parus_carnet(p: dict, ed: dict) -> list[dict]:
     """0.16 : les numéros parus rangés sur la fiche de carnet, sauf celui de ce séjour."""
     return [x for x in (_contact(p).get("parus") or []) if x.get("le") != ed.get("sejour_du")]
+
+
+# ================================================================ 0.23 : fiche complète d'une personne (carnet 2.33)
+#
+# La fiche est rangée dans carnet (pépites, rubriques, sujets interdits) ; Gazette la lit et l'écrit pépite par pépite
+# (contrôle `le`, 409 si elle a changé entre-temps). Pour chaque demande à l'IA : 3 à 5 pépites tirées au hasard (les
+# jamais parues d'abord) + le ton souhaité ; les sujets interdits ne partent jamais et filtrent les propositions.
+# carnet absent, pas à jour (avant 2.33) ou personne introuvable : la Gazette marche comme avant, sans fiche.
+
+def _personne_carnet(p: dict) -> str:
+    """L'identifiant maison de la personne dans carnet (vide : carnet ne la trouve pas)."""
+    return str((_contact(p) or {}).get("personne_id") or "")
+
+
+def _fiche_ia(p: dict) -> dict | None:
+    """La fiche de cette personne pour l'IA (30 s de mémoire ; carnet arrêté : la dernière bien lue), ou None."""
+    ident = _personne_carnet(p)
+    if not ident:
+        return None
+    try:
+        return ETAT["carnet"].fiche(ident, forcer=False)
+    except ErreurFiche:
+        return None
+
+
+def _tirage(p: dict, journal_: str, numero: int, cible: str) -> tuple[str, dict]:
+    """(texte pour l'IA, tirage à garder) : 3 à 5 pépites tirées + le ton souhaité. Jamais de sujet interdit."""
+    f = _fiche_ia(p)
+    if not f:
+        return "", {}
+    tire = FI.tirer(f["pepites"])
+    texte = FI.pour_ia(_prenom(p), tire, FI.ton(f["pepites"]))
+    return texte, {"journal": journal_, "numero": numero, "cible": cible, "personne": _personne_carnet(p),
+                   "ids": [x["id"] for x in tire]}
+
+
+def _garder_tirage(tirage: dict, propositions: list) -> None:
+    if tirage.get("ids") and propositions:
+        ETAT["base"].garder_tirage(tirage["journal"], tirage["numero"], tirage["cible"], tirage["personne"],
+                                   tirage["ids"], propositions)
+
+
+def _interdits_de(p: dict | None = None, nom: str = "") -> list[str]:
+    """Les sujets interdits d'une fiche de Gazette, ou d'un nom cherché dans carnet (contact unique)."""
+    if p is not None:
+        f = _fiche_ia(p)
+        return FI.interdits(f["pepites"]) if f else []
+    trouves = {c.get("carnet_id") or id(c): c for c in ETAT["carnet"].chercher(nom)} if nom else {}
+    if len(trouves) != 1:
+        return []
+    ident = str(next(iter(trouves.values())).get("personne_id") or "")
+    if not ident:
+        return []
+    try:
+        return FI.interdits(ETAT["carnet"].fiche(ident, forcer=False)["pepites"])
+    except ErreurFiche:
+        return []
+
+
+def _interdits_du_numero(p: dict, ed: dict | None = None) -> list[str]:
+    """Les sujets interdits de toutes les personnes du numéro. Gazette : la personne. Récidive : la personne, les autres
+    invités du même séjour et les proches cités sur les photos (personnes reconnues par Immich)."""
+    res = list(_interdits_de(p))
+    if not ed:
+        return res
+    base: Base = ETAT["base"]
+    vus = {cle_nom(p["nom"])}
+    for sj in base.sejours("0000-01-01"):
+        if sj["du"] != ed["sejour_du"] or not any(i.get("personne_id") == p["id"] for i in sj["invites"]):
+            continue
+        for i in sj["invites"]:
+            if cle_nom(i["nom"]) in vus or i.get("personne_id") == p["id"]:
+                continue
+            vus.add(cle_nom(i["nom"]))
+            autre = base.personne(i["personne_id"]) if i.get("personne_id") else None
+            res += _interdits_de(autre) if autre else _interdits_de(nom=i["nom"])
+    for x in ed.get("photos") or []:
+        for nom in ((x.get("contexte") or {}).get("personnes") or []):
+            if cle_nom(nom) not in vus:
+                vus.add(cle_nom(nom))
+                res += _interdits_de(nom=nom)
+    return list(dict.fromkeys(res))
+
+
+def _filtrer(props: list, interdits: list[str]) -> list:
+    """Écarte les propositions qui touchent un sujet interdit ; toutes écartées : 422 « relance »."""
+    gardees, ecartees = FI.filtrer(props, interdits)
+    if props and not gardees:
+        raise HTTPException(422, FI.ECARTEES[:1].upper() + FI.ECARTEES[1:] + ".")
+    return gardees
+
+
+def _textes_tirage(props: list) -> list[str]:
+    return [" ".join(str(v) for v in x.values() if isinstance(v, str)) if isinstance(x, dict) else str(x) for x in props]
+
+
+def _marquer_parues(journal_: str, numero: int, retenus: list[str]) -> str:
+    """À l'approbation : les pépites tirées pour les propositions dont un texte a été retenu (même retouché) reçoivent
+    `parue_le` dans carnet. Rend ce qui s'est passé, pour l'écran ; jamais une erreur (l'approbation est faite)."""
+    retenus = [t for t in retenus if t and t.strip()]
+    par_personne: dict[str, set[str]] = {}
+    servis = []
+    for t in ETAT["base"].tirages(journal_, numero):
+        if t["marque_le"] or not t["pepites"]:
+            continue
+        props = _textes_tirage(t["propositions"])
+        if any(FI.proche(r, props) for r in retenus):
+            par_personne.setdefault(t["personne"], set()).update(t["pepites"])
+            servis.append(t["id"])
+    if not par_personne:
+        return "aucune pépite de la fiche dans les textes retenus"
+    if ETAT["cfg"].lecture_seule:
+        return "pépites parues pas notées : lecture seule"
+    n, erreurs = 0, []
+    for ident, ids in par_personne.items():
+        try:
+            r = ETAT["carnet"].marquer_parues(ident, sorted(ids), date.today().isoformat())
+            n += int(r.get("marquees") or 0) if isinstance(r, dict) else 0
+        except ErreurFiche as ex:
+            erreurs.append(ex.message)
+    if erreurs:
+        return f"pépites parues pas notées dans carnet ({erreurs[0][:120]})"
+    ETAT["base"].tirages_marques(servis)
+    return f"{n} pépite(s) de la fiche notée(s) « parue »"
+
+
+def _etat_fiche(p: dict) -> tuple[dict, dict | None, dict]:
+    """(état pour l'écran, fiche lue ou None, contact carnet). L'état dit si l'on peut écrire, et pourquoi pas."""
+    contact = _contact(p) or {}
+    ident = str(contact.get("personne_id") or "")
+    if not ETAT["carnet"].actif:
+        return {"carnet": "pas_regle", "ecriture": False, "message": "carnet n'est pas réglé (GAZETTE_CARNET_URL, MAISON_JETON) : "
+                "la fiche complète vit dans carnet. La Gazette marche sans elle."}, None, contact
+    if not ident:
+        return {"carnet": "introuvable", "ecriture": False, "message": "carnet ne trouve pas cette personne (nom et alias de la "
+                "fiche) : rien n'est lu ni écrit. Vérifie le nom dans carnet, ou ajoute un alias à la fiche de Gazette."}, None, contact
+    try:
+        f = ETAT["carnet"].fiche(ident, forcer=True)
+    except ErreurFiche as ex:
+        if ex.ancien:
+            return {"carnet": "ancien", "ecriture": False, "message": "carnet n'est pas à jour : la fiche complète demande carnet "
+                    "2.33. La Gazette marche comme avant (ligne d'indices)."}, None, contact
+        if ex.statut == 404:
+            return {"carnet": "introuvable", "ecriture": False, "message": f"carnet ne connaît pas cette personne ({ex.message})."}, None, contact
+        return {"carnet": "injoignable", "ecriture": False, "message": f"carnet injoignable ({ex.message}) : aucune fiche gardée, "
+                "rien ne peut être écrit pour l'instant."}, None, contact
+    if f.get("garde"):
+        return {"carnet": "injoignable", "ecriture": False, "lu_le": f.get("lu_le", ""),
+                "message": f"carnet injoignable : fiche en lecture seule (dernière lecture le {str(f.get('lu_le', ''))[:16].replace('T', ' à ')})."}, f, contact
+    if ETAT["cfg"].lecture_seule:
+        return {"carnet": "ok", "ecriture": False, "message": "Lecture seule : la fiche se lit, rien n'est écrit dans carnet."}, f, contact
+    return {"carnet": "ok", "ecriture": True, "message": "", "lu_le": f.get("lu_le", "")}, f, contact
+
+
+def _p_fiche(pid: int) -> dict:
+    """La fiche de Gazette (une fiche d'essai renvoie à la vraie : même personne dans carnet)."""
+    p = _personne_ou_404(pid)
+    return (ETAT["base"].personne(p["essai_de"]) or p) if p.get("essai_de") else p
+
+
+@app.get("/api/fiches/{pid}")
+def fiche_complete(pid: int):
+    """La fiche complète : rubriques (avec exemples), pépites, jauge, suggestions grisées (carnet, anciennes Récidives,
+    étapes de Sillage) et l'état de carnet (écriture possible ou non, et pourquoi)."""
+    p = _p_fiche(pid)
+    etat, f, contact = _etat_fiche(p)
+    pepites = f["pepites"] if f else []
+    sillage = {"etat": "sans", "message": ""}
+    etapes: list[dict] = []
+    immich_id = (f or {}).get("immich_id") or str(contact.get("immich_id") or "")
+    if f and ETAT["sillage"].actif and immich_id:
+        try:
+            etapes = ETAT["sillage"].etapes(immich_id)
+            sillage = {"etat": "ok", "message": f"{len(etapes)} étape(s) du chemin de Sillage"}
+        except RuntimeError as ex:
+            sillage = {"etat": "erreur", "message": str(ex)[:200]}
+    elif f and not immich_id:
+        sillage = {"etat": "sans", "message": "pas de personne d'Immich liée dans carnet : pas d'étapes de Sillage"}
+    suggestions = FI.preremplir(f, contact.get("parus") or [], etapes) if f else []
+    return {"personne": {"id": p["id"], "nom": p["nom"], "prenom": _prenom(p)}, "rubriques": FI.rubriques_avec_suggestions(),
+            "pepites": pepites, "jauge": FI.jauge(pepites), "suggestions": suggestions, "etat": etat, "sillage": sillage,
+            "maxi": FI.MAXI, "paliers": [{"seuil": n, "nom": t} for n, t in FI.PALIERS]}
+
+
+def _ecrire_fiche(pid: int) -> tuple[dict, str]:
+    """Contrôles avant une écriture : carnet joignable, personne trouvée, pas de lecture seule. Rend (fiche, ident)."""
+    p = _p_fiche(pid)
+    if ETAT["cfg"].lecture_seule:
+        raise HTTPException(409, "Lecture seule : rien n'est écrit dans carnet.")
+    ident = _personne_carnet(p)
+    if not ident:
+        raise HTTPException(404, "carnet ne trouve pas cette personne : rien n'est écrit.")
+    return p, ident
+
+
+def _erreur_fiche(ex: ErreurFiche) -> HTTPException:
+    return HTTPException(ex.statut if ex.statut in (401, 404, 409, 422) else 503, ex.message)
+
+
+def _corps_pepite(corps: dict, creation: bool) -> dict:
+    """Ce qui part vers carnet : texte propre (200 au plus), rubrique connue (« vrac » : rangée par mots-clés)."""
+    if not isinstance(corps, dict):
+        raise HTTPException(422, "Un objet est attendu.")
+    res: dict = {}
+    if "texte" in corps or creation:
+        try:
+            res["texte"] = FI.propre(corps.get("texte"))
+        except ValueError as ex:
+            raise HTTPException(422, str(ex))
+    if "rubrique" in corps or creation:
+        rub = corps.get("rubrique") or "vrac"
+        if rub == "vrac":
+            rub = FI.ranger(res.get("texte", ""))
+        if rub not in FI.CLES:
+            raise HTTPException(422, "Rubrique inconnue.")
+        res["rubrique"] = rub
+        res["interdit"] = rub == FI.INTERDITS
+    if creation:
+        res["source"] = corps.get("source") if corps.get("source") in FI.SOURCES else "julien"
+    else:
+        if not isinstance(corps.get("le"), str) or not corps["le"]:
+            raise HTTPException(422, "`le` de la pépite absent : relis la fiche.")
+        res["le"] = corps["le"]
+    return res
+
+
+@app.post("/api/fiches/ranger")
+def fiche_ranger(corps: dict = Body(...)):
+    """La rubrique la plus probable d'une ligne « vrac » (mots-clés, sans IA), pour l'afficher avant d'enregistrer."""
+    return {"rubrique": FI.ranger(str((corps or {}).get("texte") or ""))}
+
+
+@app.post("/api/fiches/{pid}/pepites")
+def fiche_ajouter(pid: int, corps: dict = Body(...)):
+    p, ident = _ecrire_fiche(pid)
+    envoi = _corps_pepite(corps, True)
+    try:
+        pepite = ETAT["carnet"].ajouter_pepite(ident, envoi)
+    except ErreurFiche as ex:
+        raise _erreur_fiche(ex)
+    ETAT["base"].noter("fiche", p["id"], "pépite ajoutée à la fiche complète (carnet)")
+    return {"pepite": pepite}
+
+
+@app.put("/api/fiches/{pid}/pepites/{pepite}")
+def fiche_modifier(pid: int, pepite: str, corps: dict = Body(...)):
+    p, ident = _ecrire_fiche(pid)
+    envoi = _corps_pepite(corps, False)
+    try:
+        nouvelle = ETAT["carnet"].modifier_pepite(ident, pepite, envoi)
+    except ErreurFiche as ex:
+        raise _erreur_fiche(ex)
+    return {"pepite": nouvelle}
+
+
+@app.delete("/api/fiches/{pid}/pepites/{pepite}")
+def fiche_effacer(pid: int, pepite: str, corps: dict | None = Body(None)):
+    p, ident = _ecrire_fiche(pid)
+    le = (corps or {}).get("le") if isinstance(corps, dict) else None
+    if not isinstance(le, str) or not le:
+        raise HTTPException(422, "`le` de la pépite absent : relis la fiche.")
+    try:
+        ETAT["carnet"].effacer_pepite(ident, pepite, le)
+    except ErreurFiche as ex:
+        raise _erreur_fiche(ex)
+    return {"ok": True}
 
 
 # ================================================================ 0.20 : essais (Réglages › Simuler) et archives

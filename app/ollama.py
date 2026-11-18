@@ -185,7 +185,7 @@ def _prenoms_permis(prenom: str, ctx_personnes: list[str]) -> str:
 
 
 def consigne(description: str, sorte: str, genre: str, prenom: str, deja: list[str] | None = None,
-             contexte: dict | None = None) -> str:
+             contexte: dict | None = None, fiche: str = "") -> str:
     accord = {"femme": f"{prenom} est une femme (accorde au féminin)", "homme": f"{prenom} est un homme (accorde au masculin)"}.get(
         genre, f"le genre de {prenom} est inconnu : formule sans accord féminin ni masculin, sans « il » ni « elle »")
     quoi = (f"le GROS TITRE de la une, qui annonce le retour de {prenom} chez nous" if sorte == "une"
@@ -196,6 +196,7 @@ def consigne(description: str, sorte: str, genre: str, prenom: str, deja: list[s
             + (f"Ce que montre la photo, d'après l'hôte : « {description} »\n" if description else "")
             + (f"D'après la photothèque : {texte_contexte(contexte)} (le nom de l'album dit l'occasion ; les personnes "
                "peuvent devenir complices, témoins ou rivaux)\n" if texte_contexte(contexte) else "")
+            + (f"{fiche}\n" if fiche else "")                  # 0.23 : pépites tirées de la fiche complète, ton souhaité
             + f"Ne décris pas la photo : transforme-la en scandale ou en faux scoop. Cinq angles différents. "
             f"{MAXI} caractères au plus chacune ; n'invente aucun fait grave ; "
             f"{_prenoms_permis(prenom, (contexte or {}).get('personnes') or [])} ; "
@@ -208,7 +209,7 @@ NOMBRE_RUMEURS = 8
 
 
 def consigne_rumeurs(indices: str, genre: str, prenom: str, photos: list[str], deja: list[str] | None = None,
-                     personnes: list[str] | None = None) -> str:
+                     personnes: list[str] | None = None, fiche: str = "") -> str:
     accord = {"femme": f"{prenom} est une femme (accorde au féminin)", "homme": f"{prenom} est un homme (accorde au masculin)"}.get(
         genre, f"le genre de {prenom} est inconnu : formule sans accord féminin ni masculin, sans « il » ni « elle »")
     vu = "; ".join(p for p in photos if p)[:600]
@@ -220,6 +221,7 @@ def consigne_rumeurs(indices: str, genre: str, prenom: str, photos: list[str], d
             f"« Les rumeurs de la rédaction » d'un faux journal à scandale offert par ses hôtes. {accord}.\n"
             + (f"Ce que les hôtes savent de {prenom} : « {indices} »\n" if indices else "")
             + (f"Ce que montrent les photos du journal : {vu}\n" if vu else "")
+            + (f"{fiche}\n" if fiche else "")                  # 0.23 : fiche complète
             + "Absurde, drôle et affectueux, style « Selon nos sources… », « Il se murmure que… », « Exclusif : … » ; "
               "jamais méchant, aucune moquerie du physique, rien de grave (santé, argent, couple, crime), rien de vulgaire. "
               f"{MAXI_RUMEUR} caractères au plus chacune, une seule phrase, {_prenoms_permis(prenom, personnes or [])}.\n"
@@ -252,7 +254,7 @@ def _accord(genre: str, prenom: str) -> str:
         genre, f"le genre de {prenom} est inconnu : formule sans accord féminin ni masculin, sans « il » ni « elle »")
 
 
-def consigne_courrier(indices: str, genre: str, prenom: str, deja: list[str] | None = None) -> str:
+def consigne_courrier(indices: str, genre: str, prenom: str, deja: list[str] | None = None, fiche: str = "") -> str:
     """0.11.1 : format à étiquettes (Lettre / Signature / Réponse), mieux suivi par les petits modèles que « ::: »."""
     return ("Exemple du ton et du format voulus :\n"
             "Lettre : Depuis que Marc est reparti, mon chat refuse de manger : il réclame ses imitations de mouette. Que faire ?\n"
@@ -262,6 +264,7 @@ def consigne_courrier(indices: str, genre: str, prenom: str, deja: list[str] | N
             + f"Écris {NOMBRE_LETTRES} fausses lettres de lecteurs, drôles et affectueuses, pour la rubrique « Courrier des "
               f"lecteurs » d'un faux journal à scandale sur {prenom}, offert par ses hôtes. {_accord(genre, prenom)}.\n"
             + (f"Ce que les hôtes savent de {prenom} : « {indices} »\n" if indices else "")
+            + (f"{fiche}\n" if fiche else "")                  # 0.23 : fiche complète
             + "Chaque lettre vient d'un correspondant anonyme et loufoque (« Un voisin inquiet », « Une tomate du jardin », "
               "« Le canapé du salon »…) et reçoit une réponse courte et piquante de la rédaction. Jamais méchant, aucune "
               f"moquerie du physique (les allusions coquines sont permises, avec esprit), rien de grave, aucun autre prénom que {prenom}.\n"
@@ -270,7 +273,7 @@ def consigne_courrier(indices: str, genre: str, prenom: str, deja: list[str] | N
 
 
 def consigne_horoscope(signe_: str, indices: str, genre: str, prenom: str, deja: list[str] | None = None,
-                       evenement: str = "", avant: list[str] | None = None) -> str:
+                       evenement: str = "", avant: list[str] | None = None, fiche: str = "") -> str:
     """0.15 : `evenement` — l'événement du séjour qui arrive (« soirée Eurovision, dort à la maison pour ne pas rentrer
     tard ») : chaque horoscope brode dessus. `avant` — les événements des séjours précédents, pour un clin d'œil."""
     # 0.18.1 : exemples sur un événement imaginaire (un concours de pétanque), et consigne de ne rien leur emprunter :
@@ -283,6 +286,7 @@ def consigne_horoscope(signe_: str, indices: str, genre: str, prenom: str, deja:
             + f"Écris {NOMBRE_HOROSCOPES} horoscopes loufoques pour {prenom}, signe {signe_ or 'inconnu'}, pendant son "
               f"séjour chez ses hôtes, pour un faux journal à scandale. {_accord(genre, prenom)}.\n"
             + (f"Ce que les hôtes savent de {prenom} : « {indices} »\n" if indices else "")
+            + (f"{fiche}\n" if fiche else "")                  # 0.23 : fiche complète
             + (f"Ce séjour est lié à un événement, et à lui seul : « {evenement} ». Chaque horoscope brode dessus "
                "(prédictions loufoques sur cet événement, ses suites, le lendemain), chacun sous un angle différent ; "
                "n'invente aucun autre événement.\n" if evenement else "")
@@ -349,7 +353,7 @@ SEPARATEUR = "---"
 
 
 def consigne_gazette(action: str, texte: str, annee: int | None, signes: int | None, prenom: str, genre: str,
-                     indices: str, chez: str, evenements: list[str] | None = None) -> tuple[str, int, int]:
+                     indices: str, chez: str, evenements: list[str] | None = None, fiche: str = "") -> tuple[str, int, int]:
     """(consigne, nombre de propositions, longueur maximale) pour une aide de la Gazette."""
     epoque = f"de {annee}" if annee else "de l'époque"
     sep = f"Sépare les versions par une ligne contenant seulement {SEPARATEUR}. Rien d'autre que les versions."
@@ -375,6 +379,7 @@ def consigne_gazette(action: str, texte: str, annee: int | None, signes: int | N
                 f"(né{'e' if genre == 'femme' else ''} en {annee or '…'}), qui vient dormir {chez or 'chez nous'}. "
                 f"Accorde {accord}. Chaleureux, un brin d'humour, 3 à 5 phrases, 500 caractères au plus, au « vous ». "
                 + (f"Ce qu'on sait de {prenom} : « {indices} ». " if indices else "")
+                + (f"{fiche}. " if fiche else "")          # 0.23 : fiche complète
                 # 0.17 : le mot s'appuie sur les événements racontés dans le journal (demande de Julien du 17/11)
                 + ("Événements racontés dans ce journal (le monde à la naissance) : " + " ; ".join(evenements[:8])
                    + ". Fais un ou deux clins d'œil à ces événements, sans en inventer d'autres. " if evenements else "")
@@ -387,6 +392,7 @@ def consigne_gazette(action: str, texte: str, annee: int | None, signes: int | N
                 f"tendresse et second degré : ils assument tout et disent leur joie de la ou le revoir. Accorde {accord}. "
                 "3 à 5 phrases, 500 caractères au plus, au « vous », aucune moquerie du physique. "
                 + (f"Ce qu'on sait de {prenom} : « {indices} ». " if indices else "")
+                + (f"{fiche}. " if fiche else "")          # 0.23 : fiche complète
                 + ("Ce que raconte ce numéro : " + " ; ".join(evenements[:8]) + ". Fais un ou deux clins d'œil, sans rien inventer de grave. "
                    if evenements else "")
                 + (f"Texte actuel, à améliorer : « {texte} ». " if texte else "")
@@ -474,7 +480,8 @@ class Ollama:
         return props[:nombre]
 
     def proposer(self, description: str, sorte: str = "photo", genre: str = "", prenom: str = "",
-                 deja: list[str] | None = None, contexte: dict | None = None, modele: str | None = None) -> list[str]:
+                 deja: list[str] | None = None, contexte: dict | None = None, modele: str | None = None,
+                 fiche: str = "") -> list[str]:
         """Jusqu'à 5 titres. RuntimeError (avec la marche à suivre) si l'IA n'est pas joignable ou ne rend rien d'utile."""
         if not self.actif:
             raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
@@ -483,15 +490,16 @@ class Ollama:
             raise ValueError("Écris d'abord en quelques mots ce qu'on voit sur la photo.")
         if len(description) < 3:
             description = ""
-        return self._demander(consigne(description, sorte, genre, prenom, deja, contexte), NOMBRE, MAXI, genre, deja, modele)
+        return self._demander(consigne(description, sorte, genre, prenom, deja, contexte, fiche), NOMBRE, MAXI, genre, deja, modele)
 
     def rumeurs(self, indices: str, genre: str = "", prenom: str = "", photos: list[str] | None = None,
-                deja: list[str] | None = None, personnes: list[str] | None = None, modele: str | None = None) -> list[str]:
+                deja: list[str] | None = None, personnes: list[str] | None = None, modele: str | None = None,
+                fiche: str = "") -> list[str]:
         """0.9.7 : jusqu'à 8 rumeurs loufoques (130 caractères au plus) pour la page 3. Indices facultatifs."""
         if not self.actif:
             raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
         indices = " ".join((indices or "").split())[:1200]       # 0.19 : indices + livre d'or
-        return self._demander(consigne_rumeurs(indices, genre, prenom, photos or [], deja, personnes), NOMBRE_RUMEURS, MAXI_RUMEUR,
+        return self._demander(consigne_rumeurs(indices, genre, prenom, photos or [], deja, personnes, fiche), NOMBRE_RUMEURS, MAXI_RUMEUR,
                               genre, deja, modele)
 
     def _brut(self, prompt: str, nombre: int, modele: str | None = None) -> str:
@@ -510,7 +518,7 @@ class Ollama:
         return str((r or {}).get("response", ""))
 
     def courrier(self, indices: str, genre: str = "", prenom: str = "", deja: list[str] | None = None,
-                 modele: str | None = None) -> list[dict]:
+                 modele: str | None = None, fiche: str = "") -> list[dict]:
         """0.11 : jusqu'à 4 fausses lettres de lecteurs avec la réponse de la rédaction (page 4)."""
         if not self.actif:
             raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
@@ -518,7 +526,7 @@ class Ollama:
         res: list[dict] = []
         brut = ""
         for _ in range(ESSAIS):
-            brut = self._brut(consigne_courrier(indices, genre, prenom, deja), NOMBRE_LETTRES, modele)
+            brut = self._brut(consigne_courrier(indices, genre, prenom, deja, fiche), NOMBRE_LETTRES, modele)
             for x in lettres(brut, genre):
                 if not proche_de(x["lettre"], deja or []) and x["lettre"].casefold() not in {y["lettre"].casefold() for y in res}:
                     res.append(x)
@@ -531,19 +539,20 @@ class Ollama:
         return res[:NOMBRE_LETTRES]
 
     def horoscope(self, signe_: str, indices: str, genre: str = "", prenom: str = "", deja: list[str] | None = None,
-                  evenement: str = "", avant: list[str] | None = None, modele: str | None = None) -> list[str]:
+                  evenement: str = "", avant: list[str] | None = None, modele: str | None = None,
+                  fiche: str = "") -> list[str]:
         """0.11 : jusqu'à 3 horoscopes loufoques du séjour (page 4)."""
         if not self.actif:
             raise RuntimeError("IA pas réglée (GAZETTE_OLLAMA_URL vide). " + MARCHE)
         indices = " ".join((indices or "").split())[:1200]       # 0.19 : indices + livre d'or
         evenement = " ".join((evenement or "").split())[:200]
-        return self._demander(consigne_horoscope(signe_, indices, genre, prenom, deja, evenement, avant), NOMBRE_HOROSCOPES, MAXI_HOROSCOPE,
+        return self._demander(consigne_horoscope(signe_, indices, genre, prenom, deja, evenement, avant, fiche), NOMBRE_HOROSCOPES, MAXI_HOROSCOPE,
                               genre, deja, modele)
 
     # ------------------------------------------------------------ 0.12 : aides pour la Gazette classique
     def gazette(self, action: str, texte: str, annee: int | None = None, signes: int | None = None, prenom: str = "",
                 genre: str = "", indices: str = "", chez: str = "", evenements: list[str] | None = None,
-                modele: str | None = None) -> list[str]:
+                modele: str | None = None, fiche: str = "") -> list[str]:
         """Propositions à choisir pour un bloc de la Gazette : « titres » (5), « raccourcir » (3, `signes` au plus),
         « journal » (3 réécritures façon presse de l'époque), « traduire » (2), « mot » (3 mots d'accueil). Mêmes faits
         que le texte donné : rien d'inventé (sauf le mot des hôtes, écrit d'après les indices)."""
@@ -552,7 +561,8 @@ class Ollama:
         texte = (texte or "").strip()[:3000]
         if action not in ("mot", "legende", "droit") and len(texte) < 10:
             raise ValueError("Pas assez de texte dans ce bloc.")
-        prompt, nombre, maxi = consigne_gazette(action, texte, annee, signes, prenom, genre, indices, chez, evenements)
+        prompt, nombre, maxi = consigne_gazette(action, texte, annee, signes, prenom, genre, indices, chez, evenements,
+                                               fiche if action in ("mot", "droit") else "")
         brut = ""
         for _ in range(ESSAIS):
             try:
