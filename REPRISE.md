@@ -2,6 +2,9 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
+## Correctif (18/11/2026) — 0.25.1
+- `banque.lire` : `_section` accepte un titre sans « # » ; ligne sans puce sous une section = élément, sauf `_bavardage` ; `_reparer_prenom` (double espace → {prenom} pour `EXIGE_PRENOM` = rumeur, titre) ; `mesurer` écarte « sans {prenom} ». `rendre` : élision qu'/que, d'/de devant le prénom.
+
 ## Dernier changement (18/11/2026) — 0.25.0 : bouton IA qui lance tout, mot jamais répété, banque d'inspiration
 - `app/banque.py` : lecture du fichier (`lire`, sections ou « sorte | texte », puces/numéros/guillemets retirés, balises mal écrites corrigées), `mesurer` (longueurs `MAXI` mesurées avec un prénom de 10 lettres), `rendre` (balises ; None si {il}/{e} sans genre), `pour_ia`, `exporter`. Base : table `banque` (`cle` unique = sorte + texte à plat), `banque_ajouter/comptes/tirer/servi/tout/vider`.
 - `main.py` : `_mots_parus(_detail)`, `_mot_deja_paru` (409 à l'approbation des deux journaux, jamais pour un essai), `_mot_neuf_recidive` (GET d'une édition sans mot dont le défaut a paru), `_banque_rendue`, `_avec_banque` (ajouté au texte `fiche` envoyé à l'IA : titres, rumeurs, horoscope, droit, mot de la Gazette), routes `/api/banque*`, `/api/recidives/{rid}/banque`, `/api/livrets/{pid}/banque`. `_deja_paru` inclut le mot.

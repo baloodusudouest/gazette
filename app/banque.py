@@ -13,8 +13,10 @@ Format du fichier (texte UTF-8, plusieurs fichiers ou morceaux recollés possibl
     # TITRES
     - {prenom} démasqué{e} au rayon fromages
 
-Une section commence par une ligne « # RUMEURS » (ou HOROSCOPES, MOTS, TITRES ; singulier, accents et casse
-indifférents) ; chaque ligne d'élément commence par « - », « * », « • » ou un numéro (« 12. »). Forme sur une ligne
+Une section commence par une ligne « # RUMEURS » (ou HOROSCOPES, MOTS, TITRES ; « # » facultatif, singulier,
+accents et casse indifférents) ; sous une section, chaque ligne non vide est un élément (puce « - », « * », « • » ou
+numéro « 12. » retirés ; phrases de l'IA comme « Voici la suite : » ignorées). Une rumeur ou un titre doit contenir
+{prenom} ; si l'IA l'a perdu en laissant un double espace, il y est remis. Forme sur une ligne
 aussi lue : « rumeur | texte ». Balises : {prenom}, {salut} (« Chère Camille », « Cher Paul »), {chez} (« à la
 maison »), {il} (il / elle), {e} (« » / « e » pour l'accord). Un texte avec {il} ou {e} n'est pas proposé quand le
 genre de la personne est inconnu.
@@ -35,6 +37,7 @@ _SECTIONS = {"rumeur": "rumeur", "rumeurs": "rumeur", "horoscope": "horoscope", 
              "titre": "titre", "titres": "titre", "titres scandale": "titre", "titre scandale": "titre",
              "titres type scandale": "titre", "legende": "titre", "legendes": "titre"}
 ESSAI_PRENOM = "Maximilien"      # 10 lettres : sert à mesurer un texte à l'import
+EXIGE_PRENOM = ("rumeur", "titre")  # 0.25.1 : une rumeur ou un titre sans {prenom} est écarté
 
 
 def plat(t: str) -> str:
@@ -48,11 +51,20 @@ def cle(sorte: str, texte: str) -> str:
 
 
 def _section(ligne: str) -> str | None:
-    m = re.match(r"^\s*(?:#{1,6}|\[|==+)\s*(.+?)\s*(?:\]|==+)?\s*:?\s*$", ligne)
+    """« # RUMEURS », « [RUMEURS] », « == RUMEURS == », et 0.25.1 : « RUMEURS » ou « **Rumeurs :** » seul sur sa ligne."""
+    m = re.match(r"^\s*(?:#{1,6}|\[|==+)?\s*\**\s*(.+?)\s*\**\s*(?:\]|==+)?\s*:?\s*\**\s*$", ligne)
     if not m:
         return None
     nom = plat(re.sub(r"\(.*?\)|\d+", " ", m.group(1)))
     return _SECTIONS.get(nom)
+
+
+def _reparer_prenom(sorte: str, brut: str) -> str:
+    """0.25.1 : une IA a perdu la balise {prenom} en route (« Selon le facteur,  aurait… ») : le double espace laissé
+    à sa place la reçoit. Seulement pour les sortes qui exigent le prénom, et s'il n'y a aucune balise."""
+    if sorte in EXIGE_PRENOM and "{" not in brut and re.search(r"\S {2,}\S", brut.strip()):
+        return re.sub(r"(?<=\S) {2,}(?=\S)", " {prenom} ", brut.strip(), count=1)
+    return brut
 
 
 def _nettoyer(t: str) -> str:
@@ -69,6 +81,8 @@ def mesurer(sorte: str, texte: str) -> str | None:
     """Raison du refus d'un texte à l'import, ou None s'il est bon."""
     if len(texte) < MINI:
         return "trop court"
+    if sorte in EXIGE_PRENOM and "{prenom}" not in texte:
+        return "sans {prenom}"
     inconnues = {b for b in re.findall(r"\{([^{}]*)\}", texte) if b not in BALISES}
     if inconnues:
         return "balise inconnue {" + ", ".join(sorted(inconnues)) + "}"
@@ -95,14 +109,15 @@ def lire(contenu: str) -> tuple[dict[str, list[str]], dict[str, int]]:
         m = re.match(r"^\s*(rumeurs?|horoscopes?|mots?|titres?)\s*[|;\t]\s*(.+)$", ligne, re.I)
         if m:
             sorte, texte = _SECTIONS[plat(m.group(1))], m.group(2)
-        elif re.match(r"^\s*(?:[-*•–—]|\d{1,4}\s*[.)\-:–—])\s*\S", ligne) and courante:
-            texte = ligne
+        elif courante and (re.match(r"^\s*(?:[-*•–—]|\d{1,4}\s*[.)\-:–—])\s*\S", ligne) or not _bavardage(ligne)):
+            texte = ligne              # 0.25.1 : une ligne sans puce sous une section compte aussi
         if not sorte or texte is None:
             continue
-        texte = _nettoyer(texte)
+        texte = _nettoyer(_reparer_prenom(sorte, re.sub(r"^\s*(?:[-*•–—]|\d{1,4}\s*[.)\-:–—])\s*", "", texte)))
         pourquoi = mesurer(sorte, texte)
         if pourquoi:
-            ecarts[pourquoi.split(" (")[0].split(" {")[0]] = ecarts.get(pourquoi.split(" (")[0].split(" {")[0], 0) + 1
+            raison = "balise inconnue" if pourquoi.startswith("balise inconnue") else pourquoi.split(" (")[0]
+            ecarts[raison] = ecarts.get(raison, 0) + 1
             continue
         k = cle(sorte, texte)
         if k in vus:
@@ -111,6 +126,14 @@ def lire(contenu: str) -> tuple[dict[str, list[str]], dict[str, int]]:
         vus.add(k)
         res[sorte].append(texte)
     return res, ecarts
+
+
+def _bavardage(ligne: str) -> bool:
+    """Une phrase de l'IA autour des textes (« Voici les 100 rumeurs : », « Souhaitez-vous la suite ? »), pas un texte."""
+    t = ligne.strip()
+    return (t.endswith(":") or t.endswith("?") or t.startswith(("```", "---", ">"))
+            or bool(re.match(r"^(voici|here|bien s[uû]r|parfait|d'accord|souhaitez|veux-tu|voulez|je (vais|continue|peux)|"
+                             r"lot|suite|fin du|total|compteur|rumeurs \d|horoscopes \d|mots \d|titres \d)", plat(t))))
 
 
 def salut(genre: str, prenom: str) -> str:
@@ -123,6 +146,9 @@ def rendre(texte: str, prenom: str, genre: str, chez: str) -> str | None:
         return None
     valeurs = {"prenom": prenom or "notre invité", "salut": salut(genre, prenom or ""), "chez": chez or "à la maison",
                "il": "elle" if genre == "femme" else "il", "e": "e" if genre == "femme" else ""}
+    # 0.25.1 : élision devant le prénom (« qu'{prenom} » → « que Paul » ou « qu'Audrey », pareil pour « de / d' »)
+    voyelle = bool(re.match(r"[aeiouyhàâäéèêëîïôöûüœ]", (prenom or "n").lower()))
+    texte = re.sub(r"\b([Qq]u|[Dd])(?:e |'|’)(?=\{prenom\})", lambda m: m.group(1) + ("'" if voyelle else "e "), texte)
     sortie = re.sub(r"\{(prenom|salut|chez|il|e)\}", lambda m: valeurs[m.group(1)], texte)
     # « Il » en début de phrase
     sortie = re.sub(r"(^|[.!?…]\s+)(il|elle)\b", lambda m: m.group(1) + m.group(2).capitalize(), sortie)

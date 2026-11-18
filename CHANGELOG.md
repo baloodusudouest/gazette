@@ -1,5 +1,13 @@
 # Journal des versions
 
+## 0.25.1 — 18 novembre 2026 (import de la banque plus tolérant)
+- Vu sur deux fichiers de ChatGPT et Gemini envoyés par Julien le 18/11 (aucun texte lu) :
+  - section écrite **sans « # »** (« RUMEURS », « **Titres :** ») : reconnue ;
+  - textes **sans tiret**, séparés de lignes vides : sous une section, chaque ligne non vide compte ; les phrases de l'IA autour (« Voici la suite : », « Souhaitez-vous… ? ») sont ignorées ;
+  - **balise {prenom} perdue** par l'IA (« Selon le facteur,  aurait… ») : remise à la place du double espace ; une rumeur ou un titre sans {prenom} est désormais écarté (« sans {prenom} »).
+- **Élision devant le prénom** : « qu'{prenom} » ou « que {prenom} » donne « que Paul » ou « qu'Audrey » ; pareil pour « de / d' ».
+- Résultat sur les deux fichiers : 100 et 103 rumeurs lues. Tests : 245. Jamais essayé sur la vraie installation.
+
 ## 0.25.0 — 18 novembre 2026 (bouton IA qui lance tout, mot des hôtes jamais répété, banque d'inspiration)
 - **Bouton « IA » de La Récidive** (demande de Julien du 18/11) : il lance désormais toutes les demandes possibles : gros titre, légende de chaque photo décrite ou connue d'Immich, rumeurs, courrier des lecteurs, horoscope (si le signe est connu) et droit de réponse, **même déjà remplis** (ce ne sont que des propositions). Tous les blocs s'ouvrent (« Montrer aussi les validés »). Une demande sans résultat n'arrête plus la série ; seul un PC injoignable l'arrête. Le message final compte les photos sans description ni personne connue.
 - **Mot des hôtes jamais deux fois pour la même personne** : Gazette garde les mots parus (Gazette approuvée, Récidives approuvées). L'approbation refuse un mot déjà paru (proche à 82 %) en disant où (« La Récidive N° 2 ») ; l'éditeur prévient dès la saisie. Quand le droit de réponse par défaut a déjà paru, l'édition reçoit à l'ouverture un mot de la banque jamais paru (gardé). L'IA reçoit les mots parus pour ne pas les reprendre.

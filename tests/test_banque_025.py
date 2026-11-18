@@ -163,3 +163,30 @@ def test_le_mot_paru_ne_revient_pas_de_la_banque(monter):
     for _ in range(5):
         props = c.post(f"/api/recidives/{rid3}/banque", json={"sorte": "mot"}).json()["propositions"]
         assert mot_ not in props
+
+
+# ---------------------------------------------------------------- 0.25.1 : fichiers de ChatGPT et Gemini
+
+def test_section_sans_diese_et_lignes_sans_puce():
+    """Vu le 18/11 : « RUMEURS » seul, puis une rumeur par ligne, séparées de lignes vides."""
+    lus, ecarts = B.lire("RUMEURS\nSelon le majordome, {prenom} aurait négocié le loyer d'un potager.\n\n"
+                         "On murmure au marché qu'{prenom} aurait confondu un tracteur avec un lit.\n"
+                         "Voici la suite :\nSouhaitez-vous d'autres rumeurs ?\n**Titres :**\n{prenom} démasqué{e} au marché\n")
+    assert len(lus["rumeur"]) == 2 and lus["titre"] == ["{prenom} démasqué{e} au marché"] and not ecarts
+
+
+def test_prenom_perdu_remis():
+    """Vu le 18/11 : la balise a disparu, il reste un double espace."""
+    lus, ecarts = B.lire("RUMEURS\n- Selon le comité des hérissons,  aurait négocié avec une brouette.\n"
+                         "- Le club des limaces soupçonne  de préparer un championnat de lenteur.\n"
+                         "- Une rumeur sans prénom ni trou pour le mettre, voilà.\n")
+    assert lus["rumeur"] == ["Selon le comité des hérissons, {prenom} aurait négocié avec une brouette.",
+                             "Le club des limaces soupçonne {prenom} de préparer un championnat de lenteur."]
+    assert ecarts == {"sans {prenom}": 1}
+
+
+def test_elision_devant_le_prenom():
+    t = "On murmure au marché qu'{prenom} aurait confondu un tracteur avec un lit."
+    assert B.rendre(t, "Paul", "homme", "") == "On murmure au marché que Paul aurait confondu un tracteur avec un lit."
+    assert B.rendre(t, "Audrey", "femme", "") == "On murmure au marché qu'Audrey aurait confondu un tracteur avec un lit."
+    assert B.rendre("Le chat de {prenom}", "Émile", "homme", "") == "Le chat d'Émile"

@@ -84,6 +84,10 @@ Puis colle toutes les réponses à la suite dans un même fichier texte, que tu 
 
 ## Si l'IA dérape
 
+- **Pas de « # » devant les sections, pas de tiret devant les textes, lignes vides entre les textes** : Gazette s'en accommode (depuis la 0.25.1).
+- **La balise {prenom} a disparu** (« Selon le facteur,  aurait… ») : Gazette la remet à la place du double espace ; une rumeur ou un titre sans prénom du tout est écarté.
+- **« qu'{prenom} »** : pas grave, Gazette écrit « que Paul » ou « qu'Audrey » selon le prénom.
+
 - **Elle fabrique les textes par combinaison** (même début, même fin partout) : réponds « Écris chaque texte toi-même, sans combiner des morceaux par programme. Recommence ce lot. »
 - **Les textes se ressemblent** : « Change complètement de registre : d'autres sources, d'autres objets, d'autres situations. »
 - **Elle s'arrête au milieu** : « continue ».
