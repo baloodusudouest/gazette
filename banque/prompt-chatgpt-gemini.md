@@ -1,66 +1,90 @@
 # Prompt pour remplir la banque d'inspiration de Gazette (ChatGPT, Gemini…)
 
+But : que l'IA te rende **un seul fichier `.txt`, déjà au bon format**, avec les quatre sortes, prêt à importer dans **Gazette › Réglages › Banque d'inspiration › Importer un fichier**.
+
 ## Mode d'emploi
 
-1. Ouvre une nouvelle conversation dans ChatGPT ou Gemini et colle le prompt ci-dessous en entier.
-2. L'IA répond par un lot de 100 textes. Écris **« continue »** pour le lot suivant, jusqu'à avoir ce que tu veux (environ 10 lots par sorte pour 1000 textes).
-3. Copie les réponses les unes à la suite des autres dans un fichier texte, par exemple `banque-chatgpt.txt`. Garde les lignes `# RUMEURS`, `# HOROSCOPES`… : c'est grâce à elles que Gazette sait de quelle sorte est chaque texte.
-4. Dans Gazette, va dans **Réglages › Banque d'inspiration › Importer un fichier**. Tu peux importer plusieurs fichiers d'un coup, et réimporter le même sans risque : les doublons sont ignorés, et les textes trop longs ou avec une balise inconnue sont écartés (Gazette dit combien et pourquoi).
+1. **ChatGPT** : utilise un modèle qui sait exécuter du code et créer des fichiers (l'outil d'analyse de données ou de code doit être actif). **Gemini** : active l'exécution de code, ou demande un fichier dans Canvas.
+2. Colle le prompt ci-dessous en entier dans une nouvelle conversation.
+3. L'IA écrit les textes par lots et les ajoute au fichier au fur et à mesure. Si elle s'arrête avant la fin, réponds simplement **« continue »** : elle reprend là où elle en était, dans le même fichier.
+4. À la fin, elle te donne le lien de téléchargement de `banque-gazette.txt`. Importe-le dans Gazette.
 
-Astuce : fais une conversation par sorte (une pour les rumeurs, une pour les horoscopes…), les textes sont plus variés. Pour ça, remplace dans le prompt la ligne « Sorte à écrire » par une seule sorte.
+Gazette garde tout ce que tu importes : un nouvel import agrandit la banque sans rien effacer, et les doublons sont ignorés. Tu peux donc relancer le prompt aussi souvent que tu veux, dans ChatGPT puis dans Gemini, et tout importer.
 
 ---
 
 ## Le prompt à coller
 
-```
-Tu écris pour « La Gazette » et « La Récidive », deux petits journaux humoristiques imprimés à un seul exemplaire pour les invités d'une maison de campagne près d'Agen (Lot-et-Garonne). La Gazette accueille un invité pour son premier séjour ; La Récidive est un faux journal à scandale pour les invités qui reviennent. Le ton est celui d'une presse people parodique, tendre, loufoque et absurde. On se moque des situations, jamais des personnes.
+````
+Tu vas produire UN SEUL FICHIER TEXTE nommé banque-gazette.txt, que je téléchargerai à la fin pour l'importer dans une application. Utilise ton outil d'exécution de code (Python) pour créer ce fichier, y ajouter les textes lot par lot, les contrôler, puis me donner le lien de téléchargement.
 
-Sorte à écrire : RUMEURS, puis HOROSCOPES, puis MOTS, puis TITRES (100 textes par réponse ; quand une sorte atteint 1000, passe à la suivante).
+CONTEXTE
+Les textes servent à « La Gazette » et « La Récidive », deux petits journaux humoristiques imprimés à un seul exemplaire pour les invités d'une maison de campagne près d'Agen (Lot-et-Garonne). La Gazette accueille un invité pour son premier séjour ; La Récidive est un faux journal à scandale pour les invités qui reviennent. Le ton est celui d'une presse people parodique, tendre, loufoque et absurde : on se moque des situations, jamais des personnes.
 
-FORMAT DE SORTIE, à respecter strictement (le fichier est lu par un programme) :
-- Une ligne de section avant chaque lot : « # RUMEURS », « # HOROSCOPES », « # MOTS » ou « # TITRES ».
-- Puis un texte par ligne, chaque ligne commençant par « - » (tiret puis espace).
-- Aucun autre texte : pas d'introduction, pas de commentaire, pas de numérotation, pas de gras, pas de guillemets autour des textes, pas d'emoji.
-- Chaque texte tient sur une seule ligne.
+CE QUE TU DOIS ÉCRIRE : 1000 textes de chaque sorte, 4000 en tout.
+1. RUMEURS : une seule phrase de 130 signes au plus, avec {prenom}. Une fausse information absurde, au conditionnel, rapportée par une source farfelue.
+   Exemples : Selon nos informations, {prenom} aurait tenté d'adopter un rond-point. / D'après le facteur, {prenom} parlerait couramment le langage des chèvres.
+2. HOROSCOPES : 240 signes au plus, deux ou trois phrases : une configuration astrale absurde, une prédiction loufoque et bienveillante, un conseil saugrenu. {prenom} facultatif.
+   Exemple : Mercure entre dans votre valise : un pigeon vous apportera une excellente nouvelle. Évitez les ronds-points le mardi.
+3. MOTS (le mot des hôtes) : 700 signes au plus, de deux à quatre phrases, qui commencent par {salut}. Chaleureux et drôle, le mot accueille l'invité dans la maison et dans ce journal fait pour lui. Il ne dit pas s'il s'agit d'un premier séjour ou d'un retour : il doit convenir aux deux.
+   Exemple : {salut}, les draps sont frais et les ragots sont prêts. Tout ce que vous lirez ici est rigoureusement inventé, à part notre joie de vous recevoir. Faites comme chez vous, et même un peu mieux.
+4. TITRES : un gros titre de presse à scandale de 50 signes au plus, avec {prenom}.
+   Exemples : {prenom} démasqué{e} au rayon fromages / EXCLUSIF : {prenom} fuit avec la télécommande
 
-BALISES : écris-les exactement comme ceci, avec les accolades, sans accent ni majuscule :
-- {prenom} : le prénom de l'invité (ex. « Audrey »).
-- {salut} : la formule d'appel (« Chère Audrey », « Cher Paul »). Pour les MOTS uniquement, en début de texte.
+BALISES (exactement ainsi, avec les accolades, en minuscules, sans accent) :
+- {prenom} : le prénom de l'invité.
+- {salut} : la formule d'appel (« Chère Audrey », « Cher Paul ») ; uniquement en tête des MOTS.
 - {chez} : le lieu, par exemple « à la maison ».
 - {il} : « il » ou « elle » selon l'invité.
-- {e} : la marque du féminin, à coller au mot (« arrivé{e} », « pris{e} », « surpris{e} »).
-N'utilise aucune autre balise. Utilise {il} et {e} avec modération (un texte sur cinq au plus) : sans eux, le texte sert aussi quand on ne connaît pas le genre de l'invité.
+- {e} : la marque du féminin, collée au mot (arrivé{e}, surpris{e}).
+Aucune autre balise. {il} et {e} dans un texte sur cinq au plus.
 
-LES QUATRE SORTES :
-1. RUMEURS : une seule phrase, 130 signes au plus (espaces compris), avec {prenom}. Une fausse information absurde, au conditionnel, introduite par une source farfelue. Exemples :
-   - Selon nos informations, {prenom} aurait tenté d'adopter un rond-point.
-   - D'après le facteur, {prenom} parlerait couramment le langage des chèvres.
-2. HOROSCOPES : 240 signes au plus, deux ou trois phrases : une configuration astrale absurde, une prédiction loufoque et bienveillante, un conseil saugrenu. {prenom} facultatif. Exemples :
-   - Mercure entre dans votre valise : un pigeon vous apportera une excellente nouvelle. Évitez les ronds-points le mardi.
-   - {prenom}, la Lune vous regarde de travers : vos chaussettes retrouveront enfin leur moitié. Portez du jaune, même en pensée.
-3. MOTS : le mot des hôtes, 700 signes au plus, de deux à quatre phrases, qui commence par {salut}. Chaleureux et drôle, il accueille l'invité dans la maison et dans ce journal fait pour lui. Il ne dit pas si c'est un premier séjour ou un retour : il doit convenir aux deux. Exemple :
-   - {salut}, les draps sont frais et les ragots sont prêts. Tout ce que vous lirez ici est rigoureusement inventé, à part notre joie de vous recevoir. Faites comme chez vous, et même un peu mieux.
-4. TITRES : un gros titre de presse à scandale, 50 signes au plus, avec {prenom}. Exemples :
-   - {prenom} démasqué{e} au rayon fromages
-   - EXCLUSIF : {prenom} fuit avec la télécommande
-
-RÈGLES :
-- Jamais de moquerie sur le physique, le poids, l'âge, la santé, l'argent, le couple, la sexualité, la religion ou la politique. Rien de vulgaire, rien de méchant, rien qui puisse blesser. Les enfants peuvent lire ces journaux.
-- N'invente aucun fait grave (accident, maladie, crime, décès).
-- Aucune personne réelle, aucune marque, aucune célébrité.
+RÈGLES DE CONTENU
+- Jamais de moquerie sur le physique, le poids, l'âge, la santé, l'argent, le couple, la sexualité, la religion ou la politique. Rien de vulgaire ni de méchant : des enfants peuvent lire ces journaux.
+- Aucun fait grave (accident, maladie, crime, décès), aucune personne réelle, aucune marque, aucune célébrité.
 - Couleur locale bienvenue mais pas systématique : Agen, la Garonne, les pruneaux, le marché, la campagne, les poules, le rugby.
-- Varie tout : sources, situations, objets, animaux, débuts de phrase. Ne commence jamais deux textes de suite par les mêmes mots, et ne reprends pas un texte déjà écrit dans cette conversation, même légèrement modifié.
-- Écris en français correct, avec les accents.
+- Écris chaque texte toi-même. Ne fabrique pas les textes en combinant des morceaux par programme : le code sert seulement à écrire le fichier et à le contrôler.
+- Varie vraiment : sources, situations, objets, animaux, débuts de phrase. Pas deux textes qui se ressemblent.
+- Français correct, avec les accents.
 
-Commence maintenant par le premier lot de 100 RUMEURS.
-```
+FORMAT EXACT DU FICHIER (il est lu par un programme) :
+# RUMEURS
+- texte
+- texte
+# HOROSCOPES
+- texte
+# MOTS
+- texte
+# TITRES
+- texte
+Une ligne de section par sorte (« # RUMEURS », « # HOROSCOPES », « # MOTS », « # TITRES »), puis un texte par ligne commençant par « - » (tiret et espace). Rien d'autre dans le fichier : ni numéros, ni guillemets autour des textes, ni gras, ni emoji, ni commentaire. Chaque texte tient sur une seule ligne.
+
+MÉTHODE (avec l'outil de code)
+1. Crée le fichier et un contrôle en Python : pour chaque texte, remplace {prenom} par « Maximilien », {salut} par « Chère Maximilien », {chez} par « à la maison », {il} par « elle », {e} par « e », puis vérifie la longueur (rumeur ≤ 130, horoscope ≤ 240, mot ≤ 700, titre ≤ 60) ; refuse aussi toute autre balise entre accolades, les textes de moins de 12 signes et les doublons (comparés sans accents, sans majuscules et sans ponctuation).
+2. Écris les textes par lots de 50 à 100 dans des listes Python, passe-les au contrôle et ajoute au fichier seulement ceux qui passent. Remplace les refusés par de nouveaux textes.
+3. Garde les quatre sortes regroupées sous leur section, dans l'ordre RUMEURS, HOROSCOPES, MOTS, TITRES. Le plus simple : quatre listes en mémoire, et le fichier entièrement réécrit après chaque lot.
+4. Après chaque lot, affiche seulement le compteur (par exemple « rumeurs 300/1000 · horoscopes 0/1000 · mots 0/1000 · titres 0/1000 »), pas les textes.
+5. Continue sans me demander mon avis jusqu'à 1000 textes de chaque sorte. Si tu dois t'arrêter (longueur de réponse), dis-le, et quand j'écris « continue », reprends exactement là où tu en étais, dans le même fichier.
+6. À la fin, relis tout le fichier avec le contrôle, affiche le décompte final et donne-moi le lien de téléchargement de banque-gazette.txt.
+
+Commence.
+````
 
 ---
 
+## Si l'outil de fichier n'est pas disponible
+
+Certains modèles ou comptes ne savent pas créer de fichier. Dans ce cas, remplace le paragraphe MÉTHODE par :
+
+````
+Tu ne peux pas créer de fichier : écris le contenu directement dans ta réponse, au format exact ci-dessus, par lots de 100 textes, en commençant chaque lot par sa ligne de section. Quand j'écris « continue », passe au lot suivant. Rien d'autre que le contenu du fichier dans tes réponses.
+````
+
+Puis colle toutes les réponses à la suite dans un même fichier texte, que tu importes dans Gazette. Gazette retire tout seul les numéros, puces et guillemets, et corrige les balises mal écrites ({Prénom}, [prenom], {{prenom}}).
+
 ## Si l'IA dérape
 
-- **Elle numérote ou met des guillemets** : pas grave, Gazette retire numéros, puces et guillemets à l'import.
-- **Elle écrit {Prénom}, [prenom] ou {{prenom}}** : Gazette corrige ces formes toutes seules. Une autre balise, par exemple {nom}, fait écarter le texte.
-- **Elle s'arrête au milieu d'un lot** : écris « continue », la suite vient sans titre de section. Ajoute toi-même la ligne `# RUMEURS` (ou la bonne sorte) au début du morceau collé si elle manque, sinon Gazette reprend la dernière section lue dans le fichier.
-- **Les textes se ressemblent** : relance avec « Change complètement de registre : d'autres sources, d'autres objets, d'autres situations ».
+- **Elle fabrique les textes par combinaison** (même début, même fin partout) : réponds « Écris chaque texte toi-même, sans combiner des morceaux par programme. Recommence ce lot. »
+- **Les textes se ressemblent** : « Change complètement de registre : d'autres sources, d'autres objets, d'autres situations. »
+- **Elle s'arrête au milieu** : « continue ».
+- **Le fichier contient autre chose que les sections et les lignes « - »** : pas grave, Gazette ignore les lignes qu'elle ne reconnaît pas, et indique à l'import combien de textes ont été écartés et pourquoi.
