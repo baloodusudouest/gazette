@@ -1729,14 +1729,17 @@ def ha_sejour(corps: dict = Body(...)):
         raise HTTPException(422, "Chambre manquante.")
     base.poser_reglage("ha_dernier_appel", maintenant())
     noms = [" ".join(str(n).split()) for n in (corps.get("noms") or []) if str(n).strip()][:4]
+    avant = base.sejours_a_venir_de_chambre(chambre)        # 0.22.1 : pour repérer les séjours annulés
     if not noms:
         base.retirer_sejours(chambre)
+        annules = _apres_annulation(chambre, avant)
         base.poser_reglage("ha_dernier_resume", f"{chambre} : libre")
-        return {"chambre": chambre, "invites": [], "manquants": [], "a_relire": [], "anniversaires": []}
+        return {"chambre": chambre, "invites": [], "manquants": [], "a_relire": [], "anniversaires": [], "annules": annules}
     du, fin = _date(corps.get("du"), "date d'arrivée"), _date(corps.get("jusqu_au"), "date de départ")
     if fin < du or not date.today() - timedelta(days=60) <= fin <= date.today() + timedelta(days=400):
         raise HTTPException(422, "Dates de séjour impossibles.")
     sid = base.poser_sejour(chambre, du.isoformat(), fin.isoformat(), noms)
+    annules = _apres_annulation(chambre, avant)
     sejour = next(s for s in base.sejours(depuis="0000") if s["id"] == sid)
     # Invité sans fiche que carnet connaît (un seul contact, date complète) : la fiche est créée et le livret
     # préparé ; relecture et approbation restent à faire.
@@ -1770,7 +1773,46 @@ def ha_sejour(corps: dict = Body(...)):
                         "anniversaire": cas})
     base.poser_reglage("ha_dernier_resume", f"{chambre} : {', '.join(noms)} ({du.isoformat()} → {fin.isoformat()})")
     return {"chambre": chambre, "invites": invites, "manquants": manquants, "a_relire": relire, "anniversaires": annivs,
-            "depuis_carnet": crees}
+            "depuis_carnet": crees, "annules": annules}
+
+
+def _apres_annulation(chambre: str, avant: set[tuple[int, str]]) -> list[str]:
+    """0.22.1 : un séjour pas encore commencé a disparu de Home Assistant (séjour annulé, chambre libérée avant
+    l'arrivée, invité retiré, dates changées). Choix de Julien : son numéro de La Récidive est supprimé, même
+    approuvé ; si l'invité n'a plus aucun séjour, sa Gazette repart à zéro (une Gazette approuvée est gardée) ; la
+    fiche reste. Des dates seulement déplacées : le numéro suit le séjour. Un séjour commencé ou fini n'est jamais
+    touché (la chambre libérée au départ garde tout). Copie de la base avant toute suppression."""
+    base: Base = ETAT["base"]
+    apres = base.sejours_a_venir_de_chambre(chambre)
+    disparus = sorted(avant - apres)
+    if not disparus:
+        return []
+    nouveaux = {}
+    for pid, du in apres - avant:
+        nouveaux.setdefault(pid, []).append(du)
+    copie_faite, annules = False, []
+    for pid, du in disparus:
+        p = base.personne(pid)
+        if not p:
+            continue
+        if nouveaux.get(pid):                              # mêmes invités, autres dates : le numéro suit
+            base.deplacer_recidive(pid, du, sorted(nouveaux[pid])[0])
+            base.noter("sejour", pid, f"séjour du {du} déplacé au {sorted(nouveaux[pid])[0]} ({chambre})")
+            continue
+        if not copie_faite:
+            base.copie(ETAT["cfg"].data / "sauvegardes", f"gazette-{maintenant()[:19].replace(':', '-')}-avant-annulation.db")
+            copie_faite = True
+        if base.supprimer_recidive_du_sejour(pid, du):
+            base.noter("recidive", pid, f"séjour du {du} annulé ({chambre}) : numéro de La Récidive supprimé")
+        if not base.sejours_de(pid):
+            lv = base.livret(pid)
+            if lv and lv["etat"] != "approuve":
+                base.remettre_livret(pid)
+                base.noter("livret", pid, f"séjour du {du} annulé ({chambre}) : Gazette remise à zéro")
+            elif lv:
+                base.noter("livret", pid, f"séjour du {du} annulé ({chambre}) : Gazette approuvée gardée")
+        annules.append(f"{p['nom']} ({du})")
+    return annules
 
 
 def _fiche_depuis_carnet(nom: str) -> int | None:

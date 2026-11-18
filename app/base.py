@@ -244,6 +244,33 @@ class Base:
                             (date.fromordinal(aujourd_hui.toordinal() - 1).isoformat(), chambre,
                              aujourd_hui.isoformat(), aujourd_hui.isoformat()))
 
+    def sejours_a_venir_de_chambre(self, chambre: str) -> set[tuple[int, str]]:
+        """0.22.1 : (personne, date d'arrivée) des séjours pas encore commencés de cette chambre (invités avec fiche)."""
+        with self._verrou:
+            return {(l["personne_id"], l["du"]) for l in self._c.execute(
+                "SELECT i.personne_id, s.du FROM sejours s JOIN invites i ON i.sejour_id = s.id "
+                "WHERE s.chambre = ? AND s.du > ? AND i.personne_id IS NOT NULL", (chambre, date.today().isoformat()))}
+
+    def deplacer_recidive(self, pid: int, ancien_du: str, nouveau_du: str) -> None:
+        """0.22.1 : le séjour a changé de dates dans Home Assistant : le numéro suit le séjour."""
+        with self._verrou, self._c:
+            if not self._c.execute("SELECT 1 FROM recidives WHERE personne_id = ? AND sejour_du = ?", (pid, nouveau_du)).fetchone():
+                self._c.execute("UPDATE recidives SET sejour_du = ? WHERE personne_id = ? AND sejour_du = ? AND essai = 0",
+                                (nouveau_du, pid, ancien_du))
+
+    def supprimer_recidive_du_sejour(self, pid: int, du: str) -> bool:
+        """0.22.1 : séjour annulé : son numéro de La Récidive est supprimé, même approuvé (choix de Julien)."""
+        with self._verrou, self._c:
+            return self._c.execute("DELETE FROM recidives WHERE personne_id = ? AND sejour_du = ? AND essai = 0",
+                                   (pid, du)).rowcount > 0
+
+    def remettre_livret(self, pid: int) -> None:
+        """0.22.1 : le seul séjour de l'invité est annulé : sa Gazette repart à zéro (la fiche reste)."""
+        with self._verrou, self._c:
+            self._c.execute("UPDATE livrets SET etat = 'a_preparer', contenu = '{}', propositions = '{}', mot = '', "
+                            "prepare_le = '', approuve_le = '', erreur = '', photo = '{}', photos_choix = '[]', "
+                            "valides = '{}', code_barres = '', modifie_le = ? WHERE personne_id = ?", (maintenant(), pid))
+
     def relier_invites(self) -> None:
         """Après la création ou le renommage d'une fiche : relie les invités restés sans fiche."""
         with self._verrou, self._c:

@@ -1,5 +1,16 @@
 # Journal des versions
 
+## 0.22.1 — 18 novembre 2026 (séjour annulé : les journaux partent)
+- **Séjour annulé dans Home Assistant** (signalé par Julien le 18/11 : « la gazette reste alors qu'elle devrait être supprimée »). Quand un séjour **pas encore commencé** disparaît (chambre remise à libre avant l'arrivée, invité retiré de la liste, séjour remplacé), Gazette fait le ménage selon les choix de Julien :
+  - **La Récidive** de ce séjour est **supprimée, même approuvée** (« toujours supprimé ») ;
+  - si l'invité **n'a plus aucun séjour**, sa **Gazette repart à zéro** (état « à préparer », contenu, propositions, mot, photo et validations vidés) ; une Gazette **approuvée est gardée** et notée au journal ;
+  - la **fiche de la personne reste** (rubriques, photo Immich, alias) ;
+  - **dates seulement déplacées** (le séjour chevauche l'ancien) : rien n'est supprimé, le numéro de La Récidive suit le séjour ; un séjour déplacé loin (sans chevauchement) est traité comme une annulation puis un nouveau séjour (numéro refait) ;
+  - un séjour **commencé ou fini** n'est jamais touché : la chambre libérée au départ garde tout.
+- Une copie de la base est faite avant le ménage (`/data/sauvegardes/gazette-…-avant-annulation.db`, 10 gardées). Chaque suppression est notée au journal de Gazette ; la réponse à `/ha/sejour` dit `annules` (noms et dates).
+- Tests : `tests/test_annulation.py` (6).
+- Jamais essayé sur la vraie installation.
+
 ## 0.22.0 — 18 novembre 2026 (régénérer avec un second modèle)
 - **« Autres propositions (qwen) »** (choix de Julien du 18/11 : « on génère avec mistral, on régénère avec qwen ») : le premier jet garde le modèle de la stack (`GAZETTE_OLLAMA_MODELE`, aujourd'hui **mistral-nemo**) ; sous chaque série de propositions, un bouton redemande la même chose au second modèle, **qwen2.5:14b** par défaut (essai du 18/11 : plus sage, plus lent, 2 titres sur 5 retenus en Récidive). Les nouvelles propositions remplacent les anciennes, comme une nouvelle demande. Le modèle utilisé est indiqué discrètement sous les propositions.
   - Partout où l'on demande des propositions : aides de la Gazette (titres, raccourcir, version journal, traduire, mot des hôtes), légende de la photo de la page 4, et dans La Récidive gros titre et légendes, rumeurs, courrier, horoscope, droit de réponse.
