@@ -9,6 +9,7 @@ sera sa seule écriture extérieure, refusée en lecture seule."""
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hmac
 import queue
 import re
@@ -104,6 +105,36 @@ def _chercher_photos_gazette(pid: int, p: dict) -> str:
     return f"{len(choix)} photo(s) proposée(s)." if choix else "Aucune photo de cette personne dans Immich."
 
 
+# 0.21 (socle 0.9.0) : tâches à la demande suivies dans /health (maison.TACHES) — une préparation par tour
+TACHE_GAZETTE = "preparation"     # livret de la Gazette (sources, top 5, photos)
+TACHE_RECIDIVE = "recidive"       # édition de La Récidive (photos d'Immich)
+
+
+class _PreparationRatee(Exception):
+    """Préparation finie avec une erreur notée sur le livret ou l'édition : sert seulement à marquer le tour."""
+
+
+def _preparer_suivi(tache) -> None:
+    """Un tour de l'ouvrier sous maison.TACHES. Une erreur que la préparation a déjà notée (livret ou édition
+    « à préparer » avec un message) compte comme un tour raté ; les autres exceptions repartent comme avant."""
+    base: Base = ETAT["base"]
+    try:
+        if isinstance(tache, tuple):          # 0.9 : ("r", id, completer) — une édition de La Récidive
+            with maison.TACHES.tour(TACHE_RECIDIVE):
+                _preparer_recidive(tache[1], tache[2])
+                ed = base.recidive(tache[1]) or {}
+                if ed.get("erreur"):
+                    raise _PreparationRatee(ed["erreur"])
+        else:
+            with maison.TACHES.tour(TACHE_GAZETTE):
+                _preparer(tache)
+                lv = base.livret(tache) or {}
+                if lv.get("erreur"):
+                    raise _PreparationRatee(lv["erreur"])
+    except _PreparationRatee:
+        pass
+
+
 def _ouvrier() -> None:
     file: queue.Queue = ETAT["file"]
     while True:
@@ -111,10 +142,7 @@ def _ouvrier() -> None:
         if tache is None:
             return
         try:
-            if isinstance(tache, tuple):          # 0.9 : ("r", id, completer) — une édition de La Récidive
-                _preparer_recidive(tache[1], tache[2])
-            else:
-                _preparer(tache)
+            _preparer_suivi(tache)
         except Exception as ex:  # noqa: BLE001 — 0.20.4 : une tâche ratée ne tue plus l'ouvrier
             try:
                 if isinstance(tache, tuple):
@@ -263,7 +291,8 @@ def _preparer_recidive(rid: int, completer: bool = False) -> None:
 async def cycle(app: FastAPI):
     cfg = ETAT.get("cfg") or charger()
     cfg.data.mkdir(parents=True, exist_ok=True)
-    base = Base(cfg.data / "gazette.db")
+    chemin_base = cfg.data / "gazette.db"
+    base = Base(chemin_base)
     ETAT.update(cfg=cfg, sessions=Sessions(APPLI, cfg.password, _lire_generation(cfg)), base=base,
                 file=queue.Queue(), en_file=set(), culture=culture.Culture(cfg.data))
     # 0.8 : réglages d'usage — reprise unique des anciennes variables pour une clé encore absente de la base
@@ -276,8 +305,13 @@ async def cycle(app: FastAPI):
                             ecrire=ETAT.get("carnet_ecrire"), paru=ETAT.get("carnet_paru"))
     ETAT["immich"] = Immich(cfg.immich_url, cfg.immich_cle, cfg.data / "photos", lire=ETAT.get("immich_lire"))
     ETAT["ollama"] = Ollama(cfg.ollama_url, lire=ETAT.get("ollama_lire"))
+    maison.TACHES.declarer(TACHE_GAZETTE, type="demande")
+    maison.TACHES.declarer(TACHE_RECIDIVE, type="demande")
     ouvrier = threading.Thread(target=_ouvrier, daemon=True, name="preparation")
     ouvrier.start()
+    # 0.21 : copie cohérente de gazette.db chaque nuit (heure de Paris, maison.HEURES_COPIE) vers <data>/copies
+    copie = asyncio.create_task(maison.planifier_copie(APPLI, [chemin_base], cfg.data / "copies",
+                                                       maison.HEURES_COPIE[APPLI]))
     # Livrets restés « en préparation » (redémarrage pendant une lecture) : on reprend
     for p in base.personnes():
         lv = base.livret(p["id"])
@@ -287,6 +321,9 @@ async def cycle(app: FastAPI):
         if ed["etat"] == "en_preparation":
             demander_recidive(ed["id"])
     yield
+    copie.cancel()                        # arrêt propre de la boucle de copie
+    with contextlib.suppress(asyncio.CancelledError):
+        await copie
     ETAT["file"].put(None)
     ETAT["sources"].fermer()
     base.fermer()
@@ -329,16 +366,21 @@ async def _lecture_seule(_: Request, exc: LectureSeule):
 
 
 @app.get("/health")
-def sante():
-    """Public. Pour la tuile de l'Anneau : nombres seulement, aucun nom."""
+def sante(request: Request):
+    """Public. Pour la tuile de l'Anneau : nombres seulement, aucun nom. 0.21 : + version_socle, taches, copie_base
+    (socle 0.9.0) ; messages d'erreur des tâches seulement avec le jeton commun MAISON_JETON ou une session."""
+    sessions = ETAT.get("sessions")
+    taches = maison.sante(request, jeton_commun=maison.jetons(),
+                          session_ok=bool(sessions and sessions.connecte(request.cookies)))
     try:   # 0.20.6 : « À traiter » recalculé au plus une fois par minute (appelée chaque minute par Docker et l'Anneau)
         garde = ETAT.get("sante")
         if not garde or time.monotonic() - garde[0] > 60:      # « À traiter » est le calcul coûteux
             garde = (time.monotonic(), a_traiter()["total"])
             ETAT["sante"] = garde
-        return {"ok": True, "version": __version__, "livrets": len(ETAT["base"].personnes()), "a_traiter": garde[1]}
+        return {"ok": True, "version": __version__, "livrets": len(ETAT["base"].personnes()), "a_traiter": garde[1],
+                **taches}
     except Exception:  # noqa: BLE001 — la santé répond même si la base est occupée
-        return {"ok": True, "version": __version__}
+        return {"ok": True, "version": __version__, **taches}
 
 
 # ================================================================ connexion

@@ -1,5 +1,12 @@
 # Journal des versions
 
+## 0.21.0 — 18 novembre 2026 (santé des tâches de fond)
+- **Tâches suivies dans `/health`** (module commun `maison.py` du socle 0.9.1) : `/health` garde tous ses champs et ajoute `version_socle`, `taches` et `copie_base`. Les messages d'erreur des tâches n'y paraissent qu'avec le jeton commun `MAISON_JETON` ou une session.
+  - À la demande (jamais d'orange dans l'Anneau) : `preparation` (livret de la Gazette) et `recidive` (édition de La Récidive), une préparation par tour de la file. Une préparation qui finit avec une erreur notée sur le livret ou l'édition compte comme ratée.
+  - Gazette n'a pas de boucle régulière à elle : la seule tâche régulière est la copie de la base.
+- **Copie cohérente de la base chaque nuit à 01:10, heure de Paris** (`copie-des-bases`, 24 h) : `gazette.db` copiée par l'API de sauvegarde de SQLite et vérifiée vers `/data/copies/gazette-derniere.db` (écrasée chaque nuit ; Hyper Backup tient l'historique). Les copies d'avant suppression (`/data/sauvegardes`) ne changent pas.
+- Rien d'autre ne change : les erreurs sont traitées comme avant.
+
 ## 0.20.9 — 18 novembre 2026 (constats moyens de l'audit)
 - **M16** : pendant le rendu (PDF, mesure), Chromium ne sort plus sur le réseau : toute demande autre que `data:` ou la page elle-même (`about:`) est coupée, `file:` compris (aucun fichier du conteneur ne peut entrer dans le PDF ; `page.route`), les WebSocket aussi (`rendu.permise`, `_page_sans_reseau`). Le navigateur reste lancé à chaque rendu : l'API synchrone de Playwright est liée à son fil et les routes tournent dans plusieurs fils.
 - **M17** : supprimer une fiche exige maintenant `{"confirmation": true}` dans le corps de `DELETE /api/personnes/{id}` (400 sinon) ; l'écran de la fiche l'envoie après sa question. La copie de la base avant suppression existait déjà (0.20.6).
