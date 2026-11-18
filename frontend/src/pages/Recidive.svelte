@@ -10,6 +10,7 @@
   import Eye from '@lucide/svelte/icons/eye'
   import RefreshCw from '@lucide/svelte/icons/refresh-cw'
   import Sparkles from '@lucide/svelte/icons/sparkles'
+  import Library from '@lucide/svelte/icons/library'
   import NotebookPen from '@lucide/svelte/icons/notebook-pen'
   import { api } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
@@ -165,22 +166,46 @@
     if (rumeurs.length >= d.rumeurs_maxi) { message = `${d.rumeurs_maxi} rumeurs au plus : retires-en une d'abord.`; return }
     rumeurs = [...rumeurs, t]; toucher()
   }
+  // 0.25 : « IA » lance tout ce qui peut l'être (gros titre, chaque photo décrite ou connue d'Immich, rumeurs, courrier,
+  // horoscope, droit de réponse), même déjà rempli : ce ne sont que des propositions. Tous les blocs s'ouvrent.
+  // Un échec n'arrête la série que si le PC est injoignable.
   async function proposerTout() {
+    revoir = true
     const liste = cibles()
-    if (!liste.length) { message = 'Décris d\'abord au moins une photo (case « Décris… » sous la une ou sous une photo) : aucun album parlant ni personne connue dans Immich.'; return }
-    lot = { fait: 0, total: liste.length }
-    let echecs = 0
-    for (const c of liste) {
-      await proposer(c)
-      if (message) { echecs++; if (message.includes('injoignable') || message.includes('pas réglée')) break }
+    const autres = [() => proposerRumeurs(), () => proposerPage4('courrier'), ...(d.signe ? [() => proposerPage4('horoscope')] : []), () => proposerMot()]
+    lot = { fait: 0, total: liste.length + autres.length }
+    const echecs = []
+    const pc = (m) => /injoignable|pas réglée|refusé/.test(m)
+    for (const f of [...liste.map((c) => () => proposer(c)), ...autres]) {
+      await f()
+      if (message) { echecs.push(message); if (pc(message)) break }
       lot = { fait: lot.fait + 1, total: lot.total }
     }
-    if (!echecs && !rumeurs.length) { await proposerRumeurs(); if (message) echecs++ }
-    if (!echecs && !courrier.length) { await proposerPage4('courrier'); if (message) echecs++ }
-    if (!echecs && !horoscope.trim()) { await proposerPage4('horoscope'); if (message) echecs++ }
-    if (!echecs) message = `Propositions prêtes pour ${liste.length} texte${liste.length > 1 ? 's' : ''} : touche celles qui te plaisent, puis Enregistrer.`
+    const sans = photos.filter((p) => !p.retiree && !pret(p.description ?? '', p)).length
+    message = echecs.length && pc(echecs.at(-1)) ? echecs.at(-1)
+      : `Propositions prêtes : touche celles qui te plaisent sous chaque bloc, puis Enregistrer.`
+        + (sans ? ` ${sans} photo${sans > 1 ? 's' : ''} sans description ni personne connue : décris-la pour avoir ses légendes.` : '')
+        + (echecs.length ? ` (${echecs.length} demande${echecs.length > 1 ? 's' : ''} sans résultat : ${echecs[0]})` : '')
     lot = null
   }
+  // 0.25 : propositions tirées de la banque d'inspiration (Réglages), même sans l'IA du PC
+  async function piocher(sorte, cible = 'une') {
+    demande = `banque:${sorte}:${cible}`
+    message = ''
+    try {
+      const r = await api.post(`/api/recidives/${id}/banque`, { sorte, cible })
+      const cle = sorte === 'titre' ? cible : { rumeur: 'rumeurs', horoscope: 'horoscope', mot: 'mot' }[sorte]
+      if (sorte === 'titre' && cible === 'une') propsUne = r.propositions
+      else if (sorte === 'titre') { const p = photos.find((x) => x.id === cible); p.propositions = r.propositions }
+      else if (sorte === 'rumeur') propsRumeurs = r.propositions
+      else if (sorte === 'horoscope') propsHoroscope = r.propositions
+      else propsMot = r.propositions
+      modeles = { ...modeles, [cle]: "banque d'inspiration" }
+    } catch (err) { message = err.message }
+    demande = ''
+  }
+  const plat = (t) => (t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  const motDejaParu = $derived(!!d?.edition?.mots_parus?.some((m) => plat(m) === plat(mot)))
   const proposer = (cible, deuxieme = false) => enfiler(cible === 'une' ? 'Gros titre' : 'Légende d\'une photo', () => proposer_(cible, deuxieme))
   async function proposer_(cible, deuxieme = false) {
     const description = cible === 'une' ? descriptionUne : photos.find((p) => p.id === cible)?.description ?? ''
@@ -281,6 +306,9 @@
       <input class="w-full min-w-0 rounded-lg border bg-background px-2 py-1 text-sm" maxlength="400" value={description}
              oninput={(e) => ecrire(e.currentTarget.value)} placeholder={cible === 'une' ? "Décris la photo de la une (l'IA proposera 5 gros titres)" : "Décris cette photo (l'IA proposera 5 légendes)"}
              aria-label={cible === 'une' ? 'Description de la photo de la une' : 'Description de la photo'} />
+      <Button size="sm" variant="outline" class="shrink-0" onclick={() => piocher('titre', cible)} disabled={demande === `banque:titre:${cible}`}
+              title="5 titres tirés de la banque d'inspiration (sans l'IA)">
+        <Library class="size-3.5" aria-hidden="true" />{demande === `banque:titre:${cible}` ? '…' : 'Banque'}</Button>
       <Button size="sm" variant="outline" class="shrink-0" onclick={() => proposer(cible)} disabled={demande === cible || !pret(description, photo)}>
         <Sparkles class="size-3.5" aria-hidden="true" />{demande === cible ? '…' : '5 titres'}</Button>
     </div>
@@ -308,7 +336,7 @@
     </div>
     <div class="flex flex-wrap gap-2">
       <Button variant="outline" onclick={proposerTout} disabled={lot !== null || demande !== '' || !['a_relire', 'approuve'].includes(ed.etat)}
-              title="5 titres proposés par l'IA du PC pour chaque photo décrite">
+              title="Tout proposer par l'IA du PC : gros titre, légendes, rumeurs, courrier, horoscope, droit de réponse">
         <Sparkles class="size-4" aria-hidden="true" />{lot ? `IA ${lot.fait}/${lot.total}…` : 'IA'}</Button>
       <!-- 0.23 : la fiche complète de la personne (carnet 2.33), aussi depuis le bloc « Pour l'IA » des rumeurs -->
       <Button variant="outline" href={`#/fiche/${d.personne.id}?retour=recidive/${id}`} title="Tout ce qu'on sait de la personne, pour l'IA (rangé dans carnet)">
@@ -443,6 +471,9 @@
           <div class="flex min-w-0 flex-wrap items-center justify-end gap-2">
             <input class="w-full min-w-0 rounded-lg border bg-background px-2 py-1 text-sm" maxlength="400" bind:value={indices} oninput={toucher}
                    placeholder="Ce qu'on sait d'elle ou de lui (facultatif) : passions, manies, petites histoires…" aria-label="Indices pour les rumeurs" />
+            <Button size="sm" variant="outline" class="shrink-0" onclick={() => piocher('rumeur')} disabled={demande === 'banque:rumeur:une'}
+                    title="8 rumeurs tirées de la banque d'inspiration (sans l'IA)">
+              <Library class="size-3.5" aria-hidden="true" />{demande === 'banque:rumeur:une' ? '…' : 'Banque'}</Button>
             <Button size="sm" variant="outline" class="shrink-0" onclick={proposerRumeurs} disabled={demande === 'rumeurs'}>
               <Sparkles class="size-3.5" aria-hidden="true" />{demande === 'rumeurs' ? '…' : '8 rumeurs'}</Button>
           </div>
@@ -521,6 +552,9 @@
                    placeholder="Ex. : soirée Eurovision, dort à la maison pour ne pas rentrer trop tard" aria-label="Événement du séjour" />
           </label>
           <div class="flex flex-wrap items-center justify-end gap-2">
+            <Button size="sm" variant="outline" class="shrink-0" onclick={() => piocher('horoscope')} disabled={demande === 'banque:horoscope:une'}
+                    title="3 horoscopes tirés de la banque d'inspiration (sans l'IA)">
+              <Library class="size-3.5" aria-hidden="true" />{demande === 'banque:horoscope:une' ? '…' : 'Banque'}</Button>
             <Button size="sm" variant="outline" class="shrink-0" onclick={() => proposerPage4('horoscope')} disabled={demande === 'horoscope' || !d.signe}>
               <Sparkles class="size-3.5" aria-hidden="true" />{demande === 'horoscope' ? '…' : '3 horoscopes'}</Button>
           </div>
@@ -535,6 +569,13 @@
         <Element cle="mot" page={4} titre="Le mot des hôtes" valeur={mot} onia={proposerMot} onchanger={() => { mot = ed.mot_defaut; toucher() }} changer="Mot par défaut">
         <textarea class="w-full rounded-lg border bg-background px-3 py-2 font-serif" rows="7" bind:value={mot} oninput={toucher} aria-label="Mot des hôtes"></textarea>
         <p class="mt-1 text-xs text-muted-foreground">Une ligne vide sépare les paragraphes. Signature : « {d.signature} » (Réglages › Le journal). Aucune date de naissance dans ce journal.</p>
+        {#if motDejaParu}<p class="mt-1 text-sm text-destructive" role="alert">Ce mot a déjà paru pour {d.personne.prenom || d.personne.nom} : change-le, l'approbation le refusera.</p>{/if}
+        <div class="mt-2 flex flex-wrap justify-end gap-2">
+          <Button size="sm" variant="outline" onclick={() => piocher('mot')} disabled={demande === 'banque:mot:une'} title="3 mots tirés de la banque d'inspiration, jamais parus pour cette personne">
+            <Library class="size-3.5" aria-hidden="true" />{demande === 'banque:mot:une' ? '…' : 'Banque'}</Button>
+          <Button size="sm" variant="outline" onclick={() => proposerMot()} disabled={demande === 'mot'}>
+            <Sparkles class="size-3.5" aria-hidden="true" />{demande === 'mot' ? '…' : '3 versions'}</Button>
+        </div>
         {#if demande === 'mot'}<p class="text-xs text-muted-foreground">L'IA écrit…</p>{/if}
         {#if propsMot.length}
           <ul class="grid gap-1 rounded-lg border border-dashed p-1.5" aria-label="Droits de réponse proposés">

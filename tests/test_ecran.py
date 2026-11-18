@@ -440,3 +440,32 @@ def test_fiche_carnet_arrete_lecture_seule(navigateur, adresse, taille):
     finally:
         faux.arrete = False
     assert erreurs == []
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_banque_d_inspiration(navigateur, adresse, taille):
+    """0.25 : Réglages › Banque d'inspiration (import d'un fichier), puis « Banque » dans La Récidive."""
+    page, erreurs = ouvrir(navigateur, adresse, taille, "#/reglages")
+    zone = page.get_by_role("region", name="Banque d'inspiration")
+    zone.wait_for()
+    contenu = ("# RUMEURS\n- Selon nos informations, {prenom} aurait tenté d'adopter un rond-point.\n"
+               "- D'après le facteur, {prenom} parlerait couramment le langage des chèvres.\n"
+               "# TITRES\n- {prenom} démasqué{e} au rayon fromages\n")
+    zone.get_by_label("Fichier de la banque").set_input_files(
+        files=[{"name": "banque.txt", "mimeType": "text/plain", "buffer": contenu.encode()}])
+    zone.get_by_text("banque.txt :").wait_for()
+    sans_debordement(page)
+    page.goto(page.url.split("#")[0] + "#/livrets")
+    page.locator("a[href^='#/recidive/']").first.click()
+    page.get_by_role("heading", name="Lou Martin").wait_for()
+    rumeurs = page.get_by_role("region", name="Rumeurs")
+    if not rumeurs.is_visible():                      # validées par un test précédent : les montrer
+        revoir = page.get_by_role("button", name="Revoir les éléments validés")
+        if revoir.count():
+            revoir.click()
+        else:
+            page.get_by_label("Montrer aussi les validés").check()
+    rumeurs.get_by_role("button", name="Banque").click()
+    page.get_by_text("aurait tenté d'adopter un rond-point").first.wait_for()
+    sans_debordement(page)
+    assert erreurs == []

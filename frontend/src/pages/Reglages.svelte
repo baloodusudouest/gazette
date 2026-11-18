@@ -118,7 +118,36 @@
     await api.del(`/api/essais/${x.journal}/${x.id}`)
     await lireEssais()
   }
-  onMount(() => { lire(); lireEssais() })
+  // 0.25 : banque d'inspiration (rumeurs, horoscopes, mots des hôtes, titres) importée d'un fichier texte
+  let banq = $state({ comptes: null, noms: {}, message: '', attente: false })
+  async function lireBanque() {
+    try { const r = await api.get('/api/banque'); banq.comptes = r.comptes; banq.noms = r.noms } catch { /* déconnecté */ }
+  }
+  async function importerBanque(e) {
+    const fichiers = [...(e.currentTarget.files ?? [])]
+    e.currentTarget.value = ''
+    if (!fichiers.length) return
+    banq.attente = true; banq.message = ''
+    const lignes = []
+    for (const f of fichiers) {
+      try {
+        const r = await api.post('/api/banque/import', { texte: await f.text(), source: f.name })
+        banq.comptes = r.comptes
+        const ajout = Object.entries(r.ajoutes).filter(([, n]) => n).map(([k, n]) => `${n} ${banq.noms[k]?.toLowerCase() ?? k}`).join(', ')
+        const ecarts = Object.entries(r.ecartes).map(([k, n]) => `${n} ${k}`).join(', ')
+        lignes.push(`${f.name} : ${ajout || 'rien de neuf'}${r.deja ? ` ; ${r.deja} déjà dans la banque` : ''}${ecarts ? ` ; écartés : ${ecarts}` : ''}.`)
+      } catch (err) { lignes.push(`${f.name} : ${err.message}`) }
+    }
+    banq.message = lignes.join(' ')
+    banq.attente = false
+  }
+  async function viderBanque(sorte) {
+    const quoi = sorte ? banq.noms[sorte]?.toLowerCase() : 'toute la banque'
+    if (!confirm(`Vider ${quoi} ? (Exporte d'abord si tu veux garder une copie.)`)) return
+    try { const r = await api.del(`/api/banque${sorte ? `?sorte=${sorte}` : ''}`); banq.comptes = r.comptes; banq.message = `${r.retires} texte(s) retiré(s).` }
+    catch (err) { banq.message = err.message }
+  }
+  onMount(() => { lire(); lireEssais(); lireBanque() })
 </script>
 
 <header class="mb-5">
@@ -237,6 +266,34 @@
       <p class="mt-3 text-xs text-muted-foreground">Impression : {r.lecture_seule ? `lecture seule (${r.lecture_seule_origine === 'maison' ? 'toute la maison' : 'cette appli'}), rien ne part à l'imprimante` : 'à venir (temps 3) ; PDF à imprimer pour l\'instant'}.</p>
     </form>
   {/if}
+
+  <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Banque d'inspiration">
+    <h2 class="text-lg font-semibold">Banque d'inspiration</h2>
+    <p class="mt-1 text-sm text-muted-foreground">Rumeurs, horoscopes, mots des hôtes et titres scandale importés d'un fichier texte. Le bouton « Banque » des éditeurs y pioche des propositions (même sans l'IA du PC) ; l'IA en reçoit quelques-unes comme exemples de ton. Rien n'est imprimé sans ton choix, et rien ne revient deux fois pour la même personne.</p>
+    {#if banq.comptes}
+      <ul class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Contenu de la banque">
+        {#each Object.entries(banq.comptes) as [sorte, n]}
+          <li class="flex min-w-0 flex-col rounded-lg border bg-background px-3 py-2">
+            <span class="text-2xl font-semibold tabular-nums">{n}</span>
+            <span class="text-xs text-muted-foreground">{banq.noms[sorte]}</span>
+            {#if n}<button type="button" class="mt-1 self-start text-[0.7rem] text-muted-foreground underline-offset-4 hover:text-destructive hover:underline" onclick={() => viderBanque(sorte)}>Vider</button>{/if}
+          </li>
+        {/each}
+      </ul>
+    {/if}
+    <div class="mt-3 flex flex-wrap items-center gap-3">
+      <label class="inline-flex h-10 cursor-pointer items-center rounded-lg border bg-background px-4 text-sm font-medium hover:bg-secondary {banq.attente ? 'pointer-events-none opacity-50' : ''}">
+        {banq.attente ? 'Import…' : 'Importer un fichier'}
+        <input type="file" accept=".txt,.md,text/plain,text/markdown" multiple class="sr-only" onchange={importerBanque} aria-label="Fichier de la banque" />
+      </label>
+      <a class="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" href="/api/banque/export">Exporter</a>
+      {#if banq.comptes && Object.values(banq.comptes).some(Boolean)}
+        <button type="button" class="text-sm text-muted-foreground underline-offset-4 hover:text-destructive hover:underline" onclick={() => viderBanque('')}>Tout vider</button>
+      {/if}
+    </div>
+    <p class="mt-2 text-xs text-muted-foreground">Format : sections « # RUMEURS », « # HOROSCOPES », « # MOTS », « # TITRES », puis une ligne « - texte » par élément. Balises : {'{prenom}'}, {'{salut}'} (« Chère Camille »), {'{chez}'}, {'{il}'} (il / elle), {'{e}'} (accord). Les doublons sont ignorés : tu peux réimporter sans risque.</p>
+    {#if banq.message}<p class="mt-2 text-sm" role="status">{banq.message}</p>{/if}
+  </section>
 
   <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Restaurer les réglages">
     <h2 class="text-lg font-semibold">Restaurer les réglages</h2>

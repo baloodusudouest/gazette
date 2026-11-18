@@ -12,6 +12,7 @@
   import Replace from '@lucide/svelte/icons/replace'
   import Plus from '@lucide/svelte/icons/plus'
   import Sparkles from '@lucide/svelte/icons/sparkles'
+  import Library from '@lucide/svelte/icons/library'
   import NotebookPen from '@lucide/svelte/icons/notebook-pen'
   import { api } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
@@ -60,6 +61,13 @@
   let lot = $state(null)           // {fait, total} pendant le tour complet
   let modifie = $state(false)
   let message = $state('')
+  let motsBanque = $state([])      // 0.25 : mots des hôtes tirés de la banque d'inspiration
+  async function piocherMot() {
+    demande = 'banque'
+    message = ''
+    try { motsBanque = (await api.post(`/api/livrets/${id}/banque`)).propositions } catch (err) { message = err.message }
+    demande = ''
+  }
   let attente = $state('')
   let ouvert = $state(null)        // {bloc, index} du sélecteur de propositions
   let ficheOuverte = $state(false)
@@ -479,6 +487,17 @@
                  onchanger={() => { mot = d.livret.mot_defaut; toucher() }} changer="Mot par défaut">
         <textarea class="w-full rounded-lg border bg-background px-3 py-2 font-serif {bord('mot')}" rows="8" bind:value={mot} oninput={toucher} aria-label="Mot des hôtes"></textarea>
         {@render compteur('mot')}
+        <div class="mt-1 flex justify-end">
+          <Button size="sm" variant="outline" onclick={piocherMot} disabled={demande === 'banque'} title="3 mots tirés de la banque d'inspiration, jamais parus pour cette personne">
+            <Library class="size-3.5" aria-hidden="true" />{demande === 'banque' ? '…' : 'Banque'}</Button>
+        </div>
+        {#if motsBanque.length}
+          <ul class="mt-1 grid gap-1 rounded-lg border border-dashed p-1.5" aria-label="Mots de la banque">
+            {#each motsBanque as t}
+              <li><button type="button" class="w-full rounded-md px-2 py-1 text-left font-serif text-sm break-words whitespace-pre-line hover:bg-secondary" onclick={() => { mot = t; motsBanque = []; toucher() }}>{t}</button></li>
+            {/each}
+          </ul>
+        {/if}
         <IaBloc second={d.ia?.modele_second ?? ''} bind:this={ias.mot} nom="Le mot des hôtes" pid={id} texte={() => mot} actions={['mot', 'raccourcir']} signes={cible('mot', mot)} onapply={(a, t) => { mot = t; toucher() }} />
         <!-- 0.23 : la fiche complète (carnet 2.33) : l'IA en tire 3 à 5 détails pour le mot d'accueil -->
         <p class="mt-2 flex min-w-0 flex-wrap items-center justify-between gap-2 text-[0.7rem] text-muted-foreground">

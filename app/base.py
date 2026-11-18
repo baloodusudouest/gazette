@@ -83,6 +83,12 @@ class Base:
                 DELETE FROM tirages WHERE journal = 'recidive' AND numero = old.id; END;
             CREATE TRIGGER IF NOT EXISTS tirages_personne AFTER DELETE ON personnes BEGIN
                 DELETE FROM tirages WHERE journal = 'gazette' AND numero = old.id; END;
+            -- 0.25 : banque d'inspiration (rumeurs, horoscopes, mots des hôtes, titres), importée d'un fichier texte ;
+            -- `cle` : sorte + texte à plat (accents, casse, ponctuation) contre les doublons
+            CREATE TABLE IF NOT EXISTS banque (
+                id INTEGER PRIMARY KEY, sorte TEXT NOT NULL, texte TEXT NOT NULL, cle TEXT NOT NULL UNIQUE,
+                source TEXT NOT NULL DEFAULT '', ajoute_le TEXT NOT NULL, servi INTEGER NOT NULL DEFAULT 0);
+            CREATE INDEX IF NOT EXISTS banque_sorte ON banque (sorte);
         """)
         # 0.9 : séjours d'avant Gazette notés sur la fiche (nombre et date d'arrivée du dernier)
         colonnes = {l["name"] for l in self._c.execute("PRAGMA table_info(personnes)")}
@@ -447,6 +453,43 @@ class Base:
                 self._c.execute("INSERT OR IGNORE INTO scandales_publies VALUES (?,?,?)", (a, pid, maintenant()))
 
     # ------------------------------------------------------------ 0.23 : tirages de pépites pour l'IA
+    # ------------------------------------------------------------------ 0.25 : banque d'inspiration
+
+    def banque_ajouter(self, sorte: str, textes: list[str], source: str, cle) -> tuple[int, int]:
+        """(ajoutés, déjà dans la banque)."""
+        ajoutes = 0
+        with self._verrou, self._c:
+            for t in textes:
+                cur = self._c.execute("INSERT OR IGNORE INTO banque (sorte, texte, cle, source, ajoute_le) VALUES (?,?,?,?,?)",
+                                      (sorte, t, cle(sorte, t), source[:80], maintenant()))
+                ajoutes += cur.rowcount
+        return ajoutes, len(textes) - ajoutes
+
+    def banque_comptes(self) -> dict[str, int]:
+        with self._verrou:
+            return {l["sorte"]: l["n"] for l in self._c.execute("SELECT sorte, COUNT(*) AS n FROM banque GROUP BY sorte")}
+
+    def banque_tirer(self, sorte: str, n: int) -> list[dict]:
+        """`n` textes au hasard, les moins servis d'abord."""
+        with self._verrou:
+            ls = self._c.execute("SELECT * FROM banque WHERE sorte = ? ORDER BY servi, RANDOM() LIMIT ?", (sorte, n)).fetchall()
+        return [dict(l) for l in ls]
+
+    def banque_servi(self, ids: list[int]) -> None:
+        if ids:
+            with self._verrou, self._c:
+                self._c.executemany("UPDATE banque SET servi = servi + 1 WHERE id = ?", [(i,) for i in ids])
+
+    def banque_tout(self) -> list[dict]:
+        with self._verrou:
+            return [dict(l) for l in self._c.execute("SELECT * FROM banque ORDER BY sorte, id").fetchall()]
+
+    def banque_vider(self, sorte: str | None = None) -> int:
+        with self._verrou, self._c:
+            cur = (self._c.execute("DELETE FROM banque WHERE sorte = ?", (sorte,)) if sorte
+                   else self._c.execute("DELETE FROM banque"))
+            return cur.rowcount
+
     TIRAGES_GARDES = 40                 # par numéro et par cible : les plus anciens partent
 
     def garder_tirage(self, journal: str, numero: int, cible: str, personne: str, pepites: list[str], propositions: list) -> None:

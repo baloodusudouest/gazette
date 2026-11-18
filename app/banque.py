@@ -1,0 +1,148 @@
+"""0.25 : banque d'inspiration — rumeurs, horoscopes, mots des hôtes et titres « scandale » importés depuis un fichier
+texte (fait par Claude, ChatGPT ou Gemini). Elle sert deux fois : Gazette y pioche des propositions toutes prêtes
+(bouton « Banque », même sans l'IA du PC), et l'IA du PC en reçoit quelques-unes comme exemples de ton.
+
+Format du fichier (texte UTF-8, plusieurs fichiers ou morceaux recollés possibles) :
+
+    # RUMEURS
+    - Selon nos informations, {prenom} aurait tenté d'adopter un rond-point.
+    # HOROSCOPES
+    - Mercure entre dans votre valise : {prenom}, n'oubliez pas le chargeur.
+    # MOTS
+    - {salut}, la maison a rangé ses secrets : il ne reste que le vôtre.
+    # TITRES
+    - {prenom} démasqué{e} au rayon fromages
+
+Une section commence par une ligne « # RUMEURS » (ou HOROSCOPES, MOTS, TITRES ; singulier, accents et casse
+indifférents) ; chaque ligne d'élément commence par « - », « * », « • » ou un numéro (« 12. »). Forme sur une ligne
+aussi lue : « rumeur | texte ». Balises : {prenom}, {salut} (« Chère Camille », « Cher Paul »), {chez} (« à la
+maison »), {il} (il / elle), {e} (« » / « e » pour l'accord). Un texte avec {il} ou {e} n'est pas proposé quand le
+genre de la personne est inconnu.
+"""
+from __future__ import annotations
+
+import re
+import unicodedata
+
+SORTES = ("rumeur", "horoscope", "mot", "titre")
+NOMS = {"rumeur": "Rumeurs", "horoscope": "Horoscopes", "mot": "Mots des hôtes", "titre": "Titres scandale"}
+# Longueur maximale une fois les balises remplacées (prénom de 10 lettres) : celle des cases de Gazette
+MAXI = {"rumeur": 130, "horoscope": 240, "mot": 700, "titre": 60}
+MINI = 12
+BALISES = ("prenom", "salut", "chez", "il", "e")
+_SECTIONS = {"rumeur": "rumeur", "rumeurs": "rumeur", "horoscope": "horoscope", "horoscopes": "horoscope",
+             "mot": "mot", "mots": "mot", "mot des hotes": "mot", "mots des hotes": "mot", "droit de reponse": "mot",
+             "titre": "titre", "titres": "titre", "titres scandale": "titre", "titre scandale": "titre",
+             "titres type scandale": "titre", "legende": "titre", "legendes": "titre"}
+ESSAI_PRENOM = "Maximilien"      # 10 lettres : sert à mesurer un texte à l'import
+
+
+def plat(t: str) -> str:
+    t = unicodedata.normalize("NFKD", t or "").encode("ascii", "ignore").decode().lower()
+    return " ".join(re.sub(r"[^a-z0-9{} ]+", " ", t).split())
+
+
+def cle(sorte: str, texte: str) -> str:
+    """Clé de doublon : même sorte, même texte à la ponctuation, aux accents et à la casse près."""
+    return f"{sorte}:{plat(texte)}"
+
+
+def _section(ligne: str) -> str | None:
+    m = re.match(r"^\s*(?:#{1,6}|\[|==+)\s*(.+?)\s*(?:\]|==+)?\s*:?\s*$", ligne)
+    if not m:
+        return None
+    nom = plat(re.sub(r"\(.*?\)|\d+", " ", m.group(1)))
+    return _SECTIONS.get(nom)
+
+
+def _nettoyer(t: str) -> str:
+    t = " ".join((t or "").split())
+    t = re.sub(r"^(?:[-*•–—]|\d{1,4}\s*[.)\-:–—])\s*", "", t)      # puce ou numéro
+    t = t.strip().strip("\"«»“”").strip()
+    # balises écrites autrement par une IA : {Prénom}, [prenom], {{prenom}}, {PRENOM}
+    t = re.sub(r"\{+\s*pr[ée]nom\s*\}+|\[\s*pr[ée]nom\s*\]", "{prenom}", t, flags=re.I)
+    t = re.sub(r"\{+\s*(salut|chez|il|e)\s*\}+", lambda m: "{" + m.group(1).lower() + "}", t, flags=re.I)
+    return t
+
+
+def mesurer(sorte: str, texte: str) -> str | None:
+    """Raison du refus d'un texte à l'import, ou None s'il est bon."""
+    if len(texte) < MINI:
+        return "trop court"
+    inconnues = {b for b in re.findall(r"\{([^{}]*)\}", texte) if b not in BALISES}
+    if inconnues:
+        return "balise inconnue {" + ", ".join(sorted(inconnues)) + "}"
+    essai = rendre(texte, ESSAI_PRENOM, "femme", "à la maison")
+    if not essai or len(essai) > MAXI[sorte]:
+        return f"trop long (plus de {MAXI[sorte]} signes)"
+    return None
+
+
+def lire(contenu: str) -> tuple[dict[str, list[str]], dict[str, int]]:
+    """({sorte: [textes]}, {raison: nombre}) d'un fichier ; les doublons internes sont retirés."""
+    res: dict[str, list[str]] = {s: [] for s in SORTES}
+    vus: set[str] = set()
+    ecarts: dict[str, int] = {}
+    courante: str | None = None
+    for ligne in (contenu or "").replace("\r", "").split("\n"):
+        if not ligne.strip():
+            continue
+        s = _section(ligne)
+        if s:
+            courante = s
+            continue
+        sorte, texte = courante, None
+        m = re.match(r"^\s*(rumeurs?|horoscopes?|mots?|titres?)\s*[|;\t]\s*(.+)$", ligne, re.I)
+        if m:
+            sorte, texte = _SECTIONS[plat(m.group(1))], m.group(2)
+        elif re.match(r"^\s*(?:[-*•–—]|\d{1,4}\s*[.)\-:–—])\s*\S", ligne) and courante:
+            texte = ligne
+        if not sorte or texte is None:
+            continue
+        texte = _nettoyer(texte)
+        pourquoi = mesurer(sorte, texte)
+        if pourquoi:
+            ecarts[pourquoi.split(" (")[0].split(" {")[0]] = ecarts.get(pourquoi.split(" (")[0].split(" {")[0], 0) + 1
+            continue
+        k = cle(sorte, texte)
+        if k in vus:
+            ecarts["doublon dans le fichier"] = ecarts.get("doublon dans le fichier", 0) + 1
+            continue
+        vus.add(k)
+        res[sorte].append(texte)
+    return res, ecarts
+
+
+def salut(genre: str, prenom: str) -> str:
+    return {"femme": f"Chère {prenom}", "homme": f"Cher {prenom}"}.get(genre, f"Bonjour {prenom}")
+
+
+def rendre(texte: str, prenom: str, genre: str, chez: str) -> str | None:
+    """Le texte avec ses balises remplacées ; None si le genre manque pour {il} / {e}."""
+    if not genre and re.search(r"\{(il|e)\}", texte):
+        return None
+    valeurs = {"prenom": prenom or "notre invité", "salut": salut(genre, prenom or ""), "chez": chez or "à la maison",
+               "il": "elle" if genre == "femme" else "il", "e": "e" if genre == "femme" else ""}
+    sortie = re.sub(r"\{(prenom|salut|chez|il|e)\}", lambda m: valeurs[m.group(1)], texte)
+    # « Il » en début de phrase
+    sortie = re.sub(r"(^|[.!?…]\s+)(il|elle)\b", lambda m: m.group(1) + m.group(2).capitalize(), sortie)
+    return " ".join(sortie.split())
+
+
+def pour_ia(textes: list[str], sorte: str) -> str:
+    """Les exemples donnés à l'IA du PC : pour le ton, jamais à recopier."""
+    if not textes:
+        return ""
+    quoi = {"rumeur": "rumeurs", "horoscope": "horoscopes", "mot": "mots des hôtes", "titre": "titres"}[sorte]
+    return (f"Exemples de {quoi} tirés de notre banque, pour le ton seulement (n'en recopie aucun, invente autre "
+            "chose) :\n" + "\n".join(f"- {t}" for t in textes))
+
+
+def exporter(lignes: list[dict]) -> str:
+    """Le fichier de la banque, au format d'import (les balises sont gardées)."""
+    morceaux = ["# Banque d'inspiration de Gazette (format d'import : une section par sorte, une ligne par texte)", ""]
+    for s in SORTES:
+        textes = [x["texte"] for x in lignes if x["sorte"] == s]
+        if textes:
+            morceaux += [f"# {NOMS[s].upper()}", *[f"- {t}" for t in textes], ""]
+    return "\n".join(morceaux)

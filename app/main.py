@@ -27,6 +27,7 @@ from .carnet import Carnet, ErreurFiche
 from .sillage import Sillage
 from .immich import Immich
 from . import ollama as ia
+from . import banque as B
 from .ollama import ACTIONS_GAZETTE, MAXI as MAXI_TITRE, Ollama, sans_numero, texte_contexte
 from .auth import COMMUN, DUREE, Sessions, en_https
 from .base import ESSAI_GAZETTE, ESSAI_PORTEUR, ETATS, Base, cle_nom, maintenant
@@ -830,6 +831,8 @@ def ia_livret(pid: int, corps: dict = Body(...)):
     # 0.23 : mot des hôtes — 3 à 5 pépites de la fiche complète + ton ; avec la fiche, l'ancien texte « Pour les
     # journaux » n'est plus envoyé (il est versé dans la fiche)
     fiche_txt, tirage = _tirage(p, "gazette", pid, "mot") if action == "mot" else ("", {})
+    if action == "mot":                                   # 0.25 : quelques mots de la banque, pour le ton
+        fiche_txt = _avec_banque(fiche_txt, "mot", p, contact.get("genre", ""), _mots_parus(p))
     indices = "" if (action == "mot" and _fiche_ia(p)) else contact.get("journaux", "")
     try:
         props = ETAT["ollama"].gazette(action, str(corps.get("texte") or ""), int(p["naissance"][:4]), signes,
@@ -912,6 +915,10 @@ def approuver(pid: int):
     if deborde:
         raise HTTPException(409, "Texte trop long : la page " + ", ".join(map(str, deborde))
                             + " déborde. Raccourcis un bloc en rouge, masque-le ou remplace-le par une proposition en vert.")
+    mot_ = lv.get("mot") or rendu.mot_par_defaut(p, date.fromisoformat(p["naissance"]), _journal())
+    deja = None if p.get("essai_de") else _mot_deja_paru(mot_, p, sauf_livret=True)     # 0.25
+    if deja:
+        raise HTTPException(409, f"Ce mot des hôtes a déjà paru ({deja}) : change-le (« Banque » ou l'IA sous le mot).")
     ETAT["base"].maj_livret(pid, etat="approuve", approuve_le=maintenant())
     ETAT["base"].noter("approuver", pid)
     if p.get("essai_de"):                      # 0.20 : un essai ne compte jamais
@@ -972,6 +979,7 @@ def _deja_paru(pid: int, sauf: int) -> list[str]:
         if ed["id"] == sauf or ed["etat"] != "approuve":
             continue
         res += [ed.get("titre_une") or ""] + list(ed.get("rumeurs") or []) + [ed.get("horoscope") or ""]
+        res += [ed.get("mot") or ""]                         # 0.25 : le mot des hôtes non plus
         res += [x.get("lettre", "") for x in ed.get("courrier") or []]
         res += [x.get("legende", "") for x in ed["photos"] if not x.get("retiree") and not R.est_gabarit(x)]
     # 0.16 : et ce qui est rangé sur la fiche de carnet (« Journaux parus »), même si la base de Gazette l'a perdu
@@ -985,6 +993,159 @@ def _deja_paru(pid: int, sauf: int) -> list[str]:
 
 def _mot_recidive(ed: dict, p: dict) -> str:
     return ed["mot"] or R.mot_par_defaut(ed["genre"], _prenom(p), _journal())
+
+
+# ================================================================ 0.25 : mots des hôtes jamais répétés, banque
+
+def _mots_parus_detail(p: dict, sauf_rid: int | None = None, sauf_livret: bool = False) -> list[tuple[str, str]]:
+    """(mot, où) des mots des hôtes déjà imprimés pour cette personne : Gazette approuvée et Récidives approuvées
+    (pas les essais). Une fiche d'essai regarde ceux de la vraie fiche."""
+    base: Base = ETAT["base"]
+    vraie = base.personne(p["essai_de"]) if (p.get("essai_de") or 0) > 0 else p
+    if not vraie:
+        return []
+    res = []
+    lv = base.livret(vraie["id"])
+    if lv and lv["etat"] == "approuve" and not (sauf_livret and vraie["id"] == p["id"]):
+        mot_ = lv.get("mot") or ""
+        if not mot_ and vraie.get("naissance"):
+            mot_ = rendu.mot_par_defaut(vraie, date.fromisoformat(vraie["naissance"]), _journal())
+        res.append((mot_, "la Gazette"))
+    for ed in base.recidives(vraie["id"]):
+        if ed["id"] != sauf_rid and ed["etat"] == "approuve":
+            res.append((_mot_recidive(ed, vraie), f"La Récidive N° {ed['numero_main'] or ed['numero']}"))
+    return [(m, o) for m, o in res if m.strip()]
+
+
+def _mots_parus(p: dict, sauf_rid: int | None = None, sauf_livret: bool = False) -> list[str]:
+    return [m for m, _ in _mots_parus_detail(p, sauf_rid, sauf_livret)]
+
+
+def _mot_deja_paru(mot_: str, p: dict, sauf_rid: int | None = None, sauf_livret: bool = False) -> str | None:
+    """Où ce mot a déjà paru (« La Récidive N° 3 »), ou None. Proche à 82 % = le même."""
+    for m, ou in _mots_parus_detail(p, sauf_rid, sauf_livret):
+        if ia.proche_de(mot_, [m]):
+            return ou
+    return None
+
+
+def _banque_rendue(sorte: str, p: dict, genre: str, n: int, exclure: list[str]) -> list[tuple[int, str]]:
+    """(id, texte prêt) : n textes de la banque, balises remplacées, jamais proches de `exclure`, sans sujet interdit."""
+    interdits = _interdits_de(p) if not p.get("essai_de") else []
+    res: list[tuple[int, str]] = []
+    for x in ETAT["base"].banque_tirer(sorte, n * 6 + 10):
+        t = B.rendre(x["texte"], _prenom(p), genre, _journal()["chez"])
+        if not t or ia.proche_de(t, exclure + [y for _, y in res]) or (interdits and not FI.filtrer([t], interdits)[0]):
+            continue
+        res.append((x["id"], t))
+        if len(res) >= n:
+            break
+    return res
+
+
+def _avec_banque(fiche_txt: str, sorte: str, p: dict, genre: str, exclure: list[str]) -> str:
+    """Le texte pour l'IA, avec 5 exemples de la banque (pour le ton)."""
+    ex = [t for _, t in _banque_rendue(sorte, p, genre, 5, exclure)]
+    return "\n".join(x for x in (fiche_txt, B.pour_ia(ex, sorte)) if x)
+
+
+def _mot_neuf_recidive(ed: dict, p: dict) -> str:
+    """Si le mot par défaut a déjà paru pour cette personne : un mot de la banque jamais paru, sinon ''."""
+    parus = _mots_parus(p, sauf_rid=ed["id"])
+    if not parus or not ia.proche_de(R.mot_par_defaut(ed["genre"], _prenom(p), _journal()), parus):
+        return ""
+    tire = _banque_rendue("mot", p, ed["genre"], 1, parus)
+    if tire:
+        ETAT["base"].banque_servi([tire[0][0]])
+    return tire[0][1] if tire else ""
+
+
+@app.get("/api/banque")
+def banque_etat():
+    return {"comptes": {s: ETAT["base"].banque_comptes().get(s, 0) for s in B.SORTES}, "noms": B.NOMS,
+            "maxi": B.MAXI, "balises": [f"{{{b}}}" for b in B.BALISES]}
+
+
+@app.post("/api/banque/import")
+def banque_import(corps: dict = Body(...)):
+    """{texte, source} → ajoutés par sorte, déjà présents, écartés (raisons). Le fichier se lit dans le navigateur."""
+    texte = str(corps.get("texte") or "")
+    if len(texte) > 8_000_000:
+        raise HTTPException(413, "Fichier trop gros (8 Mo au plus) : coupe-le en plusieurs.")
+    lus, ecarts = B.lire(texte)
+    if not any(lus.values()):
+        raise HTTPException(422, "Rien de lisible : il faut des sections « # RUMEURS », « # HOROSCOPES », « # MOTS », "
+                                 "« # TITRES » et une ligne « - texte » par élément." +
+                            (f" Écartés : {', '.join(f'{n} {k}' for k, n in ecarts.items())}." if ecarts else ""))
+    source = " ".join(str(corps.get("source") or "fichier").split())[:80]
+    ajoutes, deja = {}, 0
+    for sorte, textes in lus.items():
+        a, d = ETAT["base"].banque_ajouter(sorte, textes, source, B.cle)
+        ajoutes[sorte] = a
+        deja += d
+    ETAT["base"].noter("banque", None, f"import « {source} » : " + ", ".join(f"{n} {B.NOMS[s].lower()}" for s, n in ajoutes.items() if n))
+    return {"ajoutes": ajoutes, "deja": deja, "ecartes": ecarts, "comptes": banque_etat()["comptes"]}
+
+
+@app.get("/api/banque/export")
+def banque_export():
+    contenu = B.exporter(ETAT["base"].banque_tout())
+    return Response(contenu, media_type="text/plain; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="gazette-banque-{date.today().isoformat()}.txt"'})
+
+
+@app.delete("/api/banque")
+def banque_vider(sorte: str = ""):
+    if sorte and sorte not in B.SORTES:
+        raise HTTPException(422, "Sorte inconnue.")
+    n = ETAT["base"].banque_vider(sorte or None)
+    ETAT["base"].noter("banque", None, f"{n} texte(s) retiré(s) de la banque" + (f" ({B.NOMS[sorte].lower()})" if sorte else ""))
+    return {"retires": n, "comptes": banque_etat()["comptes"]}
+
+
+@app.post("/api/recidives/{rid}/banque")
+def recidive_banque(rid: int, corps: dict = Body(...)):
+    """{sorte: titre | rumeur | horoscope | mot, cible: « une » ou id de photo (titre)} → propositions tirées de la
+    banque (balises remplacées), jamais déjà parues pour cette personne ; gardées comme celles de l'IA."""
+    ed, p = _edition_ou_404(rid)
+    sorte = str(corps.get("sorte") or "")
+    if sorte not in B.SORTES:
+        raise HTTPException(422, "Sorte inconnue.")
+    cible = str(corps.get("cible") or "une")
+    photo = next((x for x in ed["photos"] if x["id"] == cible), None)
+    if sorte == "titre" and cible != "une" and not photo:
+        raise HTTPException(404, "Photo introuvable dans cette édition.")
+    deja = _deja_paru(p["id"], rid) + ([*_mots_parus(p, sauf_rid=rid)] if sorte == "mot" else [])
+    deja += [ed.get("titre_une") or "", *(ed.get("rumeurs") or []), ed.get("horoscope") or "", ed.get("mot") or "",
+             *[x.get("legende", "") for x in ed["photos"]]]
+    n = {"titre": 5, "rumeur": 8, "horoscope": 3, "mot": 3}[sorte]
+    tire = _banque_rendue(sorte, p, ed["genre"], n, [x for x in deja if x.strip()])
+    if not tire:
+        raise HTTPException(404, f"La banque n'a rien (de neuf) en {B.NOMS[sorte].lower()} pour {_prenom(p)} : "
+                                 "importe un fichier dans Réglages › Banque d'inspiration.")
+    ETAT["base"].banque_servi([i for i, _ in tire])
+    props = [t for _, t in tire]
+    if sorte == "titre" and cible == "une":
+        ETAT["base"].maj_recidive(rid, propositions_une=props)
+    elif sorte == "titre":
+        ETAT["base"].maj_recidive(rid, photos=[{**x, "propositions": props} if x["id"] == cible else x for x in ed["photos"]])
+    elif sorte == "rumeur":
+        ETAT["base"].maj_recidive(rid, propositions_rumeurs=props)
+    elif sorte == "horoscope":
+        ETAT["base"].maj_recidive(rid, propositions_horoscope=props)
+    return {"propositions": props, "modele": "banque"}
+
+
+@app.post("/api/livrets/{pid}/banque")
+def livret_banque(pid: int):
+    """0.25 : 3 mots des hôtes de la banque pour la Gazette, jamais déjà parus pour cette personne."""
+    p = _personne_ou_404(pid)
+    genre = _contact(p).get("genre", "") if not p.get("essai_de") else ""
+    tire = _banque_rendue("mot", p, genre, 3, _mots_parus(p, sauf_livret=True))
+    if not tire:
+        raise HTTPException(404, "La banque n'a aucun mot des hôtes (de neuf) : importe un fichier dans Réglages › Banque d'inspiration.")
+    ETAT["base"].banque_servi([i for i, _ in tire])
+    return {"propositions": [t for _, t in tire], "modele": "banque"}
 
 
 @app.get("/api/recidives")
@@ -1004,7 +1165,13 @@ def edition(rid: int):
                 _contexte_photo(ed, next(y for y in ed["photos"] if y["id"] == x["id"]))
         ed = ETAT["base"].recidive(rid)
     j = _journal()
+    if not ed["mot"] and ed["etat"] != "approuve":       # 0.25 : le mot par défaut a déjà paru → un mot de la banque
+        nouveau = _mot_neuf_recidive(ed, p)
+        if nouveau:
+            ETAT["base"].maj_recidive(rid, mot=nouveau)
+            ed = ETAT["base"].recidive(rid)
     return {"personne": p, "edition": {**ed, "mot_defaut": R.mot_par_defaut(ed["genre"], _prenom(p), _journal()),
+                                       "mots_parus": _mots_parus(p, sauf_rid=rid),
                                        "accroche_defaut": R.accroche(ed["genre"], _prenom(p), _journal())},
             "signature": j["signature"], "places": R.PLACES, "titre_defaut": R.titre_une(p["nom"]),
             "code_barres_defaut": R.code_barres(_prenom(p)), "code_barres_maxi": code_barres.MAXI,
@@ -1115,6 +1282,7 @@ def proposer_titres(rid: int, corps: dict = Body(...)):
     une = next((x for x in ed["photos"] if not x.get("retiree")), None)      # la photo de la une : la première gardée
     contexte = _contexte_photo(ed, une if cible == "une" else photo)
     fiche_txt, tirage = _tirage(p, "recidive", rid, cible)          # 0.23 : pépites de la fiche complète
+    fiche_txt = _avec_banque(fiche_txt, "titre", p, ed["genre"], _deja_paru(p["id"], rid))     # 0.25
     try:
         props = ETAT["ollama"].proposer(description, "une" if cible == "une" else "photo", ed["genre"], _prenom(p),
                                         deja=_deja_paru(p["id"], rid), contexte=contexte, modele=modele, fiche=fiche_txt)
@@ -1148,6 +1316,7 @@ def proposer_rumeurs(rid: int, corps: dict = Body(default={})):
         vues += [f"(numéro de {x.get('le', '')[:4]}) {d}" for d in (x.get("descriptions") or [])[:3]]
     gens = list(dict.fromkeys(g for c in ctxs for g in c.get("personnes") or []))
     fiche_txt, tirage = _tirage(p, "recidive", rid, "rumeurs")
+    fiche_txt = _avec_banque(fiche_txt, "rumeur", p, ed["genre"], _deja_paru(p["id"], rid))    # 0.25
     try:
         props = ETAT["ollama"].rumeurs(_avec_livre(p, indices), ed["genre"], _prenom(p), vues, deja=_deja_paru(p["id"], rid), personnes=gens,
                                        modele=modele, fiche=fiche_txt)
@@ -1217,6 +1386,7 @@ def proposer_horoscope(rid: int, corps: dict = Body(default={})):
     indices = " ".join(str(corps.get("indices") or ed.get("indices_rumeurs") or "").split())[:400]
     evenement = " ".join(str(corps.get("evenement") if "evenement" in corps else ed.get("evenement") or "").split())[:200]
     fiche_txt, tirage = _tirage(p, "recidive", rid, "horoscope")
+    fiche_txt = _avec_banque(fiche_txt, "horoscope", p, ed["genre"], _deja_paru(p["id"], rid))  # 0.25
     try:
         props = ETAT["ollama"].horoscope(R.signe(p.get("naissance", ""))[0], indices, ed["genre"], _prenom(p),
                                          deja=_deja_paru(p["id"], rid), evenement=evenement,
@@ -1237,6 +1407,7 @@ def proposer_droit(rid: int, corps: dict = Body(default={})):
     modele = _modele_demande(corps)
     faits = [ed.get("titre_une") or "", ed.get("evenement") or "", *(ed.get("rumeurs") or [])[:4]]
     fiche_txt, tirage = _tirage(p, "recidive", rid, "droit")
+    fiche_txt = _avec_banque(fiche_txt, "mot", p, ed["genre"], _mots_parus(p, sauf_rid=rid))    # 0.25
     try:
         props = ETAT["ollama"].gazette("droit", str(corps.get("texte") or ""), None, None, _prenom(p), ed["genre"],
                                        _avec_livre(p, ed.get("indices_rumeurs") or ""), _journal()["chez"], [x for x in faits if x.strip()],
@@ -1321,6 +1492,9 @@ def approuver_edition(rid: int):
     if deborde:
         raise HTTPException(409, "Texte trop long : la page " + ", ".join(map(str, deborde))
                             + " déborde. Raccourcis une légende ou le mot des hôtes.")
+    deja = _mot_deja_paru(_mot_recidive(ed, p), p, sauf_rid=rid)   # 0.25 : jamais deux fois le même mot des hôtes
+    if deja and not ed.get("essai"):
+        raise HTTPException(409, f"Ce mot des hôtes a déjà paru ({deja}) : change-le (bouton « Banque » ou « IA » sous le mot).")
     if ed.get("essai"):                        # 0.20 : un essai ne compte jamais (scandales, carnet, numéros)
         ETAT["base"].maj_recidive(rid, etat="approuve", approuve_le=maintenant())
         return {"ok": True, "carnet": "essai : rien envoyé à carnet"}

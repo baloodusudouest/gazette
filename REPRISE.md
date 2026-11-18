@@ -2,6 +2,12 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
+## Dernier changement (18/11/2026) — 0.25.0 : bouton IA qui lance tout, mot jamais répété, banque d'inspiration
+- `app/banque.py` : lecture du fichier (`lire`, sections ou « sorte | texte », puces/numéros/guillemets retirés, balises mal écrites corrigées), `mesurer` (longueurs `MAXI` mesurées avec un prénom de 10 lettres), `rendre` (balises ; None si {il}/{e} sans genre), `pour_ia`, `exporter`. Base : table `banque` (`cle` unique = sorte + texte à plat), `banque_ajouter/comptes/tirer/servi/tout/vider`.
+- `main.py` : `_mots_parus(_detail)`, `_mot_deja_paru` (409 à l'approbation des deux journaux, jamais pour un essai), `_mot_neuf_recidive` (GET d'une édition sans mot dont le défaut a paru), `_banque_rendue`, `_avec_banque` (ajouté au texte `fiche` envoyé à l'IA : titres, rumeurs, horoscope, droit, mot de la Gazette), routes `/api/banque*`, `/api/recidives/{rid}/banque`, `/api/livrets/{pid}/banque`. `_deja_paru` inclut le mot.
+- Écrans : `Recidive.svelte` (`proposerTout` lance tout et met `revoir`, `piocher`, boutons « Banque », alerte « déjà paru ») ; `Livret.svelte` (« Banque » sous le mot) ; `Reglages.svelte` (section Banque d'inspiration).
+- `banque/` : fichier de départ (4000 textes) et prompt ChatGPT/Gemini ; `tools/banque_gen.py` le refabrique à l'identique.
+
 ## Correctif (18/11/2026) — 0.24.2
 - Courrier : `lettres` ramène lettre/réponse à des phrases entières (`phrases_qui_tiennent`), compte les écarts (`ecarts`) repris dans le message d'erreur de `Ollama.courrier` ; `genre_devine` (ignore le « il » impersonnel, `IMPERSONNEL`) remplace `\b(elle|il)\b` dans `lettres` et `nettoyer`. `ollama.MODELE` par défaut : mistral-nemo.
 - Contexte Immich : `tous`, `sur_photo` ; un contexte sans `tous` est relu (`_preparer_recidive`, `_contexte_photo`, et `GET /api/recidives/{rid}` pour une édition pas approuvée). Légende de gabarit : `R.legende(photo)` nomme `sur_photo` ; `R.est_gabarit` reconnaît l'ancien et le nouveau gabarit (remplace les `!= R.legende(x)`). Écrans : `ctxTexte` affiche `tous` (Récidive et Livret). `consigne` : ligne « au moins trois propositions mettent en scène … ».
@@ -9,7 +15,7 @@
 ## Correctif (18/11/2026) — 0.24.1
 - « Pas commencé » = `du > aujourd'hui` ou (`du = aujourd'hui` et `jusqu_au > aujourd'hui`) dans `poser_sejour`, `retirer_sejours`, `sejours_a_venir_de_chambre` ; `annuler_sejour` refuse seulement `du < aujourd'hui` ; bouton affiché dès `s.du >= aujourdhui`. Tests `test_jour_d_arrivee_*`.
 
-## Dernier changement (18/11/2026) — 0.24.0 : séjour annulé encore proposé, plus de « Nouvelle fiche », simuler depuis carnet
+## Changement (18/11/2026) — 0.24.0 : séjour annulé encore proposé, plus de « Nouvelle fiche », simuler depuis carnet
 - `base.poser_sejour` : en plus des séjours qui chevauchent, retire ceux de la même chambre pas encore commencés et arrivant **avant** le séjour annoncé (HA n'annonce que le prochain séjour de la chambre). `ha_sejour` calcule `avant` avant l'écriture : `_apres_annulation` fait le ménage habituel.
 - `DELETE /api/sejours/{sid}` (`main.annuler_sejour`) : séjour pas commencé seulement (409 sinon), même ménage ; `base.sejour`, `base.supprimer_sejour`. Écran : bouton discret « Séjour annulé » sur les cartes de `Livrets.svelte` (séjour à partir de demain, date locale), confirmation.
 - `main._menage_orphelines()` au démarrage (`cycle`) : `base.recidives_orphelines()` (essai = 0, `sejour_du` > aujourd'hui, aucun séjour de cette personne à cette date) → supprimées, copie `…-avant-menage.db`.
@@ -79,6 +85,7 @@
 
 ## Prochaine étape
 
+- 0.25.0 : importer `banque/gazette-banque-claude.txt` dans Réglages › Banque d'inspiration ; essayer « Banque » et « IA » dans une Récidive ; vérifier le refus d'un mot déjà paru.
 - 0.24.0 : après déploiement, attendre le prochain appel de Home Assistant (09:05, 18:00 ou redémarrage de HA) et vérifier que le séjour annulé a quitté « Séjours à venir » (sinon bouton « Séjour annulé ») ; Réglages › Simuler : chercher un contact de carnet sans fiche, simuler, supprimer l'essai.
 - 0.23.0 : déployer carnet 2.33.0 (et Sillage 0.20.0) d'abord ; ouvrir la fiche complète d'un habitué depuis La Récidive, ajouter quelques pépites et un sujet interdit, vérifier dans carnet que les pépites arrivent (et l'inverse) ; demander des rumeurs avec la vraie IA et vérifier qu'elles s'appuient sur la fiche ; approuver et vérifier « parue le » dans la fiche.
 - 0.20.0 : essayer Réglages › Simuler (Gazette et Récidive d'une vraie personne), puis supprimer les essais ; vérifier l'onglet Archives après un premier séjour fini.
