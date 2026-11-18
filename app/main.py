@@ -545,8 +545,11 @@ def modifier_personne(pid: int, corps: dict = Body(...)):
 
 
 @app.delete("/api/personnes/{pid}")
-def supprimer_personne(pid: int):
+def supprimer_personne(pid: int, corps: dict | None = Body(None)):
     _personne_ou_404(pid)
+    # 0.20.9 : confirmation exigée côté serveur ({"confirmation": true} dans le corps)
+    if not isinstance(corps, dict) or corps.get("confirmation") is not True:
+        raise HTTPException(400, "Suppression non confirmée : envoyer {\"confirmation\": true}.")
     # 0.20.6 : copie de la base avant (livret, Récidives et scandales publiés partent avec la fiche)
     ETAT["base"].copie(ETAT["cfg"].data / "sauvegardes", f"gazette-{maintenant()[:19].replace(':', '-')}-avant-suppression-{pid}.db")
     ETAT["base"].supprimer_personne(pid)

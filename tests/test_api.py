@@ -252,6 +252,16 @@ def test_suppression_d_une_fiche_garde_une_copie(client, tmp_path):
     """0.20.6 (audit du 17/11/2026) : copie de la base avant de supprimer une fiche."""
     connecter(client)
     pid = client.post("/api/personnes", json={"nom": "Personne Inventée", "naissance": "1988-07-07"}).json()["id"]
-    assert client.delete(f"/api/personnes/{pid}").status_code == 200
+    assert client.request("DELETE", f"/api/personnes/{pid}", json={"confirmation": True}).status_code == 200
     copies = list((tmp_path / "sauvegardes").glob(f"gazette-*-avant-suppression-{pid}.db"))
     assert len(copies) == 1 and copies[0].stat().st_size > 0
+
+
+def test_suppression_d_une_fiche_exige_la_confirmation(client):
+    """0.20.9 (audit du 17/11/2026, M17) : sans {"confirmation": true}, la fiche reste."""
+    connecter(client)
+    pid = client.post("/api/personnes", json={"nom": "Personne Inventée", "naissance": "1988-07-07"}).json()["id"]
+    assert client.delete(f"/api/personnes/{pid}").status_code == 400
+    for corps in ({}, {"confirmation": False}, {"confirmation": "oui"}, [True]):
+        assert client.request("DELETE", f"/api/personnes/{pid}", json=corps).status_code in (400, 422), corps
+    assert client.get(f"/api/livrets/{pid}").status_code == 200

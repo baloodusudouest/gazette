@@ -203,7 +203,7 @@
   }
   async function supprimer() {
     if (!confirm(`Supprimer la fiche et le livret de ${d.personne.nom} ?`)) return
-    await api.del(`/api/personnes/${id}`)
+    await api.del(`/api/personnes/${id}`, { confirmation: true })   // le serveur exige la confirmation (0.20.9)
     location.hash = '#/livrets'
   }
   function basculer(o) { o.masque = !o.masque; toucher() }

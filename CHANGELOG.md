@@ -1,5 +1,11 @@
 # Journal des versions
 
+## 0.20.9 — 18 novembre 2026 (constats moyens de l'audit)
+- **M16** : pendant le rendu (PDF, mesure), Chromium ne sort plus sur le réseau : toute demande autre que `data:` ou la page elle-même (`about:`) est coupée, `file:` compris (aucun fichier du conteneur ne peut entrer dans le PDF ; `page.route`), les WebSocket aussi (`rendu.permise`, `_page_sans_reseau`). Le navigateur reste lancé à chaque rendu : l'API synchrone de Playwright est liée à son fil et les routes tournent dans plusieurs fils.
+- **M17** : supprimer une fiche exige maintenant `{"confirmation": true}` dans le corps de `DELETE /api/personnes/{id}` (400 sinon) ; l'écran de la fiche l'envoie après sa question. La copie de la base avant suppression existait déjà (0.20.6).
+- **M19** : trois redirections Wikipédia suivies au plus ; deux pages qui se renvoient l'une à l'autre ne font plus des centaines de requêtes (la page est tenue pour vide).
+- `maison.py` du socle 0.8.2 (réglages secrets reconnus par mots, champ `ecartes` dans la sauvegarde).
+
 ## 0.20.8 — 18 novembre 2026 (cookies Secure)
 - **Cookies `Secure` en https** (audit du 17/11/2026, même correctif dans toutes les applis maison) : ouverte en https (directement, derrière Tailscale Serve qui le dit par `X-Forwarded-Proto`, ou d'après l'origine de la page), l'appli pose ses cookies de session avec l'attribut `Secure` : ils ne partent jamais en clair. En http (adresse locale), rien ne change.
 - `entrypoint.sh` refuse de lancer l'appli en root quand `/data` appartient à root (dossier créé par Docker) et dit le remède ; dépannage seulement : `MAISON_ROOT_ACCEPTE=oui`.

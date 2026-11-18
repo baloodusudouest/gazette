@@ -361,6 +361,27 @@ class RenduImpossible(Exception):
     pass
 
 
+# 0.20.9 (audit du 17/11/2026, M16) : pendant le rendu, Chromium ne sort pas sur le réseau. Le document est posé
+# par set_content (page about:blank, pas d'adresse locale) et tout y est embarqué en data: (polices, photos) :
+# n'importe quelle autre demande (http, https, ws…) est refusée, même si un texte mal échappé en glissait une.
+# Le navigateur reste lancé à chaque rendu : l'API synchrone de Playwright est liée au fil qui l'a démarrée,
+# et les routes de FastAPI tournent dans plusieurs fils ; le garder ouvert demanderait un fil dédié.
+SCHEMAS_PERMIS = ("data:", "about:")   # pas file: : un texte glissé ne doit pas lire un fichier du conteneur dans le PDF
+
+
+def permise(url: str) -> bool:
+    """Seules les adresses embarquées (data:) ou la page vide elle-même (about:)."""
+    return url.lower().startswith(SCHEMAS_PERMIS)
+
+
+def _page_sans_reseau(nav, **options):
+    """Une page dont toute demande vers le réseau est coupée (page.route, et WebSocket fermés)."""
+    pg = nav.new_page(**options)
+    pg.route("**/*", lambda route: route.continue_() if permise(route.request.url) else route.abort("blockedbyclient"))
+    pg.route_web_socket("**/*", lambda ws: ws.close())
+    return pg
+
+
 def mesurer(html_doc: str) -> list[dict]:
     """Pour l'éditeur : par page, déborde-t-elle, de combien (px) et la hauteur de chaque bloc (data-bloc)."""
     try:
@@ -373,7 +394,7 @@ def mesurer(html_doc: str) -> list[dict]:
         except Exception as ex:  # noqa: BLE001
             raise RenduImpossible(f"Chromium ne démarre pas : {str(ex).splitlines()[0][:160]}") from ex
         try:
-            pg = nav.new_page(viewport={"width": 600, "height": 900})
+            pg = _page_sans_reseau(nav, viewport={"width": 600, "height": 900})
             pg.set_content(html_doc, wait_until="load")
             pg.evaluate("document.fonts.ready.then(() => window.ajuster && window.ajuster())")
             return pg.evaluate("window.mesure()")
@@ -394,7 +415,7 @@ def pdf(html_doc: str, mode: str = "impose") -> tuple[bytes, list[int]]:
         except Exception as ex:  # noqa: BLE001 — navigateur absent : message clair
             raise RenduImpossible(f"Chromium ne démarre pas : {str(ex).splitlines()[0][:160]}") from ex
         try:
-            pg = nav.new_page()
+            pg = _page_sans_reseau(nav)
             pg.set_content(html_doc, wait_until="load")
             pg.evaluate("document.fonts.ready.then(() => window.ajuster && window.ajuster())")
             deborde = pg.evaluate("""() => [...document.querySelectorAll('.page')].filter(p => window.deborde(p)).map(p => +p.dataset.page)""")

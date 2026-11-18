@@ -23,5 +23,5 @@ export const api = {
   get: (chemin) => appel('GET', chemin),
   post: (chemin, corps) => appel('POST', chemin, corps ?? {}),
   put: (chemin, corps) => appel('PUT', chemin, corps ?? {}),
-  del: (chemin) => appel('DELETE', chemin),
+  del: (chemin, corps) => appel('DELETE', chemin, corps),
 }

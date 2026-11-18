@@ -24,6 +24,7 @@ MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
           "November", "December"]
 LAROUSSE_DEBUT, LAROUSSE_FIN = (1966, 7), (2003, 12)
+REDIRECTIONS_MAXI = 3               # redirections Wikipédia suivies au plus
 
 
 class SourceIndisponible(Exception):
@@ -71,8 +72,10 @@ class Sources:
         raise SourceIndisponible(f"{nom} : {derniere}")
 
     # ------------------------------------------------------------ Wikipédia
-    def wikipedia(self, titre: str, langue: str = "fr") -> str:
-        """Le wikitext d'une page ; '' si elle n'existe pas. Gardé pour toujours."""
+    def wikipedia(self, titre: str, langue: str = "fr", _sauts: int = 0) -> str:
+        """Le wikitext d'une page ; '' si elle n'existe pas. Gardé pour toujours.
+        Au plus REDIRECTIONS_MAXI redirections suivies (0.20.9 : deux pages qui se renvoient l'une à l'autre
+        faisaient près de mille requêtes) ; au-delà, la page est tenue pour vide."""
         cle = f"wp:{langue}:{titre}"
         deja = self.base.source(cle)
         if deja is not None:
@@ -84,11 +87,11 @@ class Sources:
             contenu = ""
         elif r.status_code == 200:
             contenu = r.text
-            # Redirection interne (#REDIRECTION [[…]]) : on suit une fois
+            # Redirection interne (#REDIRECTION [[…]]) : suivie, trois fois au plus
             if contenu.lstrip().upper().startswith(("#REDIRECT", "#REDIRECTION")):
                 m = re.search(r"\[\[([^\]|#]+)", contenu)
                 if m:
-                    contenu = self.wikipedia(m.group(1).strip(), langue)
+                    contenu = self.wikipedia(m.group(1).strip(), langue, _sauts + 1) if _sauts < REDIRECTIONS_MAXI else ""
         else:
             raise SourceIndisponible(f"wikipedia-{langue} : réponse {r.status_code}")
         self.base.garder_source(cle, contenu)
