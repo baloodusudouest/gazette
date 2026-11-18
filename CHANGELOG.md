@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 0.24.1 — 18 novembre 2026 (séjour annulé le jour de l'arrivée)
+- **Séjour annulé qui arrivait aujourd'hui** (signalé par Julien le 18/11 : séjour de la chambre Ado du 18 au 19, annulé, toujours affiché). La 0.24.0 ne regardait que les séjours commençant demain ou plus tard. Le jour d'arrivée compte désormais comme « pas commencé » (un séjour qui finit le jour même excepté) : chambre annoncée libre, séjour plus tardif annoncé ou bouton « Séjour annulé » le retirent, avec le ménage habituel des journaux. Le bouton s'affiche donc jusqu'au jour d'arrivée compris.
+- Tests : 226. Jamais essayé sur la vraie installation.
+
 ## 0.24.0 — 18 novembre 2026 (séjour annulé encore proposé ; plus de « Nouvelle fiche » ; simuler depuis carnet)
 - **Séjour annulé encore proposé** (signalé par Julien le 18/11 : un séjour annulé avant la mise à jour restait dans « Séjours à venir »). Cause : Home Assistant n'annonce que le **prochain** séjour de chaque chambre ; quand une réservation était annulée puis la chambre réservée plus tard, Gazette recevait le nouveau séjour, mais gardait l'ancien (il ne chevauchait pas). Désormais, à chaque annonce, un séjour **pas encore commencé** de la même chambre qui arrivait **avant** le séjour annoncé est retiré, avec le ménage de la 0.22.1 (Récidive supprimée même approuvée, Gazette remise à zéro si l'invité n'a plus de séjour, fiche gardée, copie de la base avant). Un séjour plus tardif reste (une réservation plus proche a pu s'intercaler). Home Assistant rappelle Gazette à 09:05, 18:00 et au démarrage : le séjour fantôme part au prochain appel.
 - **Bouton « Séjour annulé »** sur chaque séjour pas encore commencé de Livrets (avec confirmation) : même ménage, pour un cas que Home Assistant ne couvre pas. Si la réservation existe encore dans Home Assistant, elle revient à son prochain appel. API `DELETE /api/sejours/{id}` (409 pour un séjour commencé).

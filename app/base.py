@@ -257,8 +257,10 @@ class Base:
             # 0.24 : Home Assistant n'annonce que le prochain séjour de la chambre. Un séjour pas encore commencé qui
             # arrivait AVANT celui-ci n'existe plus (annulé, remplacé par une réservation plus tardive) : il part.
             # Un séjour plus tardif reste (une réservation plus proche a pu s'intercaler).
-            self._c.execute("DELETE FROM sejours WHERE chambre = ? AND du > ? AND du < ?",
-                            (chambre, date.today().isoformat(), du))
+            # 0.24.1 : le jour d'arrivée compte comme « pas commencé » (HA montre encore le séjour ce jour-là).
+            auj = date.today().isoformat()
+            self._c.execute("DELETE FROM sejours WHERE chambre = ? AND du < ? AND (du > ? OR (du = ? AND jusqu_au > ?))",
+                            (chambre, du, auj, auj, auj))
             self._c.execute("INSERT INTO sejours (chambre, du, jusqu_au, recu_le) VALUES (?,?,?,?) "
                             "ON CONFLICT(chambre, du) DO UPDATE SET jusqu_au = excluded.jusqu_au, recu_le = excluded.recu_le",
                             (chambre, du, jusqu_au, maintenant()))
@@ -273,8 +275,11 @@ class Base:
         """La chambre est libre : ses séjours à venir sont oubliés. 0.9 : un séjour commencé reste en mémoire (il
         compte comme une visite pour La Récidive) ; il finit la veille et sort de la liste des séjours à venir."""
         aujourd_hui = date.today()
+        auj = aujourd_hui.isoformat()
         with self._verrou, self._c:
-            self._c.execute("DELETE FROM sejours WHERE chambre = ? AND du > ?", (chambre, aujourd_hui.isoformat()))
+            # 0.24.1 : un séjour qui arrive aujourd'hui (et ne finit pas aujourd'hui) est encore « à venir » : annulé
+            self._c.execute("DELETE FROM sejours WHERE chambre = ? AND (du > ? OR (du = ? AND jusqu_au > ?))",
+                            (chambre, auj, auj, auj))
             self._c.execute("UPDATE sejours SET jusqu_au = ? WHERE chambre = ? AND du <= ? AND jusqu_au >= ?",
                             (date.fromordinal(aujourd_hui.toordinal() - 1).isoformat(), chambre,
                              aujourd_hui.isoformat(), aujourd_hui.isoformat()))
@@ -304,7 +309,8 @@ class Base:
         with self._verrou:
             return {(l["personne_id"], l["du"]) for l in self._c.execute(
                 "SELECT i.personne_id, s.du FROM sejours s JOIN invites i ON i.sejour_id = s.id "
-                "WHERE s.chambre = ? AND s.du > ? AND i.personne_id IS NOT NULL", (chambre, date.today().isoformat()))}
+                "WHERE s.chambre = ? AND (s.du > ? OR (s.du = ? AND s.jusqu_au > ?)) AND i.personne_id IS NOT NULL",
+                (chambre, *[date.today().isoformat()] * 3))}
 
     def deplacer_recidive(self, pid: int, ancien_du: str, nouveau_du: str) -> None:
         """0.22.1 : le séjour a changé de dates dans Home Assistant : le numéro suit le séjour."""

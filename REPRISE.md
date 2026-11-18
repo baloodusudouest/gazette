@@ -2,6 +2,9 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
+## Correctif (18/11/2026) — 0.24.1
+- « Pas commencé » = `du > aujourd'hui` ou (`du = aujourd'hui` et `jusqu_au > aujourd'hui`) dans `poser_sejour`, `retirer_sejours`, `sejours_a_venir_de_chambre` ; `annuler_sejour` refuse seulement `du < aujourd'hui` ; bouton affiché dès `s.du >= aujourdhui`. Tests `test_jour_d_arrivee_*`.
+
 ## Dernier changement (18/11/2026) — 0.24.0 : séjour annulé encore proposé, plus de « Nouvelle fiche », simuler depuis carnet
 - `base.poser_sejour` : en plus des séjours qui chevauchent, retire ceux de la même chambre pas encore commencés et arrivant **avant** le séjour annoncé (HA n'annonce que le prochain séjour de la chambre). `ha_sejour` calcule `avant` avant l'écriture : `_apres_annulation` fait le ménage habituel.
 - `DELETE /api/sejours/{sid}` (`main.annuler_sejour`) : séjour pas commencé seulement (409 sinon), même ménage ; `base.sejour`, `base.supprimer_sejour`. Écran : bouton discret « Séjour annulé » sur les cartes de `Livrets.svelte` (séjour à partir de demain, date locale), confirmation.

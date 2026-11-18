@@ -64,9 +64,34 @@ def test_bouton_sejour_annule(monter):
 def test_bouton_refuse_un_sejour_commence(monter):
     c = monter()
     c.post("/api/personnes", json={"nom": "Camille Fabre", "naissance": "1988-07-07"})
-    ha(c, {"chambre": "ami", "noms": ["Camille Fabre"], "du": j(0), "jusqu_au": j(2)})
+    ha(c, {"chambre": "ami", "noms": ["Camille Fabre"], "du": j(-1), "jusqu_au": j(2)})
     sid = c.get("/api/livrets").json()["sejours"][0]["id"]
     assert c.delete(f"/api/sejours/{sid}").status_code == 409
+
+
+def test_jour_d_arrivee_annulable(monter):
+    """0.24.1 : séjour qui arrive aujourd'hui (invité sans fiche) : le bouton le retire ; HA qui annonce un séjour plus
+    tardif ou la chambre libre le retire aussi."""
+    c = monter()
+    ha(c, {"chambre": "ado", "noms": ["Nico Essai"], "du": j(0), "jusqu_au": j(1)})
+    sid = c.get("/api/livrets").json()["sejours"][0]["id"]
+    assert c.delete(f"/api/sejours/{sid}").status_code == 200 and _a_venir(c) == []
+    ha(c, {"chambre": "ado", "noms": ["Nico Essai"], "du": j(0), "jusqu_au": j(1)})
+    ha(c, {"chambre": "ado", "noms": ["Paul Essai"], "du": j(9), "jusqu_au": j(11)})
+    assert _a_venir(c) == [("ado", j(9))]
+    ha(c, {"chambre": "bleue", "noms": ["Nico Essai"], "du": j(0), "jusqu_au": j(1)})
+    ha(c, {"chambre": "bleue", "noms": []})
+    assert ("bleue", j(0)) not in _a_venir(c)
+
+
+def test_jour_d_arrivee_recidive_supprimee_par_ha(monter):
+    c = monter()
+    pid = c.post("/api/personnes", json={"nom": "Camille Fabre", "naissance": "1988-07-07"}).json()["id"]
+    ha(c, {"chambre": "ami", "noms": ["Camille Fabre"], "du": j(-40), "jusqu_au": j(-38)})
+    ha(c, {"chambre": "ami", "noms": ["Camille Fabre"], "du": j(0), "jusqu_au": j(2)})
+    assert len(main.ETAT["base"].recidives(pid)) == 1
+    rep = ha(c, {"chambre": "ami", "noms": []}).json()
+    assert rep["annules"] == [f"Camille Fabre ({j(0)})"] and main.ETAT["base"].recidives(pid) == []
 
 
 def test_premier_sejour_annule_au_bouton_gazette_a_zero(monter):

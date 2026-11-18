@@ -2208,7 +2208,7 @@ def annuler_sejour(sid: int):
     s = base.sejour(sid)
     if not s:
         raise HTTPException(404, "Séjour introuvable.")
-    if s["du"] <= date.today().isoformat():
+    if s["du"] < date.today().isoformat():           # 0.24.1 : le jour d'arrivée, encore annulable
         raise HTTPException(409, "Ce séjour a commencé : il ne s'annule pas d'ici.")
     avant = base.sejours_a_venir_de_chambre(s["chambre"])
     base.supprimer_sejour(sid)

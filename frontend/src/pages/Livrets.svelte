@@ -25,8 +25,8 @@
       else erreur = err.message
     }
   }
-  const t = new Date(); t.setDate(t.getDate() + 1)
-  const demain = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
+  const t = new Date()          // 0.24.1 : annulable jusqu'au jour d'arrivée compris
+  const aujourdhui = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
   async function annuler(s) {
     const noms = s.invites.map((i) => i.nom).join(', ')
     if (!confirm(`Séjour annulé : ${noms}, chambre ${s.chambre}, du ${dateCourte(s.du)} ?\n\nSa Récidive est supprimée (même approuvée) ; une Gazette pas approuvée repart à zéro si l'invité n'a plus de séjour ; la fiche reste.`)) return
@@ -84,7 +84,7 @@
                 </li>
               {/each}
             </ul>
-            {#if s.du >= demain}
+            {#if s.du >= aujourdhui}
               <p class="mt-3 flex justify-end">
                 <button type="button" onclick={() => annuler(s)} class="text-xs text-muted-foreground underline-offset-4 hover:text-destructive hover:underline">Séjour annulé</button>
               </p>
