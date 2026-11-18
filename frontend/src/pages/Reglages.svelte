@@ -82,17 +82,35 @@
     rest.attente = false
   }
   // 0.20 : simuler la Gazette ou La Récidive d'une personne (numéro d'essai à part, jamais compté)
-  let sim = $state({ personnes: [], essais: [], personne: '', journal: 'recidive', message: '', attente: false })
+  // 0.24 : la personne se choisit dans les contacts de carnet (sa fiche de Gazette sert si elle existe) ;
+  // sans carnet réglé, parmi les fiches de Gazette comme avant.
+  let sim = $state({ carnet: true, personnes: [], essais: [], q: '', propositions: [], contact: null, personne: '', journal: 'recidive', message: '', attente: false })
+  let minuteurSim = null
   async function lireEssais() {
     try {
-      const [l, e] = await Promise.all([api.get('/api/livrets'), api.get('/api/essais')])
+      const [l, e, c2] = await Promise.all([api.get('/api/livrets'), api.get('/api/essais'), api.get('/api/carnet/suggestions')])
       sim.personnes = l.livrets.map((x) => ({ id: x.id, nom: x.nom }))
       sim.essais = e.essais
+      sim.carnet = c2.actif
     } catch { /* déconnecté */ }
+  }
+  function chercherContact() {
+    clearTimeout(minuteurSim)
+    sim.contact = null
+    minuteurSim = setTimeout(async () => {
+      try { sim.propositions = sim.q.trim().length >= 2 ? (await api.get(`/api/carnet/suggestions?q=${encodeURIComponent(sim.q.trim())}`)).suggestions : [] }
+      catch { sim.propositions = [] }
+    }, 250)
+  }
+  function prendreContact(c2) {
+    sim.contact = c2; sim.q = c2.nom; sim.propositions = []
   }
   async function simuler() {
     sim.attente = true; sim.message = ''
-    try { location.hash = (await api.post('/api/essais', { personne_id: +sim.personne, journal: sim.journal })).lien }
+    try {
+      const corps = sim.carnet ? { carnet_id: sim.contact.carnet_id, journal: sim.journal } : { personne_id: +sim.personne, journal: sim.journal }
+      location.hash = (await api.post('/api/essais', corps)).lien
+    }
     catch (err) { sim.message = err.message }
     sim.attente = false
   }
@@ -110,19 +128,34 @@
 
 <section class="mb-4 rounded-2xl border border-primary/50 bg-card p-5" aria-label="Simuler">
   <h2 class="text-lg font-semibold">Simuler un journal</h2>
-  <p class="mt-1 text-sm text-muted-foreground">Pour essayer les réglages : un numéro d'essai à part pour la personne choisie. Il ne compte jamais (N°, déjà paru, carnet, archives, Home Assistant) et se supprime d'un bouton.</p>
+  <p class="mt-1 text-sm text-muted-foreground">Pour essayer les réglages : un numéro d'essai à part pour un contact de carnet (sa fiche de Gazette sert si elle existe ; sinon une fiche d'essai est faite d'après carnet et part avec l'essai). La Gazette demande une date de naissance complète. Il ne compte jamais (N°, déjà paru, carnet, archives, Home Assistant) et se supprime d'un bouton.</p>
   <div class="mt-3 flex flex-wrap items-center gap-2">
-    <select class="h-10 min-w-0 flex-1 rounded-lg border bg-background px-2 text-sm sm:max-w-xs" bind:value={sim.personne} aria-label="Personne">
-      <option value="">Choisir une personne…</option>
-      {#each sim.personnes as p}<option value={p.id}>{p.nom}</option>{/each}
-    </select>
+    {#if sim.carnet}
+      <div class="relative min-w-0 flex-1 sm:max-w-xs">
+        <input class="h-10 w-full rounded-lg border bg-background px-3 text-sm" bind:value={sim.q} oninput={chercherContact}
+               placeholder="Chercher dans carnet…" autocomplete="off" aria-label="Contact de carnet" />
+        {#if sim.propositions.length}
+          <ul class="absolute z-10 mt-1 grid w-full gap-0.5 rounded-xl border bg-background p-1 shadow-lg" aria-label="Contacts de carnet">
+            {#each sim.propositions as c2 (c2.carnet_id ?? c2.nom)}
+              <li><button type="button" onclick={() => prendreContact(c2)} class="w-full rounded-lg px-2 py-1.5 text-left text-sm hover:bg-secondary">
+                {c2.nom}{#if !c2.naissance}<span class="text-muted-foreground"> · date incomplète</span>{/if}</button></li>
+            {/each}
+          </ul>
+        {/if}
+      </div>
+    {:else}
+      <select class="h-10 min-w-0 flex-1 rounded-lg border bg-background px-2 text-sm sm:max-w-xs" bind:value={sim.personne} aria-label="Personne">
+        <option value="">Choisir une personne…</option>
+        {#each sim.personnes as p}<option value={p.id}>{p.nom}</option>{/each}
+      </select>
+    {/if}
     <div class="flex gap-1.5" role="radiogroup" aria-label="Journal à simuler">
       {#each [['gazette', 'La Gazette'], ['recidive', 'La Récidive']] as [cle, nom]}
         <button type="button" role="radio" aria-checked={sim.journal === cle} onclick={() => (sim.journal = cle)}
                 class="rounded-full border px-3 py-1.5 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground">{nom}</button>
       {/each}
     </div>
-    <Button onclick={simuler} disabled={!sim.personne || sim.attente}>{sim.attente ? 'Création…' : 'Simuler'}</Button>
+    <Button onclick={simuler} disabled={(sim.carnet ? !sim.contact : !sim.personne) || sim.attente}>{sim.attente ? 'Création…' : 'Simuler'}</Button>
   </div>
   {#if sim.message}<p class="mt-2 text-sm text-destructive" role="alert">{sim.message}</p>{/if}
   {#if sim.essais.length}

@@ -21,6 +21,11 @@ def maintenant() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
+# 0.24 : `essai_de` d'une fiche d'essai sans vraie fiche (contact de carnet choisi dans Réglages › Simuler)
+ESSAI_GAZETTE = -1      # la fiche porte la Gazette d'essai
+ESSAI_PORTEUR = -2      # la fiche ne sert qu'à porter une Récidive d'essai
+
+
 def cle_nom(nom: str) -> str:
     """Nom comparable : sans accents, sans casse, espaces réduits."""
     s = "".join(c for c in unicodedata.normalize("NFD", nom or "") if unicodedata.category(c) != "Mn")
@@ -135,6 +140,19 @@ class Base:
             self._c.execute("UPDATE invites SET personne_id = NULL WHERE personne_id = ?", (pid,))
         return pid
 
+    def creer_essai_contact(self, nom: str, prenom: str, naissance: str, nom_carnet: str, sorte: int) -> int:
+        """0.24 : fiche d'essai pour un contact de carnet qui n'a pas de fiche dans Gazette (Réglages › Simuler).
+        `sorte` : ESSAI_GAZETTE (la Gazette d'essai elle-même) ou ESSAI_PORTEUR (porte une Récidive d'essai). Le nom
+        de carnet est gardé en autre nom pour retrouver le contact ; une fiche d'essai n'est jamais trouvée par
+        `trouver` (ni reliée à un invité de Home Assistant)."""
+        with self._verrou, self._c:
+            cur = self._c.execute("INSERT INTO personnes (nom, prenom, naissance, pays, alias, cree_le, essai_de) "
+                                  "VALUES (?,?,?,?,?,?,?)", (f"{nom} (essai)", prenom, naissance, "France",
+                                                             json.dumps([nom_carnet], ensure_ascii=False), maintenant(), sorte))
+            pid = cur.lastrowid
+            self._c.execute("INSERT INTO livrets (personne_id, modifie_le) VALUES (?, ?)", (pid, maintenant()))
+        return pid
+
     def personne(self, pid: int) -> dict | None:
         with self._verrou:
             l = self._c.execute("SELECT * FROM personnes WHERE id = ?", (pid,)).fetchone()
@@ -236,6 +254,11 @@ class Base:
             # Un séjour de la même chambre qui chevauche (dates changées dans HA) est remplacé
             self._c.execute("DELETE FROM sejours WHERE chambre = ? AND du != ? AND du <= ? AND jusqu_au >= ?",
                             (chambre, du, jusqu_au, du))
+            # 0.24 : Home Assistant n'annonce que le prochain séjour de la chambre. Un séjour pas encore commencé qui
+            # arrivait AVANT celui-ci n'existe plus (annulé, remplacé par une réservation plus tardive) : il part.
+            # Un séjour plus tardif reste (une réservation plus proche a pu s'intercaler).
+            self._c.execute("DELETE FROM sejours WHERE chambre = ? AND du > ? AND du < ?",
+                            (chambre, date.today().isoformat(), du))
             self._c.execute("INSERT INTO sejours (chambre, du, jusqu_au, recu_le) VALUES (?,?,?,?) "
                             "ON CONFLICT(chambre, du) DO UPDATE SET jusqu_au = excluded.jusqu_au, recu_le = excluded.recu_le",
                             (chambre, du, jusqu_au, maintenant()))
@@ -255,6 +278,26 @@ class Base:
             self._c.execute("UPDATE sejours SET jusqu_au = ? WHERE chambre = ? AND du <= ? AND jusqu_au >= ?",
                             (date.fromordinal(aujourd_hui.toordinal() - 1).isoformat(), chambre,
                              aujourd_hui.isoformat(), aujourd_hui.isoformat()))
+
+    def sejour(self, sid: int) -> dict | None:
+        with self._verrou:
+            l = self._c.execute("SELECT * FROM sejours WHERE id = ?", (sid,)).fetchone()
+        return dict(l) if l else None
+
+    def supprimer_sejour(self, sid: int) -> None:
+        """0.24 : séjour annulé à la main (bouton de Livrets), quand Home Assistant ne l'a pas retiré."""
+        with self._verrou, self._c:
+            self._c.execute("DELETE FROM sejours WHERE id = ?", (sid,))
+
+    def recidives_orphelines(self) -> list[dict]:
+        """0.24 : les numéros de La Récidive d'un séjour pas encore commencé que plus aucun séjour ne porte (séjour
+        annulé avant la 0.22.1, qui ne nettoyait pas encore les journaux). Jamais un essai."""
+        with self._verrou:
+            ls = self._c.execute(
+                "SELECT r.* FROM recidives r WHERE r.essai = 0 AND r.sejour_du > ? AND NOT EXISTS ("
+                "SELECT 1 FROM sejours s JOIN invites i ON i.sejour_id = s.id "
+                "WHERE i.personne_id = r.personne_id AND s.du = r.sejour_du)", (date.today().isoformat(),)).fetchall()
+        return [self._recidive(l) for l in ls]
 
     def sejours_a_venir_de_chambre(self, chambre: str) -> set[tuple[int, str]]:
         """0.22.1 : (personne, date d'arrivée) des séjours pas encore commencés de cette chambre (invités avec fiche)."""

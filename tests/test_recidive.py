@@ -218,7 +218,8 @@ def test_troisieme_sejour_archives_jamais_parues_d_abord(monter):
     c.post(f"/api/recidives/{rid}/approuver")
     parus = main.ETAT["base"].publies(pid)
     assert len(parus) == 4
-    r3 = ha(c, {"chambre": "ami", "noms": ["Camille Fabre"], "du": j(20), "jusqu_au": j(22)}).json()
+    # 0.24 : une autre chambre (dans la même, HA n'annoncerait pas j(20) tant que j(10) est à venir)
+    r3 = ha(c, {"chambre": "bleue", "noms": ["Camille Fabre"], "du": j(20), "jusqu_au": j(22)}).json()
     assert r3["invites"][0]["numero"] == 3
     ed = main.ETAT["base"].recidive_de(pid, j(20))
     assert ed["precedent"]["du"] == j(10) and ed["trouvees"] == 1 and ed["photos"][0]["id"] == "aaaaaaaa-0099"

@@ -29,7 +29,7 @@ from .immich import Immich
 from . import ollama as ia
 from .ollama import ACTIONS_GAZETTE, MAXI as MAXI_TITRE, Ollama, sans_numero, texte_contexte
 from .auth import COMMUN, DUREE, Sessions, en_https
-from .base import ETATS, Base, cle_nom, maintenant
+from .base import ESSAI_GAZETTE, ESSAI_PORTEUR, ETATS, Base, cle_nom, maintenant
 from .config import APPLI, Config, charger, racine
 from .regles import bloc_depuis, preparer
 from .sources import Sources
@@ -317,6 +317,7 @@ async def cycle(app: FastAPI):
     # 0.21 : copie cohérente de gazette.db chaque nuit (heure de Paris, maison.HEURES_COPIE) vers <data>/copies
     copie = asyncio.create_task(maison.planifier_copie(APPLI, [chemin_base], cfg.data / "copies",
                                                        maison.HEURES_COPIE[APPLI]))
+    _menage_orphelines()                  # 0.24 : numéros de séjours annulés avant la 0.22.1
     # Livrets restés « en préparation » (redémarrage pendant une lecture) : on reprend
     for p in base.personnes():
         lv = base.livret(p["id"])
@@ -1651,7 +1652,7 @@ def essais():
     base: Base = ETAT["base"]
     res = []
     for p in base.personnes(essais=True):
-        if p.get("essai_de"):
+        if p.get("essai_de") and p["essai_de"] != ESSAI_PORTEUR:
             lv = base.livret(p["id"]) or {}
             res.append({"journal": "gazette", "id": p["id"], "nom": p["nom"], "etat": lv.get("etat", ""), "lien": f"#/livret/{p['id']}"})
     for ed in base.recidives(essais=True):
@@ -1661,35 +1662,73 @@ def essais():
     return {"essais": res}
 
 
+def _contact_par_id(carnet_id: str) -> dict | None:
+    return next((c for c in ETAT["carnet"].personnes() if str(c.get("carnet_id")) == carnet_id), None)
+
+
+def _fiche_du_contact(c: dict) -> dict | None:
+    """La fiche de Gazette de ce contact de carnet (par son nom de carnet ou le nom qu'annonce HA), sinon None."""
+    for n in (c.get("nom_carnet"), c.get("nom")):
+        if n:
+            p = ETAT["base"].trouver(n)
+            if p:
+                return p
+    return None
+
+
 @app.post("/api/essais")
 def creer_essai(corps: dict = Body(...)):
-    """{personne_id, journal: gazette | recidive} → un numéro d'essai à part : jamais compté (N°, déjà paru, carnet,
-    archives, Home Assistant), supprimable. Rend le lien de l'éditeur."""
+    """{carnet_id | personne_id, journal: gazette | recidive} → un numéro d'essai à part : jamais compté (N°, déjà
+    paru, carnet, archives, Home Assistant), supprimable. Rend le lien de l'éditeur.
+    0.24 : on choisit un contact de carnet ; sa fiche de Gazette sert si elle existe, sinon une fiche d'essai est
+    faite d'après carnet (nom, prénom, date de naissance) et part avec l'essai."""
     base: Base = ETAT["base"]
-    try:
-        p = base.personne(int(corps.get("personne_id")))
-    except (TypeError, ValueError):
-        p = None
-    if not p or p.get("essai_de"):
-        raise HTTPException(404, "Fiche introuvable.")
     journal_ = corps.get("journal")
+    if journal_ not in ("gazette", "recidive"):
+        raise HTTPException(422, "Journal inconnu (gazette ou recidive).")
+    p, contact = None, None
+    if corps.get("carnet_id"):
+        contact = _contact_par_id(str(corps["carnet_id"]))
+        if not contact:
+            raise HTTPException(404, "Contact introuvable dans carnet.")
+        p = _fiche_du_contact(contact)
+    else:
+        try:
+            p = base.personne(int(corps.get("personne_id")))
+        except (TypeError, ValueError):
+            p = None
+        if not p or p.get("essai_de"):
+            raise HTTPException(404, "Fiche introuvable.")
+    if journal_ == "recidive" and not ETAT["immich"].actif:
+        raise HTTPException(409, "Immich n'est pas réglé (GAZETTE_IMMICH_CLE vide) : pas de Récidive possible.")
+    if not p:                                  # contact de carnet sans fiche dans Gazette
+        nom = " ".join((contact.get("nom_carnet") or contact.get("nom") or "").split())[:80]
+        prenom = " ".join((contact.get("prenom") or nom.split(" ")[0]).split())[:40]
+        sur = ETAT["carnet"].date_sure([nom])
+        naissance = sur["naissance"] if sur else ""             # Récidive : sert au signe de l'horoscope
+        if journal_ == "gazette" and not naissance:
+            raise HTTPException(422, f"carnet n'a pas de date de naissance complète pour {nom} : la Gazette part "
+                                     f"de la date de naissance. Complète-la dans carnet.")
+        pid = base.creer_essai_contact(nom, prenom, naissance, nom, ESSAI_GAZETTE if journal_ == "gazette" else ESSAI_PORTEUR)
+        base.noter("essai", None, f"fiche d'essai faite d'après carnet : {nom}")
+        p = base.personne(pid)
+        if journal_ == "gazette":
+            base.noter("essai", pid, "Gazette d'essai créée")
+            demander_preparation(pid)
+            return {"lien": f"#/livret/{pid}"}
     if journal_ == "gazette":
         pid = base.creer_essai(p)
         base.noter("essai", p["id"], "Gazette d'essai créée")
         demander_preparation(pid)
         return {"lien": f"#/livret/{pid}"}
-    if journal_ == "recidive":
-        if not ETAT["immich"].actif:
-            raise HTTPException(409, "Immich n'est pas réglé (GAZETTE_IMMICH_CLE vide) : pas de Récidive possible.")
-        n, _ = _numero_et_precedent(p, date.today().isoformat())
-        rid = base.creer_essai_recidive(p["id"], max(2, n))
-        ed = base.recidive(rid)
-        _, prec = _numero_et_precedent(p, ed["sejour_du"])
-        base.maj_recidive(rid, precedent=prec or {})
-        base.noter("essai", p["id"], "Récidive d'essai créée")
-        demander_recidive(rid)
-        return {"lien": f"#/recidive/{rid}"}
-    raise HTTPException(422, "Journal inconnu (gazette ou recidive).")
+    n, _ = _numero_et_precedent(p, date.today().isoformat())
+    rid = base.creer_essai_recidive(p["id"], max(2, n))
+    ed = base.recidive(rid)
+    _, prec = _numero_et_precedent(p, ed["sejour_du"])
+    base.maj_recidive(rid, precedent=prec or {})
+    base.noter("essai", None if p.get("essai_de") else p["id"], "Récidive d'essai créée")
+    demander_recidive(rid)
+    return {"lien": f"#/recidive/{rid}"}
 
 
 @app.delete("/api/essais/{journal_}/{ident}")
@@ -1697,7 +1736,7 @@ def supprimer_essai(journal_: str, ident: int):
     base: Base = ETAT["base"]
     if journal_ == "gazette":
         p = base.personne(ident)
-        if not p or not p.get("essai_de"):
+        if not p or not p.get("essai_de") or p["essai_de"] == ESSAI_PORTEUR:
             raise HTTPException(404, "Essai introuvable.")
         base.supprimer_personne(ident)
     elif journal_ == "recidive":
@@ -1705,6 +1744,9 @@ def supprimer_essai(journal_: str, ident: int):
         if not ed or not ed.get("essai"):
             raise HTTPException(404, "Essai introuvable.")
         base.supprimer_recidive(ident)
+        porteur = base.personne(ed["personne_id"])          # 0.24 : la fiche d'essai faite pour elle part avec
+        if porteur and porteur.get("essai_de") == ESSAI_PORTEUR and not base.recidives(porteur["id"], essais=True):
+            base.supprimer_personne(porteur["id"])
     else:
         raise HTTPException(422, "Journal inconnu.")
     return {"ok": True}
@@ -2136,6 +2178,42 @@ def _apres_annulation(chambre: str, avant: set[tuple[int, str]]) -> list[str]:
                 base.noter("livret", pid, f"séjour du {du} annulé ({chambre}) : Gazette approuvée gardée")
         annules.append(f"{p['nom']} ({du})")
     return annules
+
+
+def _menage_orphelines() -> list[str]:
+    """0.24 : au démarrage, les numéros de La Récidive d'un séjour pas encore commencé que plus aucun séjour ne porte
+    (séjour annulé avant la 0.22.1) sont supprimés, comme à l'annulation (choix de Julien : même approuvés). Copie
+    de la base avant. Les Gazettes ne sont pas touchées ici (une fiche sans séjour peut être voulue)."""
+    base: Base = ETAT["base"]
+    orphelines = base.recidives_orphelines()
+    if not orphelines:
+        return []
+    base.copie(ETAT["cfg"].data / "sauvegardes", f"gazette-{maintenant()[:19].replace(':', '-')}-avant-menage.db")
+    faits = []
+    for ed in orphelines:
+        p = base.personne(ed["personne_id"]) or {"nom": "?"}
+        base.supprimer_recidive(ed["id"])
+        base.noter("recidive", ed["personne_id"], f"séjour du {ed['sejour_du']} disparu (annulé avant la 0.22.1) : "
+                                                  f"numéro de La Récidive supprimé")
+        faits.append(f"{p['nom']} ({ed['sejour_du']})")
+    return faits
+
+
+@app.delete("/api/sejours/{sid}")
+def annuler_sejour(sid: int):
+    """0.24 : bouton « Séjour annulé » de Livrets, quand Home Assistant n'a pas retiré le séjour. Même ménage que
+    l'annulation par Home Assistant (_apres_annulation). Un séjour commencé ne se retire pas d'ici. Si la réservation
+    existe encore dans Home Assistant, il la renverra à son prochain appel (09:05, 18:00)."""
+    base: Base = ETAT["base"]
+    s = base.sejour(sid)
+    if not s:
+        raise HTTPException(404, "Séjour introuvable.")
+    if s["du"] <= date.today().isoformat():
+        raise HTTPException(409, "Ce séjour a commencé : il ne s'annule pas d'ici.")
+    avant = base.sejours_a_venir_de_chambre(s["chambre"])
+    base.supprimer_sejour(sid)
+    base.noter("sejour", None, f"séjour du {s['du']} ({s['chambre']}) annulé à la main")
+    return {"annules": _apres_annulation(s["chambre"], avant)}
 
 
 def _fiche_depuis_carnet(nom: str) -> int | None:

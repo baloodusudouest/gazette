@@ -2,7 +2,15 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
-## Dernier changement (18/11/2026) — 0.23.0 : fiche complète d'une personne
+## Dernier changement (18/11/2026) — 0.24.0 : séjour annulé encore proposé, plus de « Nouvelle fiche », simuler depuis carnet
+- `base.poser_sejour` : en plus des séjours qui chevauchent, retire ceux de la même chambre pas encore commencés et arrivant **avant** le séjour annoncé (HA n'annonce que le prochain séjour de la chambre). `ha_sejour` calcule `avant` avant l'écriture : `_apres_annulation` fait le ménage habituel.
+- `DELETE /api/sejours/{sid}` (`main.annuler_sejour`) : séjour pas commencé seulement (409 sinon), même ménage ; `base.sejour`, `base.supprimer_sejour`. Écran : bouton discret « Séjour annulé » sur les cartes de `Livrets.svelte` (séjour à partir de demain, date locale), confirmation.
+- `main._menage_orphelines()` au démarrage (`cycle`) : `base.recidives_orphelines()` (essai = 0, `sejour_du` > aujourd'hui, aucun séjour de cette personne à cette date) → supprimées, copie `…-avant-menage.db`.
+- « Nouvelle fiche » retirée de `Livrets.svelte` (`POST /api/personnes` reste : À traiter et la démo s'en servent).
+- Simuler : `Reglages.svelte` cherche dans carnet (`/api/carnet/suggestions`, qui rend `carnet_id`) ; `POST /api/essais {carnet_id}` → `_contact_par_id`, `_fiche_du_contact` (trouver par nom de carnet puis nom HA) ; sans fiche : `base.creer_essai_contact` (nom « … (essai) », nom de carnet en alias pour que `_contact` retrouve le contact, `essai_de` = `ESSAI_GAZETTE` -1 ou `ESSAI_PORTEUR` -2). `supprimer_essai` : une fiche porteuse part avec sa dernière Récidive d'essai ; elle n'est jamais listée comme Gazette d'essai.
+- Tests : `tests/test_sejours_024.py`, `test_recidive.test_troisieme_sejour…` passe par une autre chambre (même chambre : le séjour j+10 serait retiré par la nouvelle règle). 224 tests. Jamais essayé sur la vraie installation.
+
+## Changement précédent (18/11/2026) — 0.23.0 : fiche complète d'une personne
 - Version retenue le 18/11 (conseil + arbitrages de Julien) : rubriques complètes + pépites, rangées dans **carnet 2.33** (déployer carnet d'abord ; sans lui, tout marche comme en 0.22). Spécification : chantier « Fiche complète » (Gazette 0.23, carnet 2.33, Sillage 0.20).
 - `app/fiche.py` (pur) : `charger_rubriques` (contrôle `rubriques_journaux.json`, **copie à l'identique** de celui de carnet ; `tests/test_fiche.py` vérifie son empreinte SHA-256 : si carnet change le fichier, recopier et mettre l'empreinte à jour), `SUGGESTIONS` (exemples par rubrique), `tirer` (3 à 5, jamais parues d'abord, jamais interdits ni « ton »), `pour_ia`, `ton`, `interdits`, `filtrer` (mots ≥ 4 lettres hors `MOTS_VIDES`, prolongements dès 5 lettres), `ranger` (vrac par `MOTS_CLES`, aliments + négation → plats aimés/détestés), `preremplir` (suggestions de carnet si présentes, sinon `suggestions_connues` depuis `connu` et `parus` ; + étapes de Sillage), `jauge`, `proche`.
 - `app/carnet.py` : `ErreurFiche(statut, message, ancien)` ; `fiche(personne_id, forcer)` (30 s de mémoire pour l'IA, dernière fiche bien lue gardée dans `reglages` clé `fiche:<personne_id>` → lecture seule si carnet injoignable), `ajouter_pepite`, `modifier_pepite`, `effacer_pepite`, `marquer_parues`. 404 « Not Found » ou 405 = carnet d'avant 2.33 (`ancien`). Injectable : `ETAT["carnet_fiche"]`.
@@ -13,7 +21,7 @@
 - Le filtre ne s'applique pas aux aides de la Gazette sur les textes historiques (titres, raccourcir, version journal, traduire) : elles ne parlent pas de la personne.
 - Tests : `tests/test_fiche.py`, `tests/carnet_simule.py`, `tests/conftest.py` (aucun test ne sort vers carnet ni Sillage : par défaut carnet « d'avant 2.33 »), trois tests d'écran. 206 tests. Jamais essayé sur la vraie installation.
 
-## Changement précédent (18/11/2026) — 0.22.0 : régénérer avec un second modèle
+## Changement plus ancien (18/11/2026) — 0.22.0 : régénérer avec un second modèle
 - Choix de Julien du 18/11 : premier jet avec le modèle de la stack (`GAZETTE_OLLAMA_MODELE`, **mistral-nemo**) ; « Autres propositions (qwen) » redemande la même chose au second modèle, **qwen2.5:14b** (essai du 18/11 : plus sage, plus lent, 2 titres sur 5 retenus en Récidive).
 - Réglage `modele_second` dans `journal.CHAMPS`/`DEFAUTS` (défaut « qwen2.5:14b », vide permis = bouton caché, `[\w.:/-]*`) : donc dans `/api/reglages`, la sauvegarde de l'Anneau et la restauration. Pas de variable de stack, homelab inchangé.
 - `ollama.py` : `modele: str | None = None` sur `proposer`, `rumeurs`, `courrier`, `horoscope`, `gazette` (et `_demander`, `_brut`) ; `sonder(second="")` ajoute `second`, `second_present` et une phrase au détail, `ok` ne dépend que du modèle habituel.
@@ -64,6 +72,7 @@
 
 ## Prochaine étape
 
+- 0.24.0 : après déploiement, attendre le prochain appel de Home Assistant (09:05, 18:00 ou redémarrage de HA) et vérifier que le séjour annulé a quitté « Séjours à venir » (sinon bouton « Séjour annulé ») ; Réglages › Simuler : chercher un contact de carnet sans fiche, simuler, supprimer l'essai.
 - 0.23.0 : déployer carnet 2.33.0 (et Sillage 0.20.0) d'abord ; ouvrir la fiche complète d'un habitué depuis La Récidive, ajouter quelques pépites et un sujet interdit, vérifier dans carnet que les pépites arrivent (et l'inverse) ; demander des rumeurs avec la vraie IA et vérifier qu'elles s'appuient sur la fiche ; approuver et vérifier « parue le » dans la fiche.
 - 0.20.0 : essayer Réglages › Simuler (Gazette et Récidive d'une vraie personne), puis supprimer les essais ; vérifier l'onglet Archives après un premier séjour fini.
 - 0.19.0 : déployer carnet 2.31.0, le paquet HA livre_dor.yaml v2 et la carte v1.2, renvoyer le livre d'or à carnet ; vérifier que les rumeurs y font allusion.

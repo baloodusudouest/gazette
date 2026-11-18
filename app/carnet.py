@@ -151,7 +151,7 @@ class Carnet:
         res = []
         for p in self.personnes():
             if c in cle_nom(p.get("nom_carnet", "")) or c in cle_nom(p.get("nom", "")):
-                res.append({"nom": p.get("nom_carnet") or p.get("nom", ""), "nom_ha": p.get("nom", ""),
+                res.append({"carnet_id": p.get("carnet_id"), "nom": p.get("nom_carnet") or p.get("nom", ""), "nom_ha": p.get("nom", ""),
                             "prenom": p.get("prenom", ""), "naissance": p.get("naissance"),
                             "jour": p.get("jour"), "mois": p.get("mois"), "annee": p.get("annee")})
         res.sort(key=lambda x: (not cle_nom(x["nom"]).startswith(c), x["nom"].casefold()))

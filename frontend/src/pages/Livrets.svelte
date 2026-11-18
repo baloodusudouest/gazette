@@ -1,19 +1,18 @@
 <script>
   // Écran d'ouverture : les séjours à venir (qui arrive, son livret est-il prêt ?) puis tous les livrets.
   // 0.9 : à partir du 2e séjour, l'invité reçoit La Récidive (journal à scandale) à la place de sa Gazette.
+  // 0.24 : plus de « Nouvelle fiche » (les fiches viennent de carnet, à l'annonce de Home Assistant ou depuis
+  // À traiter) ; bouton « Séjour annulé » sur un séjour pas encore commencé que Home Assistant n'a pas retiré.
   import { onMount, onDestroy } from 'svelte'
-  import Plus from '@lucide/svelte/icons/plus'
   import Cake from '@lucide/svelte/icons/cake'
   import { api } from '$lib/api.js'
-  import { Button } from '$lib/components/ui/button/index.js'
   import Etat from '$lib/Etat.svelte'
-  import FicheForm from '$lib/FicheForm.svelte'
   import { dateCourte, dateLongue } from '$lib/format.js'
 
   let { ondeconnecte } = $props()
   let d = $state(null)
   let erreur = $state('')
-  let nouvelle = $state(false)
+  let message = $state('')
   let minuteur = null
 
   async function lire() {
@@ -26,34 +25,30 @@
       else erreur = err.message
     }
   }
-  async function creer(fiche) {
-    const r = await api.post('/api/personnes', fiche)
-    location.hash = `#/livret/${r.id}`
+  const t = new Date(); t.setDate(t.getDate() + 1)
+  const demain = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
+  async function annuler(s) {
+    const noms = s.invites.map((i) => i.nom).join(', ')
+    if (!confirm(`Séjour annulé : ${noms}, chambre ${s.chambre}, du ${dateCourte(s.du)} ?\n\nSa Récidive est supprimée (même approuvée) ; une Gazette pas approuvée repart à zéro si l'invité n'a plus de séjour ; la fiche reste.`)) return
+    message = ''
+    try {
+      const r = await api.del(`/api/sejours/${s.id}`)
+      message = r.annules.length ? `Séjour retiré : ${r.annules.join(', ')}.` : 'Séjour retiré.'
+      await lire()
+    } catch (err) { message = err.message }
   }
   const parId = $derived(Object.fromEntries((d?.livrets ?? []).map((l) => [l.id, l])))
   onMount(lire)
   onDestroy(() => clearTimeout(minuteur))
 </script>
 
-<header class="mb-5 flex flex-wrap items-end justify-between gap-3">
-  <div>
-    <p class="etiquette">Gazette</p>
-    <h1 class="titre">Livrets</h1>
-  </div>
-  <Button onclick={() => (nouvelle = !nouvelle)} variant={nouvelle ? 'outline' : 'default'}>
-    <Plus class="size-4" aria-hidden="true" /> Nouvelle fiche
-  </Button>
+<header class="mb-5">
+  <p class="etiquette">Gazette</p>
+  <h1 class="titre">Livrets</h1>
 </header>
 
 {#if erreur}<p class="mb-4 text-sm text-destructive" role="alert">{erreur}</p>{/if}
-
-{#if nouvelle}
-  <section class="mb-6 rounded-2xl border bg-card p-5" aria-label="Nouvelle fiche">
-    <h2 class="mb-1 text-lg font-semibold">Nouvelle fiche</h2>
-    <p class="mb-4 text-sm text-muted-foreground">Le livret se prépare aussitôt depuis les sources libres, puis attend ta relecture.</p>
-    <FicheForm onvalider={creer} onannuler={() => (nouvelle = false)} />
-  </section>
-{/if}
+{#if message}<p class="mb-4 text-sm text-muted-foreground" role="status">{message}</p>{/if}
 
 {#if d}
   {#if d.sejours.length}
@@ -89,6 +84,11 @@
                 </li>
               {/each}
             </ul>
+            {#if s.du >= demain}
+              <p class="mt-3 flex justify-end">
+                <button type="button" onclick={() => annuler(s)} class="text-xs text-muted-foreground underline-offset-4 hover:text-destructive hover:underline">Séjour annulé</button>
+              </p>
+            {/if}
           </li>
         {/each}
       </ul>
@@ -117,7 +117,7 @@
     <h2 class="etiquette mb-3">Tous les livrets</h2>
     {#if d.archives}<p class="-mt-2 mb-3 text-xs text-muted-foreground">{d.archives} ancien{d.archives > 1 ? 's' : ''} numéro{d.archives > 1 ? 's' : ''} (séjour fini) rangé{d.archives > 1 ? 's' : ''} dans les <a class="underline hover:text-foreground" href="#/archives">Archives</a>.</p>{/if}
     {#if d.livrets.length === 0}
-      <p class="text-sm text-muted-foreground">Aucune fiche pour l'instant. Crée la première, ou laisse Home Assistant annoncer un séjour.</p>
+      <p class="text-sm text-muted-foreground">Aucune fiche pour l'instant : elles se créent d'après carnet quand Home Assistant annonce un séjour (ou depuis À traiter).</p>
     {:else}
       <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="Livrets">
         {#each d.livrets as l}
