@@ -54,12 +54,13 @@ def test_contexte_d_une_photo(tmp_path):
                               {"id": "p-x", "name": ""}],
             "cccccccc-0001": [{"id": "p-lea", "name": "Léa"}], "cccccccc-0002": [{"id": "p-yves", "name": "Bastien Martin"}]}
     im = I.Immich("http://immich", "cle", tmp_path, lire=_immich_albums(lambda *a: None, albums, gens))
-    assert im.contexte("aaaaaaaa-0001", IMMICH_CAMILLE) == {"albums": ["Vendanges 2023"], "personnes": ["Bastien", "Léa"]}
-    assert im.contexte("aaaaaaaa-0009", IMMICH_CAMILLE) == {"albums": [], "personnes": []}
+    assert im.contexte("aaaaaaaa-0001", IMMICH_CAMILLE) == {"albums": ["Vendanges 2023"], "personnes": ["Bastien", "Léa"],
+                                                          "ids": ["p-yves", "p-lea"]}       # 0.23.1 : identifiants gardés
+    assert im.contexte("aaaaaaaa-0009", IMMICH_CAMILLE) == {"albums": [], "personnes": [], "ids": []}
 
     def refus(methode, chemin, corps=None):
         raise RuntimeError("clé refusée")
-    assert I.Immich("http://immich", "cle", tmp_path, lire=refus).contexte("aaaaaaaa-0001") == {"albums": [], "personnes": []}
+    assert I.Immich("http://immich", "cle", tmp_path, lire=refus).contexte("aaaaaaaa-0001") == {"albums": [], "personnes": [], "ids": []}
     texte = O.texte_contexte({"albums": ["Vendanges 2023"], "personnes": ["Bastien", "Léa"]})
     assert texte == "album « Vendanges 2023 » ; avec Bastien, Léa"
     prompt = O.consigne("", "photo", "femme", "Camille", contexte={"albums": ["Vendanges 2023"], "personnes": ["Bastien"]})
@@ -72,7 +73,7 @@ def test_proposer_avec_le_contexte_sans_description(monter):
     rid = int(r["invites"][0]["lien"].rsplit("/", 1)[1])
     ed = c.get(f"/api/recidives/{rid}").json()["edition"]
     photo = ed["photos"][1]["id"]
-    assert ed["photos"][1]["contexte"] == {"albums": [], "personnes": []}         # Immich simulé sans albums
+    assert ed["photos"][1]["contexte"] == {"albums": [], "personnes": [], "ids": []}         # Immich simulé sans albums
     main.ETAT["ollama"] = O.Ollama("http://pc:11434", lire=_faux_ollama([]))
     assert c.post(f"/api/recidives/{rid}/proposer", json={"cible": photo, "description": ""}).status_code == 422
     # Un album parlant et une personne : la description devient facultative
@@ -86,7 +87,7 @@ def test_proposer_avec_le_contexte_sans_description(monter):
     assert props == ["Bastien et Camille, complices aux vendanges"]
     assert "Vendanges 2023" in faux.appels[-1][1]["prompt"]
     gardee = next(x for x in c.get(f"/api/recidives/{rid}").json()["edition"]["photos"] if x["id"] == photo)
-    assert gardee["contexte"] == {"albums": ["Vendanges 2023"], "personnes": ["Bastien"]}
+    assert gardee["contexte"] == {"albums": ["Vendanges 2023"], "personnes": ["Bastien"], "ids": ["p-y"]}
     # Les rumeurs reçoivent albums et prénoms permis
     main.ETAT["ollama"] = O.Ollama("http://pc:11434", lire=(f2 := _faux_ollama(["1. Selon nos sources, Camille parle aux ceps."])))
     c.post(f"/api/recidives/{rid}/rumeurs", json={"indices": ""})

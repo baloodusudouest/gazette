@@ -162,18 +162,21 @@ class Immich:
         f = self.dossier / f"{asset}.jpg"
         return f.read_bytes() if re.fullmatch(r"[0-9a-fA-F-]{8,64}", asset or "") and f.is_file() else None
 
-    def _gens(self, asset: str, sauf: str) -> list[str]:
+    def _gens(self, asset: str, sauf: str) -> list[tuple[str, str]]:
+        """(identifiant Immich, prénom) des personnes nommées d'une photo ; 0.23.1 : l'identifiant est gardé pour
+        retrouver le contact de carnet lié (sujets interdits des proches)."""
         a = self._appel("GET", f"/assets/{asset}") or {}
-        return [_prenom_immich(x.get("name", "")) for x in a.get("people") or []
+        return [(str(x.get("id") or ""), _prenom_immich(x.get("name", ""))) for x in a.get("people") or []
                 if x.get("name") and x.get("id") != sauf and not x.get("isHidden")]
 
     def contexte(self, asset: str, sauf: str = "") -> dict:
         """0.12 : {albums, personnes} d'une photo pour l'IA. `sauf` : l'invité (déjà nommé). Albums génériques
-        écartés ; personnes de la photo d'abord, puis celles des albums parlants. Erreur : contexte vide."""
-        vide = {"albums": [], "personnes": []}
+        écartés ; personnes de la photo d'abord, puis celles des albums parlants. Erreur : contexte vide.
+        0.23.1 : `ids` = identifiants Immich de ces personnes (jamais envoyés à l'IA, servent au filtre des interdits)."""
+        vide = {"albums": [], "personnes": [], "ids": []}
         if not self.actif or not re.fullmatch(r"[0-9a-fA-F-]{8,64}", asset or ""):
             return vide
-        personnes: list[str] = []
+        personnes: list[tuple[str, str]] = []
         try:
             personnes += self._gens(asset, sauf)
         except Exception:  # noqa: BLE001 — person.read absent : on continue sans
@@ -187,7 +190,7 @@ class Immich:
                 albums.append(nom[:60])
                 aid = str(al.get("id") or "")
                 if aid and aid not in self._gens_album:
-                    gens: list[str] = []
+                    gens: list[tuple[str, str]] = []
                     try:
                         r = self._appel("POST", "/search/metadata", {"albumIds": [aid], "type": "IMAGE", "size": ECHANTILLON,
                                                                       "page": 1, "withDeleted": False})
@@ -196,14 +199,17 @@ class Immich:
                     except Exception:  # noqa: BLE001
                         pass
                     self._gens_album[aid] = gens
-                personnes += [g for g in self._gens_album.get(aid, []) if g]
+                personnes += [g for g in self._gens_album.get(aid, []) if g and g[1]]
         except Exception:  # noqa: BLE001 — album.read absent : pas d'albums
             pass
         uniques: list[str] = []
-        for x in personnes:
+        ids: list[str] = []
+        for iid, x in personnes:
+            if iid and iid not in ids:
+                ids.append(iid)
             if x and x.casefold() not in {u.casefold() for u in uniques}:
                 uniques.append(x)
-        return {"albums": list(dict.fromkeys(albums))[:4], "personnes": uniques[:PERSONNES_MAXI]}
+        return {"albums": list(dict.fromkeys(albums))[:4], "personnes": uniques[:PERSONNES_MAXI], "ids": ids[:20]}
 
     def sonder(self) -> dict:
         if not self.actif:

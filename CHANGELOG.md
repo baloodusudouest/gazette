@@ -1,5 +1,12 @@
 # Journal des versions
 
+## 0.23.1 — 18 novembre 2026 (proches des photos retrouvés par Immich)
+- **Sujets interdits des proches vus sur les photos** (question de Julien du 18/11 : « identifiant Immich et identifiant carnet sont déjà liés entre eux non ? ») : Gazette garde maintenant l'identifiant Immich de chaque personne reconnue sur une photo (et dans ses albums parlants) et retrouve le contact de carnet par l'identifiant Immich lié à ce contact, au lieu du prénom affiché par Immich (qui ne correspondait presque jamais à un nom de carnet). Le sujet interdit d'un proche filtre donc les propositions même s'il porte un autre nom dans Immich.
+- Les identifiants ne partent jamais à l'IA (seuls l'album et les prénoms restent dans la consigne). Les photos dont le contexte a été lu avant la 0.23.1 (sans identifiants) retombent sur l'ancienne recherche par nom ; « Compléter » ou une nouvelle photo relit le contexte.
+- `immich.contexte` rend `ids` en plus d'`albums` et `personnes`.
+- Tests : `test_proche_des_photos_retrouve_par_son_identifiant_immich` ; contextes de `tests/test_ia_012.py` mis à jour (207 tests).
+- Jamais essayé sur la vraie installation.
+
 ## 0.23.0 — 18 novembre 2026 (fiche complète d'une personne)
 - **Fiche complète** (demande de Julien du 18/11, version retenue après le conseil) : un écran `#/fiche/<id>` demande le plus de détails possible sur une personne, pour que l'IA du PC écrive des textes plus justes et plus drôles. On l'ouvre par le bouton **« Fiche complète »** de La Récidive (en-tête et bloc « Pour l'IA » des rumeurs) et du Livret (sous le mot des hôtes).
   - **Toutes les rubriques** (39, en cinq familles et « Autre ») en amorces repliables, chacune avec 3 à 6 exemples à toucher ; chaque réponse est une **pépite** (200 caractères au plus), modifiable, déplaçable d'une rubrique à l'autre, effaçable.

@@ -1407,12 +1407,7 @@ def _interdits_de(p: dict | None = None, nom: str = "") -> list[str]:
     if len(trouves) != 1:
         return []
     ident = str(next(iter(trouves.values())).get("personne_id") or "")
-    if not ident:
-        return []
-    try:
-        return FI.interdits(ETAT["carnet"].fiche(ident, forcer=False)["pepites"])
-    except ErreurFiche:
-        return []
+    return _interdits_carnet(ident) if ident else []
 
 
 def _interdits_du_numero(p: dict, ed: dict | None = None) -> list[str]:
@@ -1432,12 +1427,36 @@ def _interdits_du_numero(p: dict, ed: dict | None = None) -> list[str]:
             vus.add(cle_nom(i["nom"]))
             autre = base.personne(i["personne_id"]) if i.get("personne_id") else None
             res += _interdits_de(autre) if autre else _interdits_de(nom=i["nom"])
+    # 0.23.1 : proches des photos retrouvés par leur identifiant Immich (lié au contact dans carnet), pas par le
+    # prénom affiché par Immich ; les anciennes photos sans identifiants gardés retombent sur le nom.
+    lies = {str(c.get("immich_id")): c for c in ETAT["carnet"].personnes() if c.get("immich_id")}
+    moi = str((_contact(p) or {}).get("immich_id") or ed.get("immich_id") or "")
+    faits: set[str] = {moi} if moi else set()
     for x in ed.get("photos") or []:
-        for nom in ((x.get("contexte") or {}).get("personnes") or []):
+        ctx = x.get("contexte") or {}
+        for iid in ctx.get("ids") or []:
+            if iid in faits:
+                continue
+            faits.add(iid)
+            c = lies.get(iid)
+            if c and c.get("personne_id"):
+                vus.add(cle_nom(c.get("nom", "")))
+                res += _interdits_carnet(str(c["personne_id"]))
+        if ctx.get("ids"):
+            continue
+        for nom in (ctx.get("personnes") or []):
             if cle_nom(nom) not in vus:
                 vus.add(cle_nom(nom))
                 res += _interdits_de(nom=nom)
     return list(dict.fromkeys(res))
+
+
+def _interdits_carnet(ident: str) -> list[str]:
+    """0.23.1 : les sujets interdits de la fiche de carnet `ident` (vide si carnet ne la donne pas)."""
+    try:
+        return FI.interdits(ETAT["carnet"].fiche(ident, forcer=False)["pepites"])
+    except ErreurFiche:
+        return []
 
 
 def _filtrer(props: list, interdits: list[str]) -> list:

@@ -362,3 +362,21 @@ def test_client_carnet_erreurs(tmp_path):
             c.fiche("pm-1")
         assert (ex.value.statut, ex.value.ancien) == (attendu, ancien)
     assert not Carnet("", "", Base(tmp_path / "h.db")).actif
+
+
+def test_proche_des_photos_retrouve_par_son_identifiant_immich(fiche_monter):
+    """0.23.1 : un proche reconnu sur une photo est retrouvé dans carnet par l'identifiant Immich lié au contact,
+    même si Immich l'appelle autrement (ici « Polo ») ; son sujet interdit filtre les propositions."""
+    c, faux, _ = fiche_monter()
+    liste = _carnet_liste("", "")
+    liste[1]["immich_id"] = "pppppppp-0001"
+    main.ETAT["carnet"]._lire = lambda url, jeton: liste
+    main.ETAT["carnet"].personnes(forcer=True)
+    faux.pepite(PAUL_PID, "interdits", "la pétanque")
+    p = main.ETAT["base"].personne(_pid(c))
+    ed = {"sejour_du": j(10), "immich_id": IMMICH_CAMILLE,
+          "photos": [{"id": "aaaaaaaa-0001", "contexte": {"personnes": ["Polo"], "ids": ["pppppppp-0001"], "albums": []}}]}
+    assert main._interdits_du_numero(p, ed) == ["la pétanque"]
+    # Ancienne photo sans identifiants gardés : on retombe sur le nom (« Polo » n'est pas dans carnet : rien)
+    ed["photos"][0]["contexte"] = {"personnes": ["Polo"], "albums": []}
+    assert main._interdits_du_numero(p, ed) == []
