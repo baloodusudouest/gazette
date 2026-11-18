@@ -98,11 +98,31 @@ def date_photo(iso: str) -> str:
     return f"{'1er' if d.day == 1 else d.day} {MOIS[d.month - 1]} {d.year}"
 
 
-def legende(photo: dict) -> str:
-    """Légende de gabarit (modifiable à la relecture) : rien d'inventé, seulement la date du cliché."""
+def complices(noms: list[str]) -> str:
+    """0.24.2 : « Mickaël », « Mickaël et Anaïs », « Mickaël, Anaïs et Violène », au-delà « Mickaël, Anaïs et leurs complices »."""
+    noms = [n for n in noms if n][:4]
+    if not noms:
+        return ""
+    if len(noms) == 1:
+        return noms[0]
+    if len(noms) <= 3:
+        return f"{', '.join(noms[:-1])} et {noms[-1]}"
+    return f"{noms[0]}, {noms[1]} et leurs complices"
+
+
+def legende(photo: dict, avec_gens: bool = True) -> str:
+    """Légende de gabarit (modifiable à la relecture) : rien d'inventé, la date du cliché ; 0.24.2 : et les personnes
+    reconnues par Immich sur la photo avec l'invité (« Cliché du 28 juin 2007, avec Mickaël et Anaïs, … »)."""
+    gens = complices(((photo.get("contexte") or {}).get("sur_photo") or [])) if avec_gens else ""
+    avec = f", avec {gens}" if gens else ""
     if photo.get("ancien"):
-        return f"Cliché du {date_photo(photo.get('date', ''))}, ressorti pour l'occasion."
-    return f"Cliché du {date_photo(photo.get('date', ''))}, versé au dossier."
+        return f"Cliché du {date_photo(photo.get('date', ''))}{avec}, ressorti pour l'occasion."
+    return f"Cliché du {date_photo(photo.get('date', ''))}{avec}, versé au dossier."
+
+
+def est_gabarit(photo: dict) -> bool:
+    """0.24.2 : la légende est encore celle du gabarit (avec ou sans les personnes) : pas retouchée par Julien."""
+    return (photo.get("legende") or "") in {legende(photo), legende(photo, avec_gens=False)}
 
 
 def etaler(photos: list[dict], n: int) -> list[dict]:

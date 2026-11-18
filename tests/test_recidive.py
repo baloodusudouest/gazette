@@ -311,7 +311,7 @@ def _faux_ollama(reponses):
     def lire(chemin, corps):
         appels.append((chemin, corps))
         if chemin == "/api/tags":
-            return {"models": [{"name": "qwen2.5:7b"}]}
+            return {"models": [{"name": "mistral-nemo"}]}
         return {"response": reponses.pop(0) if reponses else ""}
     lire.appels = appels
     return lire
@@ -569,3 +569,26 @@ def test_modele_sans_etiquette(monkeypatch):
     assert ia.sonder() == {"ok": True, "detail": "PC prêt (mistral-nemo)"}
     absent = O.Ollama("http://pc:11434", lire=lambda chemin, corps: {"models": [{"name": "qwen2.5:7b"}]})
     assert absent.sonder()["ok"] is False
+
+
+def test_lettres_trop_longues_ramenees_a_des_phrases_entieres():
+    """0.24.2 : vu chez Julien le 18/11 — lettre longue écartée, rien d'utilisable. Elle garde ses premières phrases."""
+    longue = ("Depuis le jour où son ordinateur a pris place dans la cuisine, Audrey ne quitte plus sa chaise. "
+              "Elle affirme qu'il faut une journée entière pour trier ses onglets. " * 4)
+    ls = O.lettres(f"Lettre : {longue}\nSignature : {'La chaise de la cuisine, ' * 5}\nRéponse : Courage.", "femme")
+    assert ls and len(ls[0]["lettre"]) <= O.MAXI_LETTRE and ls[0]["lettre"].endswith(".")
+    assert len(ls[0]["signe"]) <= 60 and not ls[0]["signe"].endswith(",")
+
+
+def test_genre_inconnu_il_impersonnel_garde():
+    assert not O.genre_devine("Il faut une journée entière ; il y a du café.")
+    assert O.genre_devine("Elle ne quitte plus sa chaise.") and O.genre_devine("Depuis, il dort.")
+    ecarts = {}
+    assert O.lettres("Lettre : Elle ne quitte plus sa chaise.\nSignature : La chaise\nRéponse : Normal.", "", ecarts) == []
+    assert ecarts == {"genre inconnu": 1}
+
+
+def test_courrier_dit_pourquoi_tout_est_ecarte():
+    ia = O.Ollama("http://pc:11434", lire=lambda chemin, corps: {"response": "Lettre : Elle dort.\nSignature : Le lit\nRéponse : Ok."})
+    with pytest.raises(RuntimeError, match="Écartées : 3 genre inconnu"):
+        ia.courrier("", "", "Lou")

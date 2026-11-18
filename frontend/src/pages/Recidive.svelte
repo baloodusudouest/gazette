@@ -120,7 +120,8 @@
   const ctxTexte = (p) => {
     const c = p?.contexte
     if (!c) return ''
-    return [c.albums?.length ? `Album : ${c.albums.join(', ')}` : '', c.personnes?.length ? `Avec : ${c.personnes.join(', ')}` : '']
+    const albums = c.tous?.length ? c.tous : (c.albums ?? [])      // 0.24.2 : tous les albums, même « 2008 »
+    return [albums.length ? `Album : ${albums.join(', ')}` : '', c.personnes?.length ? `Avec : ${c.personnes.join(', ')}` : '']
       .filter(Boolean).join(' · ')
   }
   const photoUne = () => photos.find((p) => !p.retiree)

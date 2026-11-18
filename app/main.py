@@ -274,8 +274,11 @@ def _preparer_recidive(rid: int, completer: bool = False) -> None:
     for x in choix["photos"]:
         if not x.get("retiree"):
             immich.apercu(x["id"])
-            if "contexte" not in x:      # 0.12 : albums et personnes, pour l'IA (vide si Immich ne le dit pas)
+            if "tous" not in (x.get("contexte") or {}):     # 0.12 ; 0.24.2 : relu s'il date d'avant (albums, personnes)
+                gabarit = R.est_gabarit(x)
                 x["contexte"] = immich.contexte(x["id"], immich_id)
+                if gabarit:                                 # la légende de gabarit nomme les personnes de la photo
+                    x["legende"] = R.legende(x)
     vide = not any(not x.get("retiree") for x in choix["photos"])
     accroche = ed["accroche"] if (completer and ed["accroche"]) else R.accroche(genre or "", _prenom(p), _journal())
     base.maj_recidive(rid, etat="vide" if vide else "a_relire", photos=choix["photos"], trouvees=choix["trouvees"],
@@ -970,7 +973,7 @@ def _deja_paru(pid: int, sauf: int) -> list[str]:
             continue
         res += [ed.get("titre_une") or ""] + list(ed.get("rumeurs") or []) + [ed.get("horoscope") or ""]
         res += [x.get("lettre", "") for x in ed.get("courrier") or []]
-        res += [x.get("legende", "") for x in ed["photos"] if not x.get("retiree") and x.get("legende") != R.legende(x)]
+        res += [x.get("legende", "") for x in ed["photos"] if not x.get("retiree") and not R.est_gabarit(x)]
     # 0.16 : et ce qui est rangé sur la fiche de carnet (« Journaux parus »), même si la base de Gazette l'a perdu
     p = ETAT["base"].personne(pid)
     cette = ETAT["base"].recidive(sauf) if sauf else None
@@ -992,6 +995,14 @@ def liste_recidives():
 @app.get("/api/recidives/{rid}")
 def edition(rid: int):
     ed, p = _edition_ou_404(rid)
+    # 0.24.2 : contexte Immich lu avant la 0.24.2 (sans tous les albums ni les personnes de la photo) : relu une fois,
+    # pour que l'album s'affiche toujours et que la légende de gabarit nomme les personnes de la photo
+    if ETAT["immich"].actif and ed["etat"] != "approuve" and \
+            any(not x.get("retiree") and "tous" not in (x.get("contexte") or {}) for x in ed["photos"]):
+        for x in list(ed["photos"]):
+            if not x.get("retiree"):
+                _contexte_photo(ed, next(y for y in ed["photos"] if y["id"] == x["id"]))
+        ed = ETAT["base"].recidive(rid)
     j = _journal()
     return {"personne": p, "edition": {**ed, "mot_defaut": R.mot_par_defaut(ed["genre"], _prenom(p), _journal()),
                                        "accroche_defaut": R.accroche(ed["genre"], _prenom(p), _journal())},
@@ -1079,9 +1090,10 @@ def _contexte_photo(ed: dict, photo: dict | None) -> dict:
     """0.12 : le contexte Immich d'une photo (albums parlants, personnes), lu une fois puis gardé dans l'édition."""
     if not photo:
         return {"albums": [], "personnes": []}
-    if "contexte" not in photo and ETAT["immich"].actif:
+    if "tous" not in (photo.get("contexte") or {}) and ETAT["immich"].actif:    # 0.24.2 : relu s'il date d'avant
         ctx = ETAT["immich"].contexte(photo["id"], ed.get("immich_id") or "")
-        photos = [{**x, "contexte": ctx} if x["id"] == photo["id"] else x for x in ed["photos"]]
+        photos = [{**x, "contexte": ctx, **({"legende": R.legende({**x, "contexte": ctx})} if R.est_gabarit(x) else {})}
+                  if x["id"] == photo["id"] else x for x in ed["photos"]]
         ETAT["base"].maj_recidive(ed["id"], photos=photos)
         photo["contexte"] = ctx
         ed["photos"] = photos
@@ -1333,7 +1345,7 @@ def _envoyer_a_carnet(p: dict, ed: dict) -> str:
     if ETAT["cfg"].lecture_seule:
         return "pas envoyé à carnet : lecture seule"
     vues = [x for x in ed["photos"] if not x.get("retiree")]
-    textes = [ed.get("titre_une") or "", *[x.get("legende", "") for x in vues if x.get("legende") != R.legende(x)],
+    textes = [ed.get("titre_une") or "", *[x.get("legende", "") for x in vues if not R.est_gabarit(x)],
               *(ed.get("rumeurs") or []), ed.get("horoscope") or "",
               *[f"{x.get('lettre', '')} — {x.get('signe') or 'Un lecteur'}" + (f" / La rédaction : {x['reponse']}" if x.get("reponse") else "")
                 for x in ed.get("courrier") or [] if x.get("lettre")]]

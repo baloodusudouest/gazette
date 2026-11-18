@@ -236,7 +236,7 @@ def _ollama_fixe(reponse):
     def lire(chemin, corps):
         appels.append(corps)
         if corps is None:
-            return {"models": [{"name": "qwen2.5:7b"}]}
+            return {"models": [{"name": "mistral-nemo"}]}
         return {"response": LETTRE if "Courrier des lecteurs" in corps["prompt"] else reponse}
     lire.appels = appels
     return lire

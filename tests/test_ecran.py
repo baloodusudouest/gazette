@@ -328,7 +328,7 @@ def test_autres_propositions_second_modele(navigateur, adresse, taille):
     une.locator("input[aria-label='Description de la photo de la une']").fill("Lou sur une plage, lunettes de soleil")
     une.get_by_role("button", name="5 titres").click()
     une.get_by_text("« Les vacances secrètes de Lou »").wait_for()
-    une.get_by_text("Modèle : qwen2.5:7b").wait_for()
+    une.get_by_text("Modèle : mistral-nemo").wait_for()
     une.get_by_role("button", name="Autres propositions (qwen)").click()
     une.get_by_text("« La vérité éclate sur la plage »").wait_for()
     une.get_by_text("Modèle : qwen2.5:14b").wait_for()
@@ -354,7 +354,7 @@ def test_autres_propositions_absent_sans_reglage(navigateur, adresse, taille):
             photos.locator("[aria-checked='false']").first.click()
         page.get_by_role("button", name="5 légendes").click()
         legendes = page.get_by_role("list", name="Légendes proposées")
-        legendes.get_by_text("Modèle : qwen2.5:7b").wait_for()
+        legendes.get_by_text("Modèle : mistral-nemo").wait_for()
         assert legendes.get_by_role("button", name="Autres propositions").count() == 0
     finally:
         assert page.evaluate(poser, "qwen2.5:14b") == 200

@@ -93,7 +93,7 @@
   function toucher() { modifie = true; message = '' }
   const corps = () => ({ contenu: $state.snapshot(contenu), mot, code_barres: codeBarres, valides: $state.snapshot(valides),
                          photo: photo.id ? { id: photo.id, cadrage: photo.cadrage ?? 'haut', legende: photo.legende ?? '', description: photo.description ?? '' } : null })
-  const ctxTexte = (c) => !c ? '' : [c.albums?.length ? `Album : ${c.albums.join(', ')}` : '', c.personnes?.length ? `Avec : ${c.personnes.join(', ')}` : '']
+  const ctxTexte = (c) => !c ? '' : [(c.tous?.length ? c.tous : (c.albums ?? [])).length ? `Album : ${(c.tous?.length ? c.tous : c.albums).join(', ')}` : '', c.personnes?.length ? `Avec : ${c.personnes.join(', ')}` : '']
     .filter(Boolean).join(' · ')
   function prendrePhoto(x) {
     if (photo.id === x.id) { photo = {}; propsLegende = []; ctxPhoto = null }

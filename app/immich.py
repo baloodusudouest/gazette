@@ -173,7 +173,7 @@ class Immich:
         """0.12 : {albums, personnes} d'une photo pour l'IA. `sauf` : l'invité (déjà nommé). Albums génériques
         écartés ; personnes de la photo d'abord, puis celles des albums parlants. Erreur : contexte vide.
         0.23.1 : `ids` = identifiants Immich de ces personnes (jamais envoyés à l'IA, servent au filtre des interdits)."""
-        vide = {"albums": [], "personnes": [], "ids": []}
+        vide = {"albums": [], "personnes": [], "ids": [], "tous": [], "sur_photo": []}
         if not self.actif or not re.fullmatch(r"[0-9a-fA-F-]{8,64}", asset or ""):
             return vide
         personnes: list[tuple[str, str]] = []
@@ -181,10 +181,15 @@ class Immich:
             personnes += self._gens(asset, sauf)
         except Exception:  # noqa: BLE001 — person.read absent : on continue sans
             pass
+        # 0.24.2 : les personnes de la photo elle-même (pas celles des albums), pour la légende de gabarit
+        sur_photo = list(dict.fromkeys(x for _, x in personnes if x))
         albums: list[str] = []
+        tous: list[str] = []          # 0.24.2 : tous les albums, même génériques (« 2008 »), pour l'affichage
         try:
             for al in self._appel("GET", f"/albums?assetId={asset}") or []:
                 nom = " ".join(str(al.get("albumName") or "").split())
+                if nom:
+                    tous.append(nom[:60])
                 if not nom or album_generique(nom):
                     continue
                 albums.append(nom[:60])
@@ -209,7 +214,8 @@ class Immich:
                 ids.append(iid)
             if x and x.casefold() not in {u.casefold() for u in uniques}:
                 uniques.append(x)
-        return {"albums": list(dict.fromkeys(albums))[:4], "personnes": uniques[:PERSONNES_MAXI], "ids": ids[:20]}
+        return {"albums": list(dict.fromkeys(albums))[:4], "personnes": uniques[:PERSONNES_MAXI], "ids": ids[:20],
+                "tous": list(dict.fromkeys(tous))[:6], "sur_photo": sur_photo[:PERSONNES_MAXI]}
 
     def sonder(self) -> dict:
         if not self.actif:

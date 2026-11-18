@@ -1,6 +1,6 @@
 """0.9.1 : propositions de titres pour La Récidive par une IA locale (Ollama sur le PC de la maison).
 
-Julien écrit en quelques mots ce qu'on voit sur une photo ; le modèle de texte (qwen2.5:7b) propose 5 titres façon
+Julien écrit en quelques mots ce qu'on voit sur une photo ; le modèle de texte (mistral-nemo par défaut) propose 5 titres façon
 presse à scandale, de 60 caractères au plus ; Julien en choisit un ou écrit le sien. Pas de modèle de vision : la
 photo ne quitte pas Gazette, seule la description part vers le PC.
 
@@ -16,7 +16,7 @@ from typing import Callable
 
 import httpx
 
-MODELE = os.environ.get("GAZETTE_OLLAMA_MODELE", "").strip() or "qwen2.5:7b"   # 0.9.6 : modèle changeable
+MODELE = os.environ.get("GAZETTE_OLLAMA_MODELE", "").strip() or "mistral-nemo"   # 0.9.6 : modèle changeable ; 0.24.2 : mistral-nemo par défaut (choix de Julien du 18/11)
 MAXI = 60                 # caractères par titre (choix de Julien du 17/11/2026)
 NOMBRE = 5
 ESSAIS = 3
@@ -174,8 +174,12 @@ def texte_contexte(ctx: dict | None) -> str:
     morceaux = []
     if ctx.get("albums"):
         morceaux.append("album " + ", ".join(f"« {a} »" for a in ctx["albums"]))
-    if ctx.get("personnes"):
-        morceaux.append("avec " + ", ".join(ctx["personnes"]))
+    sur = [x for x in ctx.get("sur_photo") or [] if x]
+    if sur:                                    # 0.24.2 : sur la photo elle-même, avec l'invité
+        morceaux.append("sur la photo avec l'invité : " + ", ".join(sur))
+    autres = [x for x in ctx.get("personnes") or [] if x and x not in sur]
+    if autres:
+        morceaux.append(("autres personnes de l'album : " if sur else "avec ") + ", ".join(autres))
     return " ; ".join(morceaux)
 
 
@@ -196,6 +200,9 @@ def consigne(description: str, sorte: str, genre: str, prenom: str, deja: list[s
             + (f"Ce que montre la photo, d'après l'hôte : « {description} »\n" if description else "")
             + (f"D'après la photothèque : {texte_contexte(contexte)} (le nom de l'album dit l'occasion ; les personnes "
                "peuvent devenir complices, témoins ou rivaux)\n" if texte_contexte(contexte) else "")
+            + (f"Au moins trois propositions mettent en scène {prenom} avec une des personnes sur la photo "
+               f"({', '.join((contexte or {}).get('sur_photo') or [])}), en la nommant.\n"
+               if (contexte or {}).get("sur_photo") else "")
             + (f"{fiche}\n" if fiche else "")                  # 0.23 : pépites tirées de la fiche complète, ton souhaité
             + f"Ne décris pas la photo : transforme-la en scandale ou en faux scoop. Cinq angles différents. "
             f"{MAXI} caractères au plus chacune ; n'invente aucun fait grave ; "
@@ -297,6 +304,30 @@ def consigne_horoscope(signe_: str, indices: str, genre: str, prenom: str, deja:
               "sans répéter le nom du signe. Un horoscope par ligne, numérotés.")
 
 
+# 0.24.2 : « il » impersonnel (« il faut », « il y a »…) ne dit rien du genre de la personne
+IMPERSONNEL = r"(?:faut|fallait|faudra|faudrait|y|est temps|était une fois|paraît|parait|semble|semblerait|reste|restait|pleut|suffit|s'agit|vaut mieux|arrive|se peut)"
+GENRE_DEVINE = re.compile(rf"\belles?\b|\bils\b|\bil\b(?!\s+{IMPERSONNEL}\b)", re.I)
+
+
+def genre_devine(texte: str) -> bool:
+    """Le texte parle de quelqu'un en « il » ou « elle » (genre inconnu : écarté). « il faut », « il y a »… ne comptent pas."""
+    return bool(GENRE_DEVINE.search(texte or ""))
+
+
+def phrases_qui_tiennent(texte: str, maxi: int) -> str:
+    """0.24.2 : les phrases entières du début qui tiennent dans `maxi` caractères (le modèle écrit souvent trop long) ;
+    vide si la première phrase seule dépasse."""
+    texte = " ".join((texte or "").split())
+    if len(texte) <= maxi:
+        return texte
+    garde = ""
+    for ph in re.findall(r"[^.!?…]+[.!?…]+[»”\"']?\s*|[^.!?…]+$", texte):
+        if len((garde + ph).strip()) > maxi:
+            break
+        garde += ph
+    return garde.strip()
+
+
 ETIQUETTES = {"lettre": "lettre", "signature": "signe", "signé": "signe", "signe": "signe", "de": "signe", "auteur": "signe",
               "réponse": "reponse", "reponse": "reponse", "la rédaction": "reponse", "rédaction": "reponse"}
 
@@ -305,9 +336,12 @@ def _propre(x: str) -> str:
     return " ".join(sans_numero(x.replace("**", "").replace("__", "")).strip().strip('"«»“”*').split())
 
 
-def lettres(texte: str, genre: str) -> list[dict]:
+def lettres(texte: str, genre: str, ecarts: dict | None = None) -> list[dict]:
     """0.11.1 : lit les lettres du modèle, sous la forme à étiquettes (« Lettre : … / Signature : … / Réponse : … »)
-    ou sur une ligne (« lettre ::: signature ::: réponse », aussi avec « | »). Réponse facultative ; trop longs écartés."""
+    ou sur une ligne (« lettre ::: signature ::: réponse », aussi avec « | »). Réponse facultative.
+    0.24.2 : trop longues, lettre et réponse sont ramenées à leurs premières phrases entières (plus écartées) ; la
+    signature est coupée au mot ; `ecarts` compte les raisons des lettres écartées (pour le message d'erreur)."""
+    ecarts = ecarts if ecarts is not None else {}
     brutes, cour = [], {}
     for l in (texte or "").replace("\r", "").split("\n"):
         l = l.strip()
@@ -332,13 +366,24 @@ def lettres(texte: str, genre: str) -> list[dict]:
         brutes.append(cour)
     res = []
     for x in brutes:
-        lettre, signe_, reponse = x.get("lettre", ""), x.get("signe", "") or "Un lecteur", x.get("reponse", "")
-        if not lettre or len(lettre) > MAXI_LETTRE or len(reponse) > MAXI_REPONSE or len(signe_) > 60:
+        lettre = phrases_qui_tiennent(x.get("lettre", ""), MAXI_LETTRE)
+        reponse = phrases_qui_tiennent(x.get("reponse", ""), MAXI_REPONSE)
+        signe_ = x.get("signe", "") or "Un lecteur"
+        if len(signe_) > 60:
+            signe_ = signe_[:60].rsplit(" ", 1)[0].rstrip(",;:—-")
+        if not lettre:
+            ecarts["trop longue"] = ecarts.get("trop longue", 0) + 1
             continue
         # 0.11.2 : une lettre est écrite à la première personne (« Je ne peux plus dormir… ») : seul un vrai refus
         # en tête est écarté, plus « je ne peux » n'importe où
-        if REFUS.search(lettre) or CORPS.search(f"{lettre} {signe_} {reponse}") or \
-                (not genre and re.search(r"\b(elle|il)\b", lettre + " " + reponse, re.I)):
+        if REFUS.search(lettre):
+            ecarts["refus"] = ecarts.get("refus", 0) + 1
+            continue
+        if CORPS.search(f"{lettre} {signe_} {reponse}"):
+            ecarts["physique"] = ecarts.get("physique", 0) + 1
+            continue
+        if not genre and genre_devine(lettre + " " + reponse):
+            ecarts["genre inconnu"] = ecarts.get("genre inconnu", 0) + 1
             continue
         if lettre.casefold() not in {y["lettre"].casefold() for y in res}:
             res.append({"lettre": lettre, "signe": signe_, "reponse": reponse})
@@ -431,7 +476,7 @@ def nettoyer(texte: str, genre: str, maxi: int = MAXI) -> list[str]:
         l = re.sub(r"\s+", " ", l)
         if not l or len(l) > maxi or len(l) < 6 or INTERDITS.search(l) or CORPS.search(l) or len(ANGLAIS.findall(l)) >= 2:
             continue
-        if not genre and re.search(r"\b(elle|il)\b", l, re.I):
+        if not genre and genre_devine(l):
             continue
         if l.casefold() not in {x.casefold() for x in res}:
             res.append(l)
@@ -525,17 +570,21 @@ class Ollama:
         indices = " ".join((indices or "").split())[:1200]       # 0.19 : indices + livre d'or
         res: list[dict] = []
         brut = ""
+        ecarts: dict = {}
         for _ in range(ESSAIS):
             brut = self._brut(consigne_courrier(indices, genre, prenom, deja, fiche), NOMBRE_LETTRES, modele)
-            for x in lettres(brut, genre):
-                if not proche_de(x["lettre"], deja or []) and x["lettre"].casefold() not in {y["lettre"].casefold() for y in res}:
+            for x in lettres(brut, genre, ecarts):
+                if proche_de(x["lettre"], deja or []):
+                    ecarts["déjà paru"] = ecarts.get("déjà paru", 0) + 1
+                elif x["lettre"].casefold() not in {y["lettre"].casefold() for y in res}:
                     res.append(x)
             if len(res) >= NOMBRE_LETTRES:
                 break
         if not res:
             extrait = " ".join(brut.split())[:220]
+            pourquoi = ", ".join(f"{n} {k}" for k, n in ecarts.items()) or "aucune lettre lue dans sa réponse"
             raise RuntimeError("L'IA n'a rien proposé d'utilisable : relance, ou écris la lettre toi-même. "
-                               f"Début de sa réponse (pour Claude) : « {extrait or 'vide'} »")
+                               f"Écartées : {pourquoi}. Début de sa réponse (pour Claude) : « {extrait or 'vide'} »")
         return res[:NOMBRE_LETTRES]
 
     def horoscope(self, signe_: str, indices: str, genre: str = "", prenom: str = "", deja: list[str] | None = None,

@@ -2,6 +2,10 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
+## Correctif (18/11/2026) — 0.24.2
+- Courrier : `lettres` ramène lettre/réponse à des phrases entières (`phrases_qui_tiennent`), compte les écarts (`ecarts`) repris dans le message d'erreur de `Ollama.courrier` ; `genre_devine` (ignore le « il » impersonnel, `IMPERSONNEL`) remplace `\b(elle|il)\b` dans `lettres` et `nettoyer`. `ollama.MODELE` par défaut : mistral-nemo.
+- Contexte Immich : `tous`, `sur_photo` ; un contexte sans `tous` est relu (`_preparer_recidive`, `_contexte_photo`, et `GET /api/recidives/{rid}` pour une édition pas approuvée). Légende de gabarit : `R.legende(photo)` nomme `sur_photo` ; `R.est_gabarit` reconnaît l'ancien et le nouveau gabarit (remplace les `!= R.legende(x)`). Écrans : `ctxTexte` affiche `tous` (Récidive et Livret). `consigne` : ligne « au moins trois propositions mettent en scène … ».
+
 ## Correctif (18/11/2026) — 0.24.1
 - « Pas commencé » = `du > aujourd'hui` ou (`du = aujourd'hui` et `jusqu_au > aujourd'hui`) dans `poser_sejour`, `retirer_sejours`, `sejours_a_venir_de_chambre` ; `annuler_sejour` refuse seulement `du < aujourd'hui` ; bouton affiché dès `s.du >= aujourdhui`. Tests `test_jour_d_arrivee_*`.
 

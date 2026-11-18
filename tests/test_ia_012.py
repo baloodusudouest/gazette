@@ -55,12 +55,15 @@ def test_contexte_d_une_photo(tmp_path):
             "cccccccc-0001": [{"id": "p-lea", "name": "Léa"}], "cccccccc-0002": [{"id": "p-yves", "name": "Bastien Martin"}]}
     im = I.Immich("http://immich", "cle", tmp_path, lire=_immich_albums(lambda *a: None, albums, gens))
     assert im.contexte("aaaaaaaa-0001", IMMICH_CAMILLE) == {"albums": ["Vendanges 2023"], "personnes": ["Bastien", "Léa"],
-                                                          "ids": ["p-yves", "p-lea"]}       # 0.23.1 : identifiants gardés
-    assert im.contexte("aaaaaaaa-0009", IMMICH_CAMILLE) == {"albums": [], "personnes": [], "ids": []}
+                                                          "ids": ["p-yves", "p-lea"],       # 0.23.1 : identifiants gardés
+                                                          "tous": ["Vendanges 2023", "2023", "Divers"],   # 0.24.2 : affichés
+                                                          "sur_photo": ["Bastien"]}         # 0.24.2 : pour la légende
+    VIDE = {"albums": [], "personnes": [], "ids": [], "tous": [], "sur_photo": []}
+    assert im.contexte("aaaaaaaa-0009", IMMICH_CAMILLE) == VIDE
 
     def refus(methode, chemin, corps=None):
         raise RuntimeError("clé refusée")
-    assert I.Immich("http://immich", "cle", tmp_path, lire=refus).contexte("aaaaaaaa-0001") == {"albums": [], "personnes": [], "ids": []}
+    assert I.Immich("http://immich", "cle", tmp_path, lire=refus).contexte("aaaaaaaa-0001") == VIDE
     texte = O.texte_contexte({"albums": ["Vendanges 2023"], "personnes": ["Bastien", "Léa"]})
     assert texte == "album « Vendanges 2023 » ; avec Bastien, Léa"
     prompt = O.consigne("", "photo", "femme", "Camille", contexte={"albums": ["Vendanges 2023"], "personnes": ["Bastien"]})
@@ -73,7 +76,7 @@ def test_proposer_avec_le_contexte_sans_description(monter):
     rid = int(r["invites"][0]["lien"].rsplit("/", 1)[1])
     ed = c.get(f"/api/recidives/{rid}").json()["edition"]
     photo = ed["photos"][1]["id"]
-    assert ed["photos"][1]["contexte"] == {"albums": [], "personnes": [], "ids": []}         # Immich simulé sans albums
+    assert ed["photos"][1]["contexte"] == {"albums": [], "personnes": [], "ids": [], "tous": [], "sur_photo": []}   # sans albums
     main.ETAT["ollama"] = O.Ollama("http://pc:11434", lire=_faux_ollama([]))
     assert c.post(f"/api/recidives/{rid}/proposer", json={"cible": photo, "description": ""}).status_code == 422
     # Un album parlant et une personne : la description devient facultative
@@ -87,7 +90,9 @@ def test_proposer_avec_le_contexte_sans_description(monter):
     assert props == ["Bastien et Camille, complices aux vendanges"]
     assert "Vendanges 2023" in faux.appels[-1][1]["prompt"]
     gardee = next(x for x in c.get(f"/api/recidives/{rid}").json()["edition"]["photos"] if x["id"] == photo)
-    assert gardee["contexte"] == {"albums": ["Vendanges 2023"], "personnes": ["Bastien"], "ids": ["p-y"]}
+    assert gardee["contexte"] == {"albums": ["Vendanges 2023"], "personnes": ["Bastien"], "ids": ["p-y"],
+                                  "tous": ["Vendanges 2023"], "sur_photo": ["Bastien"]}
+    assert ", avec Bastien," in gardee["legende"]                 # 0.24.2 : gabarit avec la personne de la photo
     # Les rumeurs reçoivent albums et prénoms permis
     main.ETAT["ollama"] = O.Ollama("http://pc:11434", lire=(f2 := _faux_ollama(["1. Selon nos sources, Camille parle aux ceps."])))
     c.post(f"/api/recidives/{rid}/rumeurs", json={"indices": ""})
@@ -227,3 +232,20 @@ def test_livre_d_or_pour_l_ia(monter):
     c.post(f"/api/recidives/{rid}/mot", json={})
     assert "Merci pour les crêpes" in faux.appels[-1][1]["prompt"]
     assert main.ETAT["base"].recidive(rid)["indices_rumeurs"] == "aime le jardin"            # rien de mêlé aux indices gardés
+
+
+def test_legende_de_gabarit_nomme_les_personnes_de_la_photo():
+    """0.24.2 : demande de Julien du 18/11 — la légende parle des personnes taguées avec l'invité."""
+    from app import recidive as R
+    x = {"id": "a", "date": "2007-06-28", "ancien": True, "contexte": {"sur_photo": ["Mickaël", "Anaïs", "Violène"]}}
+    assert R.legende(x) == "Cliché du 28 juin 2007, avec Mickaël, Anaïs et Violène, ressorti pour l'occasion."
+    x["contexte"]["sur_photo"] = ["Mickaël", "Anaïs", "Violène", "Jean", "Julien"]
+    assert "avec Mickaël, Anaïs et leurs complices," in R.legende(x)
+    x["legende"] = R.legende(x, avec_gens=False)                 # ancien gabarit : toujours reconnu comme tel
+    assert R.est_gabarit(x)
+    x["legende"] = "Retouchée par Julien."
+    assert not R.est_gabarit(x)
+    prompt = O.consigne("", "photo", "femme", "Camille", contexte={"albums": [], "personnes": ["Mickaël", "Léa"],
+                                                                   "sur_photo": ["Mickaël"]})
+    assert "sur la photo avec l'invité : Mickaël" in prompt and "autres personnes de l'album : Léa" in prompt
+    assert "mettent en scène Camille avec une des personnes sur la photo (Mickaël)" in prompt

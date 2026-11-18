@@ -1,5 +1,14 @@
 # Journal des versions
 
+## 0.24.2 — 18 novembre 2026 (courrier des lecteurs, légendes avec les complices, albums toujours affichés)
+- **Courrier des lecteurs : « rien d'utilisable »** (vu chez Julien le 18/11 sur la Récidive d'Audrey). Le modèle écrivait des lettres plus longues que la place (400 signes) et elles étaient toutes écartées ; avec un genre inconnu, « il faut », « il y a » faisaient aussi écarter une lettre. Désormais une lettre (et sa réponse) trop longue est ramenée à ses premières phrases entières, la signature est coupée au mot, et le « il » impersonnel ne compte plus. Si tout est encore écarté, le message dit pourquoi (« Écartées : 3 trop longue, 1 genre inconnu… »). Même règle du « il » pour les titres.
+- **Modèle par défaut : mistral-nemo** (au lieu de qwen2.5:7b) quand `GAZETTE_OLLAMA_MODELE` est vide : l'écran affichait « Modèle : qwen2.5:7b », la variable n'arrivait plus au conteneur.
+- **Légende de gabarit avec les personnes de la photo** (demande de Julien du 18/11) : « Cliché du 28 juin 2007, avec Mickaël, Anaïs et Violène, ressorti pour l'occasion. » (personnes reconnues par Immich sur la photo elle-même, sans l'invité ; au-delà de trois : « … et leurs complices »). Une légende retouchée n'est jamais remplacée. Pour l'IA, les personnes de la photo sont distinguées de celles de l'album, et au moins trois propositions sur cinq mettent l'invité en scène avec l'une d'elles, en la nommant.
+- **Album toujours affiché** (« Immich · Album : … ») : tous les albums de la photo, même ceux qui ne disent rien à l'IA (« 2008 », « Divers ») ; l'IA ne reçoit toujours que les albums parlants. Valable aussi pour la photo de la Gazette.
+- Contexte Immich lu avant la 0.24.2 : relu une fois à l'ouverture d'une édition pas approuvée (et à la préparation), la légende de gabarit est alors complétée.
+- `immich.contexte` rend aussi `tous` (albums) et `sur_photo` (prénoms) ; `recidive.legende(photo, avec_gens)`, `recidive.est_gabarit`, `recidive.complices` ; `ollama.genre_devine`, `ollama.phrases_qui_tiennent`, `lettres(…, ecarts)`.
+- Tests : 230. Jamais essayé sur la vraie installation.
+
 ## 0.24.1 — 18 novembre 2026 (séjour annulé le jour de l'arrivée)
 - **Séjour annulé qui arrivait aujourd'hui** (signalé par Julien le 18/11 : séjour de la chambre Ado du 18 au 19, annulé, toujours affiché). La 0.24.0 ne regardait que les séjours commençant demain ou plus tard. Le jour d'arrivée compte désormais comme « pas commencé » (un séjour qui finit le jour même excepté) : chambre annoncée libre, séjour plus tardif annoncé ou bouton « Séjour annulé » le retirent, avec le ménage habituel des journaux. Le bouton s'affiche donc jusqu'au jour d'arrivée compris.
 - Tests : 226. Jamais essayé sur la vraie installation.
