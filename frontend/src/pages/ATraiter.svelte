@@ -8,6 +8,7 @@
   import CalendarClock from '@lucide/svelte/icons/calendar-clock'
   import Siren from '@lucide/svelte/icons/siren'
   import ImageOff from '@lucide/svelte/icons/image-off'
+  import ImagePlus from '@lucide/svelte/icons/image-plus'
   import { api } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import FicheForm from '$lib/FicheForm.svelte'
@@ -22,7 +23,7 @@
   async function lire() {
     try {
       t = await api.get('/api/a-traiter')
-      if (!choisi) choisi = ['fiches', 'dates', 'anniversaires', 'recidives', 'relire', 'scandales', 'erreurs'].find((k) => t[k].length) ?? null
+      if (!choisi) choisi = ['fiches', 'dates', 'anniversaires', 'recidives', 'relire', 'scandales', 'sans_scandale', 'erreurs'].find((k) => t[k]?.length) ?? null
       onchange?.()
     } catch (err) {
       if (err.statut === 401) ondeconnecte?.()
@@ -62,6 +63,7 @@
     { cle: 'recidives', nom: 'Récidives à relire', icone: Siren, aide: 'journal à scandale, dès le 2e séjour' },
     { cle: 'relire', nom: 'Livrets à relire', icone: BookOpenCheck, aide: 'avant d\'approuver' },
     { cle: 'scandales', nom: 'Photos « scandale » à trouver', icone: ImageOff, aide: 'à taguer dans Immich' },
+    { cle: 'sans_scandale', nom: 'Aucune photo « scandale »', icone: ImagePlus, aide: 'personne sans photo taguée dans Immich' },
     { cle: 'erreurs', nom: 'Préparations en échec', icone: TriangleAlert, aide: 'sources illisibles' },
   ]
   onMount(lire)
@@ -78,7 +80,7 @@
   <div class="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4" role="group" aria-label="Tuiles">
     {#each tuiles as tu}
       {@const Icone = tu.icone}
-      {#if t[tu.cle].length}
+      {#if t[tu.cle]?.length}
         <button type="button" aria-pressed={choisi === tu.cle} onclick={() => (choisi = tu.cle)}
                 class="flex min-h-28 flex-col gap-1 rounded-2xl border bg-card p-4 text-left transition-colors hover:border-primary aria-pressed:border-primary">
           <span class="flex items-start justify-between"><Icone class="size-6 text-primary" aria-hidden="true" /><span class="chiffre text-3xl">{t[tu.cle].length}</span></span>
@@ -187,6 +189,20 @@
             <span><a class="font-semibold underline-offset-4 hover:underline" href={'#/recidive/' + s.id}>{s.nom}</a>
               <span class="block text-sm text-muted-foreground">{s.photos} photo{s.photos > 1 ? 's' : ''} sur {s.places}{s.tag_absent ? ' · le tag « scandale » n\'existe pas encore dans Immich' : ''}</span></span>
             <Button size="sm" variant="outline" onclick={() => ignorer('scandale', s.cle)}>Ignorer</Button>
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {:else if choisi === 'sans_scandale' && t.sans_scandale?.length}
+    <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Aucune photo scandale">
+      <h2 class="text-lg font-semibold">Aucune photo « scandale »</h2>
+      <p class="mt-1 text-sm text-muted-foreground">Ces personnes n'ont aucune photo taguée « scandale » dans Immich : La Récidive n'aura rien pour compléter s'il manque des photos récentes. Tague quelques vieilles photos dans Immich ; le compte est refait toutes les 6 heures et envoyé à carnet.</p>
+      <ul class="mt-3 grid gap-2">
+        {#each t.sans_scandale as s}
+          <li class="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3">
+            <span><a class="font-semibold underline-offset-4 hover:underline" href={'#/livret/' + s.id}>{s.nom}</a>
+              {#if s.tag_absent}<span class="block text-sm text-muted-foreground">le tag « scandale » n'existe pas encore dans Immich</span>{/if}</span>
+            <Button size="sm" variant="outline" onclick={() => ignorer('sans_scandale', s.cle)}>Ignorer</Button>
           </li>
         {/each}
       </ul>

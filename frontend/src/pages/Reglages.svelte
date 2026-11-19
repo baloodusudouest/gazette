@@ -16,7 +16,22 @@
   let modifie = $state(false)
   let messageJ = $state('')
   let envoiJ = $state(false)
+  // 0.27 : envois vers carnet (séjours, Gazettes, Récidives, photos scandale) et file de nouvel essai
+  let envois = $state({ attente: null, message: '', encours: false })
+  async function lireEnvois() {
+    try { envois.attente = (await api.get('/api/carnet/envois')).en_attente } catch { envois.attente = null }
+  }
+  async function toutEnvoyer() {
+    envois.encours = true; envois.message = ''
+    try {
+      const r2 = await api.post('/api/carnet/envoyer-tout', {})
+      envois.message = `${r2.sejours} séjour(s), ${r2.gazettes} Gazette(s), ${r2.recidives} Récidive(s) envoyés`
+        + (r2.en_attente ? ` ; ${r2.en_attente} envoi(s) en attente (carnet injoignable ou trop ancien).` : '.')
+      await lireEnvois()
+    } catch (err) { envois.message = err.message } finally { envois.encours = false }
+  }
   async function lire() {
+    lireEnvois()
     try {
       r = await api.get('/api/reglages'); c = await api.get('/api/culture')
       j = { ...r.journal }; modifie = false
@@ -293,6 +308,21 @@
     </div>
     <p class="mt-2 text-xs text-muted-foreground">Format : sections « # RUMEURS », « # HOROSCOPES », « # MOTS », « # TITRES », « # COURRIER », puis une ligne « - texte » par élément (courrier : « lettre ::: signature ::: réponse »). Balises : {'{prenom}'}, {'{salut}'} (« Chère Camille »), {'{chez}'}, {'{il}'} (il / elle), {'{e}'} (accord). Les doublons sont ignorés : tu peux réimporter sans risque.</p>
     {#if banq.message}<p class="mt-2 text-sm" role="status">{banq.message}</p>{/if}
+  </section>
+
+  <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Envois vers carnet">
+    <h2 class="text-lg font-semibold">Envois vers carnet</h2>
+    <p class="mt-1 text-sm text-muted-foreground">Gazette envoie à carnet chaque séjour, chaque Gazette et Récidive approuvée, et le nombre de photos « scandale » de chaque personne (toutes les 6 heures) : carnet les range dans la fiche et le coffre Contacts. Un envoi raté est réessayé toutes les 10 minutes.</p>
+    <div class="mt-3 flex flex-wrap items-center gap-3">
+      <Button variant="outline" disabled={envois.encours} onclick={toutEnvoyer}>{envois.encours ? 'Envoi…' : 'Tout envoyer à carnet'}</Button>
+      {#if envois.attente}<span class="text-sm text-muted-foreground">{envois.attente.length ? `${envois.attente.length} envoi(s) en attente` : 'aucun envoi en attente'}</span>{/if}
+    </div>
+    {#if envois.attente?.length}
+      <ul class="mt-2 grid gap-1 text-xs text-muted-foreground">
+        {#each envois.attente.slice(0, 5) as e (e.id)}<li>{e.quoi} — {e.erreur} ({e.essais} essai{e.essais > 1 ? 's' : ''})</li>{/each}
+      </ul>
+    {/if}
+    {#if envois.message}<p class="mt-2 text-sm" role="status">{envois.message}</p>{/if}
   </section>
 
   <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Restaurer les réglages">

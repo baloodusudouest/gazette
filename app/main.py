@@ -11,6 +11,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import hmac
+import json
+import logging
 import queue
 import re
 import threading
@@ -180,6 +182,9 @@ def _contact(p: dict) -> dict:
         return {}
     if p.get("essai_de"):                      # 0.20 : une fiche d'essai lit le contact de la vraie fiche
         p = ETAT["base"].personne(p["essai_de"]) or p
+    # 0.27 : l'identifiant de carnet reçu de la carte de réservation de Home Assistant passe avant le nom
+    if p.get("carnet_personne_id") and (c := ETAT["carnet"].par_identifiant(p["carnet_personne_id"])):
+        return c
     trouves = {}
     for n in [p["nom"], *p["alias"]]:
         for c in ETAT["carnet"].chercher(n):
@@ -322,6 +327,7 @@ async def cycle(app: FastAPI):
     copie = asyncio.create_task(maison.planifier_copie(APPLI, [chemin_base], cfg.data / "copies",
                                                        maison.HEURES_COPIE[APPLI]))
     _menage_orphelines()                  # 0.24 : numéros de séjours annulés avant la 0.22.1
+    envois = None if cfg.synchrone else asyncio.create_task(_boucle_carnet())   # 0.27 : renvois et photos scandale
     # Livrets restés « en préparation » (redémarrage pendant une lecture) : on reprend
     for p in base.personnes():
         lv = base.livret(p["id"])
@@ -334,11 +340,16 @@ async def cycle(app: FastAPI):
     copie.cancel()                        # arrêt propre de la boucle de copie
     with contextlib.suppress(asyncio.CancelledError):
         await copie
+    if envois:
+        envois.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await envois
     ETAT["file"].put(None)
     ETAT["sources"].fermer()
     base.fermer()
 
 
+log = logging.getLogger("gazette")
 app = FastAPI(title=APPLI, version=__version__, lifespan=cycle, docs_url=None, redoc_url=None)
 
 
@@ -924,7 +935,8 @@ def approuver(pid: int):
     if p.get("essai_de"):                      # 0.20 : un essai ne compte jamais
         return {"ok": True}
     # 0.23 : les pépites tirées pour le mot des hôtes retenu reçoivent `parue_le` dans carnet
-    return {"ok": True, "fiche": _marquer_parues("gazette", pid, [lv.get("mot") or ""])}
+    return {"ok": True, "fiche": _marquer_parues("gazette", pid, [lv.get("mot") or ""]),
+            "carnet": _gazette_vers_carnet(p)}
 
 
 @app.post("/api/livrets/{pid}/culture")
@@ -1535,6 +1547,7 @@ def _envoyer_a_carnet(p: dict, ed: dict) -> str:
               *[f"{x.get('lettre', '')} — {x.get('signe') or 'Un lecteur'}" + (f" / La rédaction : {x['reponse']}" if x.get("reponse") else "")
                 for x in ed.get("courrier") or [] if x.get("lettre")]]
     corps = {"journal": "recidive", "numero": ed.get("numero_main") or ed["numero"], "le": ed["sejour_du"],
+             "lien": _lien_absolu(_lien_edition(ed["id"])),      # 0.27 : page du numéro dans Gazette
              "titre": ed.get("titre_une") or R.titre_une(p["nom"]),
              "evenement": ed.get("evenement") or "", "indices": ed.get("indices_rumeurs") or "",
              "descriptions": [d for d in [ed.get("description_une") or "", *[x.get("description", "") for x in vues]] if d.strip()],
@@ -2077,9 +2090,12 @@ def a_traiter() -> dict:
             if c and c["naissance"] != p["naissance"] and f"{p['id']}:{c['naissance']}" not in ign_dates:
                 dates.append({"id": p["id"], "nom": p["nom"], "gazette": p["naissance"], "carnet": c["naissance"],
                               "cle": f"{p['id']}:{c['naissance']}"})
+    # 0.27 : personnes liées à Immich sans aucune photo taguée « scandale » (comptées toutes les 6 heures)
+    sans_scandale = _sans_scandale()
     return {"fiches": fiches, "relire": relire, "anniversaires": annivs, "erreurs": erreurs, "dates": dates,
-            "recidives": recidives, "scandales": scandales,
-            "total": len(fiches) + len(relire) + len(annivs) + len(erreurs) + len(dates) + len(recidives) + len(scandales)}
+            "recidives": recidives, "scandales": scandales, "sans_scandale": sans_scandale,
+            "total": len(fiches) + len(relire) + len(annivs) + len(erreurs) + len(dates) + len(recidives) + len(scandales)
+                     + len(sans_scandale)}
 
 
 def _carnet_sur(nom: str) -> dict | None:
@@ -2100,7 +2116,7 @@ def route_a_traiter():
 @app.post("/api/a-traiter/ignorer")
 def ignorer(corps: dict = Body(...)):
     sorte = corps.get("sorte")
-    if sorte not in ("fiche", "anniversaire", "date", "scandale"):
+    if sorte not in ("fiche", "anniversaire", "date", "scandale", "sans_scandale"):
         raise HTTPException(422, "Sorte inconnue.")
     ETAT["base"].ignorer(sorte, str(corps.get("cle", ""))[:80])
     return {"ok": True}
@@ -2291,17 +2307,21 @@ def ha_sejour(corps: dict = Body(...)):
         raise HTTPException(422, "Chambre manquante.")
     base.poser_reglage("ha_dernier_appel", maintenant())
     noms = [" ".join(str(n).split()) for n in (corps.get("noms") or []) if str(n).strip()][:4]
+    ids = _ids_de_ha(corps, noms)                           # 0.27 : identifiants de carnet envoyés par la carte
     avant = base.sejours_a_venir_de_chambre(chambre)        # 0.22.1 : pour repérer les séjours annulés
+    sejours_avant = _sejours_de_chambre(chambre)            # 0.27 : séjours envoyés à carnet, pour retirer les annulés
     if not noms:
         base.retirer_sejours(chambre)
         annules = _apres_annulation(chambre, avant)
+        _sejours_vers_carnet(chambre, sejours_avant)
         base.poser_reglage("ha_dernier_resume", f"{chambre} : libre")
         return {"chambre": chambre, "invites": [], "manquants": [], "a_relire": [], "anniversaires": [], "annules": annules}
     du, fin = _date(corps.get("du"), "date d'arrivée"), _date(corps.get("jusqu_au"), "date de départ")
     if fin < du or not date.today() - timedelta(days=60) <= fin <= date.today() + timedelta(days=400):
         raise HTTPException(422, "Dates de séjour impossibles.")
-    sid = base.poser_sejour(chambre, du.isoformat(), fin.isoformat(), noms)
+    sid = base.poser_sejour(chambre, du.isoformat(), fin.isoformat(), noms, ids)
     annules = _apres_annulation(chambre, avant)
+    _sejours_vers_carnet(chambre, sejours_avant)
     sejour = next(s for s in base.sejours(depuis="0000") if s["id"] == sid)
     # Invité sans fiche que carnet connaît (un seul contact, date complète) : la fiche est créée et le livret
     # préparé ; relecture et approbation restent à faire.
@@ -2408,9 +2428,232 @@ def annuler_sejour(sid: int):
     if s["du"] < date.today().isoformat():           # 0.24.1 : le jour d'arrivée, encore annulable
         raise HTTPException(409, "Ce séjour a commencé : il ne s'annule pas d'ici.")
     avant = base.sejours_a_venir_de_chambre(s["chambre"])
+    sejours_avant = _sejours_de_chambre(s["chambre"])
     base.supprimer_sejour(sid)
     base.noter("sejour", None, f"séjour du {s['du']} ({s['chambre']}) annulé à la main")
-    return {"annules": _apres_annulation(s["chambre"], avant)}
+    annules = _apres_annulation(s["chambre"], avant)
+    _sejours_vers_carnet(s["chambre"], sejours_avant)
+    return {"annules": annules}
+
+
+# ================================================================ 0.27 : envois vers carnet 3.1 (adresse commune)
+#
+# Décision de Julien du 19/11/2026 (dossier « coffre Contacts » v2) : Gazette envoie à carnet ses séjours, ses
+# Gazettes et le nombre de photos « scandale » de chaque personne ; carnet les range dans la fiche et le coffre
+# Contacts. Une personne part avec l'identifiant de carnet (reçu de la carte de réservation de HA, ou trouvé par le
+# nom), sa personne d'Immich et son nom ; carnet décide (inconnue : À traiter dans carnet). Un envoi raté (carnet
+# arrêté, ancienne version) est gardé et réessayé toutes les 10 minutes. Rien ne part en lecture seule.
+
+SCANDALES_DUREE = 6 * 3600        # secondes entre deux comptes des photos « scandale »
+BOUCLE_PAUSE = 600                # secondes entre deux tours de la boucle (renvois, comptes)
+
+
+def _ids_de_ha(corps: dict, noms: list[str]) -> dict:
+    """{nom: {personne_id, immich_id}} d'après `personnes` (carte de réservation 2.4) ; absent : {}."""
+    res = {}
+    for x in corps.get("personnes") or []:
+        if not isinstance(x, dict):
+            continue
+        nom = " ".join(str(x.get("nom") or "").split())
+        if nom in noms:
+            pid = str(x.get("personne_id") or "")
+            res[nom] = {"personne_id": pid if re.fullmatch(r"p-[0-9a-f]{10}", pid) else "",
+                        "immich_id": str(x.get("immich_id") or "")[:80]}
+    return res
+
+
+def _slug(texte: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", cle_nom(texte)).strip("-") or "chambre"
+
+
+def _lien_absolu(lien: str) -> str:
+    """carnet n'accepte qu'une adresse http(s) : un lien relatif (adresse de Gazette inconnue) n'est pas envoyé."""
+    return lien if lien.startswith(("http://", "https://")) else ""
+
+
+def _sejours_de_chambre(chambre: str) -> dict[str, dict]:
+    """clé d'événement → séjour, pour une chambre (tous les séjours connus)."""
+    return {f"sejour-{s['du']}-{_slug(s['chambre'])}": s for s in ETAT["base"].sejours(depuis="0000")
+            if s["chambre"] == chambre}
+
+
+def _personne_pour_carnet(nom: str, pid: int | None, carnet_id: str = "", immich_id: str = "") -> dict:
+    """Ce qui part à carnet pour une personne : identifiant maison, personne d'Immich, nom."""
+    x = {"nom": nom}
+    p = ETAT["base"].personne(pid) if pid else None
+    contact = _contact(p) if p else {}
+    if not contact and not carnet_id:
+        trouves = ETAT["carnet"].chercher(nom) if ETAT["carnet"].actif else []
+        contact = trouves[0] if len(trouves) == 1 else {}
+    if cid := carnet_id or (p or {}).get("carnet_personne_id") or contact.get("personne_id"):
+        x["personne_id"] = cid
+    if imm := immich_id or contact.get("immich_id"):
+        x["immich_id"] = imm
+    return x
+
+
+def _corps_sejour(s: dict) -> dict:
+    chambre, du, fin = s["chambre"], s["du"], s["jusqu_au"]
+    nuits = (date.fromisoformat(fin) - date.fromisoformat(du)).days
+    return {"type": "sejour", "date": du, "titre": f"Séjour — {chambre}",
+            "resume": f"Du {du[8:10]}/{du[5:7]}/{du[:4]} au {fin[8:10]}/{fin[5:7]}/{fin[:4]}"
+                      + (f" ({nuits} nuit{'s' if nuits > 1 else ''})" if nuits > 0 else ""),
+            "lien": _lien_absolu(f"{_adresse()}/#/livrets" if _adresse() else ""),
+            "personnes": [{**_personne_pour_carnet(i["nom"], i["personne_id"], i.get("carnet_id") or "",
+                                                   i.get("immich_id") or ""), "role": "invité"} for i in s["invites"]]}
+
+
+def _vers_carnet(methode: str, chemin: str, corps: dict | None, quoi: str) -> str:
+    """Envoie à carnet ; gardé pour un nouvel essai si carnet ne répond pas. Rend une phrase pour l'écran."""
+    base: Base = ETAT["base"]
+    if ETAT["cfg"].lecture_seule or not ETAT["carnet"].actif:
+        return "pas envoyé à carnet (lecture seule ou carnet pas réglé)"
+    texte = json.dumps(corps, ensure_ascii=False) if corps is not None else ""
+    try:
+        statut, rep = ETAT["carnet"].envoyer(methode, chemin, corps)
+    except Exception as ex:  # noqa: BLE001 — carnet arrêté, réseau : nouvel essai plus tard
+        base.garder_envoi(methode, chemin, texte, quoi, str(ex).splitlines()[0][:200] or type(ex).__name__)
+        return "carnet injoignable : envoi gardé, nouvel essai dans 10 minutes"
+    if statut in (404, 405) and not rep.get("detail", "").startswith(("Personne", "Événement")):
+        base.garder_envoi(methode, chemin, texte, quoi, "carnet trop ancien (3.1 nécessaire)")
+        return "carnet trop ancien (3.1 nécessaire) : envoi gardé"
+    if statut >= 500 or statut == 401:
+        base.garder_envoi(methode, chemin, texte, quoi, f"carnet a répondu {statut}")
+        return f"carnet a répondu {statut} : envoi gardé"
+    base.envoi_fait(methode, chemin)
+    if statut >= 400:
+        base.noter("erreur", None, f"carnet refuse {quoi} : {rep.get('detail', statut)}"[:200])
+        return f"refusé par carnet ({rep.get('detail', statut)})"
+    a_rattacher = rep.get("a_rattacher") or []
+    return "envoyé à carnet" + (f" ({len(a_rattacher)} personne(s) à rattacher dans carnet)" if a_rattacher else "")
+
+
+def _sejours_vers_carnet(chambre: str, avant: dict[str, dict]) -> None:
+    """Après une annonce de HA ou une annulation : chaque séjour de la chambre part à carnet, les disparus sont retirés."""
+    apres = _sejours_de_chambre(chambre)
+    for cle, s in apres.items():
+        if s["invites"] and (cle not in avant or avant[cle] != s):
+            _vers_carnet("PUT", f"/evenements/gazette/{cle}", _corps_sejour(s), f"le séjour {s['du']} ({chambre})")
+    for cle in avant.keys() - apres.keys():
+        _vers_carnet("DELETE", f"/evenements/gazette/{cle}", None, f"le séjour annulé {cle}")
+
+
+def _gazette_vers_carnet(p: dict) -> str:
+    """À l'approbation d'une Gazette : le numéro part dans « Journaux parus » de carnet (comme La Récidive)."""
+    if p.get("essai_de"):
+        return ""
+    contact = _contact(p)
+    ident = p.get("carnet_personne_id") or contact.get("personne_id")
+    if not ident:
+        return "pas envoyé à carnet : carnet ne trouve pas cette personne"
+    if ETAT["cfg"].lecture_seule:
+        return "pas envoyé à carnet : lecture seule"
+    sejours = ETAT["base"].sejours_de(p["id"])
+    le = sejours[0]["du"] if sejours else date.today().isoformat()
+    corps = {"journal": "gazette", "le": le, "titre": f"La Gazette de {_prenom(p)}", "lien": _lien_absolu(_lien(p["id"])),
+             "evenement": "premier séjour" if sejours else ""}
+    try:
+        ETAT["carnet"].ecrire_paru(ident, f"gazette-{le}", corps)
+    except Exception as ex:  # noqa: BLE001
+        message = f"pas envoyé à carnet ({str(ex).splitlines()[0][:120]})"
+        ETAT["base"].noter("erreur", p["id"], f"La Gazette : {message}"[:200])
+        return message
+    ETAT["base"].noter("carnet", p["id"], "La Gazette rangée dans carnet (Journaux parus)")
+    return "rangé sur la fiche de carnet"
+
+
+def compter_scandales(forcer: bool = False) -> dict:
+    """Compte les photos taguées « scandale » de chaque fiche liée à Immich (au plus toutes les 6 heures), garde le
+    résultat (À traiter) et l'envoie à carnet (`/compteurs/gazette/photos_scandale`, liste complète)."""
+    base: Base = ETAT["base"]
+    garde = json.loads(base.reglage("scandales_compte") or "{}")
+    if not forcer and garde.get("le") and (datetime.now() - datetime.fromisoformat(garde["le"])).total_seconds() < SCANDALES_DUREE:
+        return garde
+    immich: Immich = ETAT["immich"]
+    if not immich.actif:
+        return garde
+    comptes, envoi = {}, []
+    try:
+        tag_absent = immich.tag_scandale() is None
+        for p in base.personnes():
+            contact = _contact(p)
+            imm = contact.get("immich_id") or ""
+            if not imm:
+                continue
+            n = 0 if tag_absent else len(immich.scandales(imm) or [])
+            comptes[str(p["id"])] = {"nom": p["nom"], "n": n}
+            envoi.append({**_personne_pour_carnet(p["nom"], p["id"]), "valeur": n})
+    except Exception as ex:  # noqa: BLE001 — Immich arrêté : on garde l'ancien compte
+        base.noter("erreur", None, f"photos scandale : Immich ({str(ex).splitlines()[0][:150]})")
+        return garde
+    garde = {"le": maintenant(), "tag_absent": tag_absent, "personnes": comptes}
+    base.poser_reglage("scandales_compte", json.dumps(garde, ensure_ascii=False))
+    if envoi:
+        _vers_carnet("PUT", "/compteurs/gazette/photos_scandale", {"personnes": envoi, "complet": True}, "les photos scandale")
+    return garde
+
+
+def _sans_scandale() -> list[dict]:
+    """Personnes sans aucune photo « scandale » dans Immich (d'après le dernier compte), sauf celles ignorées."""
+    base: Base = ETAT["base"]
+    garde = json.loads(base.reglage("scandales_compte") or "{}")
+    ign = base.ignores("sans_scandale")
+    return [{"id": int(pid), "nom": x["nom"], "cle": pid, "tag_absent": bool(garde.get("tag_absent"))}
+            for pid, x in sorted((garde.get("personnes") or {}).items(), key=lambda kv: kv[1]["nom"].casefold())
+            if x["n"] == 0 and pid not in ign and base.personne(int(pid))]
+
+
+def renvoyer_a_carnet() -> dict:
+    """Nouvel essai des envois gardés (les plus anciens d'abord)."""
+    faits, restes = 0, 0
+    for e in ETAT["base"].envois_en_attente():
+        corps = json.loads(e["corps"]) if e["corps"] else None
+        message = _vers_carnet(e["methode"], e["chemin"], corps, e["quoi"])
+        if message.startswith(("envoyé", "refusé")):
+            faits += 1
+        else:
+            restes += 1
+    return {"faits": faits, "restes": restes}
+
+
+async def _boucle_carnet() -> None:
+    while True:
+        await asyncio.sleep(BOUCLE_PAUSE)
+        try:
+            await asyncio.to_thread(renvoyer_a_carnet)
+            await asyncio.to_thread(compter_scandales)
+        except Exception as ex:  # noqa: BLE001 — la boucle ne s'arrête jamais
+            log.warning("Envois vers carnet : %s", ex)
+
+
+@app.post("/api/carnet/envoyer-tout")
+def envoyer_tout_a_carnet():
+    """Réglages › « Tout envoyer à carnet » : tous les séjours connus, les Gazettes et Récidives approuvées, les photos
+    scandale (reprise de l'historique, ou après une panne de carnet)."""
+    exiger_ecriture("carnet")
+    base: Base = ETAT["base"]
+    sejours = 0
+    for s in base.sejours(depuis="0000"):
+        if s["invites"]:
+            _vers_carnet("PUT", f"/evenements/gazette/sejour-{s['du']}-{_slug(s['chambre'])}", _corps_sejour(s),
+                         f"le séjour {s['du']} ({s['chambre']})")
+            sejours += 1
+    gazettes = recidives = 0
+    for p in base.personnes():
+        if (base.livret(p["id"]) or {}).get("etat") == "approuve" and _gazette_vers_carnet(p).startswith("rangé"):
+            gazettes += 1
+    for ed in base.recidives():
+        p = base.personne(ed["personne_id"])
+        if p and ed["etat"] == "approuve" and not ed.get("essai") and _envoyer_a_carnet(p, ed).startswith("rangé"):
+            recidives += 1
+    compter_scandales(forcer=True)
+    return {"sejours": sejours, "gazettes": gazettes, "recidives": recidives,
+            "en_attente": len(base.envois_en_attente())}
+
+
+@app.get("/api/carnet/envois")
+def envois_carnet():
+    return {"en_attente": ETAT["base"].envois_en_attente()}
 
 
 def _fiche_depuis_carnet(nom: str) -> int | None:

@@ -89,6 +89,11 @@ class Base:
                 id INTEGER PRIMARY KEY, sorte TEXT NOT NULL, texte TEXT NOT NULL, cle TEXT NOT NULL UNIQUE,
                 source TEXT NOT NULL DEFAULT '', ajoute_le TEXT NOT NULL, servi INTEGER NOT NULL DEFAULT 0);
             CREATE INDEX IF NOT EXISTS banque_sorte ON banque (sorte);
+            -- 0.27 : envois vers carnet (adresse commune des événements, compteurs) en attente d'un nouvel essai
+            CREATE TABLE IF NOT EXISTS envois_carnet (
+                id INTEGER PRIMARY KEY, methode TEXT NOT NULL, chemin TEXT NOT NULL, corps TEXT NOT NULL DEFAULT '',
+                quoi TEXT NOT NULL DEFAULT '', essais INTEGER NOT NULL DEFAULT 0, erreur TEXT NOT NULL DEFAULT '',
+                cree_le TEXT NOT NULL, UNIQUE (methode, chemin));
         """)
         # 0.9 : séjours d'avant Gazette notés sur la fiche (nombre et date d'arrivée du dernier)
         colonnes = {l["name"] for l in self._c.execute("PRAGMA table_info(personnes)")}
@@ -98,6 +103,12 @@ class Base:
             self._c.execute("ALTER TABLE personnes ADD COLUMN sejours_avant INTEGER NOT NULL DEFAULT 0")
         if "dernier_avant" not in colonnes:
             self._c.execute("ALTER TABLE personnes ADD COLUMN dernier_avant TEXT NOT NULL DEFAULT ''")
+        if "carnet_personne_id" not in colonnes:   # 0.27 : identifiant maison de carnet, reçu de Home Assistant
+            self._c.execute("ALTER TABLE personnes ADD COLUMN carnet_personne_id TEXT NOT NULL DEFAULT ''")
+        colonnes = {l["name"] for l in self._c.execute("PRAGMA table_info(invites)")}
+        for col in ("carnet_id", "immich_id"):      # 0.27 : identifiants envoyés par la carte de réservation de HA
+            if col not in colonnes:
+                self._c.execute(f"ALTER TABLE invites ADD COLUMN {col} TEXT NOT NULL DEFAULT ''")
         # 0.9.1 : gros titre de la une choisi ou écrit, description et propositions de l'IA
         colonnes = {l["name"] for l in self._c.execute("PRAGMA table_info(recidives)")}
         if "essai" not in colonnes:              # 0.20 : édition d'essai (Réglages › Simuler), jamais comptée
@@ -254,8 +265,11 @@ class Base:
                             (*champs.values(), pid))
 
     # ------------------------------------------------------------ séjours (Home Assistant)
-    def poser_sejour(self, chambre: str, du: str, jusqu_au: str, noms: list[str]) -> int:
-        """Un séjour par chambre et date d'arrivée. Les invités sont remplacés par la liste reçue."""
+    def poser_sejour(self, chambre: str, du: str, jusqu_au: str, noms: list[str], ids: dict | None = None) -> int:
+        """Un séjour par chambre et date d'arrivée. Les invités sont remplacés par la liste reçue.
+        0.27 : `ids` : nom → {personne_id, immich_id} envoyés par la carte de réservation de Home Assistant. Une fiche
+        de Gazette sans identifiant de carnet reçoit celui de son invité."""
+        ids = ids or {}
         with self._verrou, self._c:
             # Un séjour de la même chambre qui chevauche (dates changées dans HA) est remplacé
             self._c.execute("DELETE FROM sejours WHERE chambre = ? AND du != ? AND du <= ? AND jusqu_au >= ?",
@@ -274,7 +288,13 @@ class Base:
             self._c.execute("DELETE FROM invites WHERE sejour_id = ?", (sid,))
             for n in noms:
                 p = self.trouver(n)
-                self._c.execute("INSERT OR IGNORE INTO invites VALUES (?,?,?)", (sid, n, p["id"] if p else None))
+                x = ids.get(n) or {}
+                cid, imm = str(x.get("personne_id") or "")[:20], str(x.get("immich_id") or "")[:80]
+                self._c.execute("INSERT OR IGNORE INTO invites (sejour_id, nom, personne_id, carnet_id, immich_id) "
+                                "VALUES (?,?,?,?,?)", (sid, n, p["id"] if p else None, cid, imm))
+                if p and cid:
+                    self._c.execute("UPDATE personnes SET carnet_personne_id = ? WHERE id = ? AND carnet_personne_id = ''",
+                                    (cid, p["id"]))
         return sid
 
     def retirer_sejours(self, chambre: str) -> None:
@@ -354,8 +374,28 @@ class Base:
             ss = [dict(l) for l in self._c.execute("SELECT * FROM sejours WHERE jusqu_au >= ? ORDER BY du", (depuis,))]
             for s in ss:
                 s["invites"] = [dict(l) for l in self._c.execute(
-                    "SELECT nom, personne_id FROM invites WHERE sejour_id = ? ORDER BY nom", (s["id"],))]
+                    "SELECT nom, personne_id, carnet_id, immich_id FROM invites WHERE sejour_id = ? ORDER BY nom", (s["id"],))]
         return ss
+
+    # ------------------------------------------------------------ 0.27 : envois vers carnet en attente
+    def garder_envoi(self, methode: str, chemin: str, corps: str, quoi: str, erreur: str) -> None:
+        """Un envoi raté est gardé pour un nouvel essai ; le dernier corps pour le même chemin remplace l'ancien."""
+        with self._verrou, self._c:
+            self._c.execute("INSERT INTO envois_carnet (methode, chemin, corps, quoi, essais, erreur, cree_le) "
+                            "VALUES (?,?,?,?,1,?,?) ON CONFLICT(methode, chemin) DO UPDATE SET corps = excluded.corps, "
+                            "quoi = excluded.quoi, essais = envois_carnet.essais + 1, erreur = excluded.erreur",
+                            (methode, chemin, corps, quoi, erreur[:300], maintenant()))
+            # un DELETE remplace un PUT en attente sur le même chemin, et inversement
+            autre = "DELETE" if methode == "PUT" else "PUT"
+            self._c.execute("DELETE FROM envois_carnet WHERE methode = ? AND chemin = ?", (autre, chemin))
+
+    def envois_en_attente(self) -> list[dict]:
+        with self._verrou:
+            return [dict(l) for l in self._c.execute("SELECT * FROM envois_carnet ORDER BY id")]
+
+    def envoi_fait(self, methode: str, chemin: str) -> None:
+        with self._verrou, self._c:
+            self._c.execute("DELETE FROM envois_carnet WHERE methode = ? AND chemin = ?", (methode, chemin))
 
     def sejours_de(self, pid: int) -> list[dict]:
         """0.9 : tous les séjours connus d'une personne (passés compris), par date d'arrivée."""

@@ -176,6 +176,19 @@ class Carnet:
             if p.get("personne_id") == personne_id:
                 p["parus"] = [{"cle": cle, **corps}] + [x for x in p.get("parus") or [] if x.get("cle") != cle]
 
+    def par_identifiant(self, personne_id: str) -> dict | None:
+        """0.27 : le contact de carnet qui porte cet identifiant maison (reçu de Home Assistant), ou None."""
+        if not personne_id:
+            return None
+        return next((p for p in self.personnes() if p.get("personne_id") == personne_id), None)
+
+    def envoyer(self, methode: str, chemin: str, corps: dict | None) -> tuple[int, dict]:
+        """0.27 : un envoi vers l'adresse commune de carnet 3.1 (`/evenements/…`, `/compteurs/…`) : (statut, réponse).
+        Les exceptions réseau sont laissées à l'appelant (l'envoi est alors gardé pour un nouvel essai)."""
+        if not self.actif:
+            raise RuntimeError("carnet pas réglé (GAZETTE_CARNET_URL ou MAISON_JETON vide)")
+        return self._fiche(self.url, self.jeton, methode, chemin, corps)
+
     # ------------------------------------------------------------ 0.23 : fiche complète (carnet 2.33)
     def _demander(self, methode: str, chemin: str, corps: dict | None = None) -> dict:
         if not self.actif:

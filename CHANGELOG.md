@@ -1,5 +1,12 @@
 # Journal des versions
 
+## 0.27.0 — 19 novembre 2026 (envois vers carnet 3.1, photos scandale, identifiants de la carte de réservation)
+- **Séjours envoyés à carnet** (décision de Julien du 19/11/2026, dossier « coffre Contacts » v2) : à chaque annonce de Home Assistant, chaque séjour part à l'adresse commune de carnet 3.1 (`PUT /evenements/gazette/sejour-<date>-<chambre>`), avec ses invités (identifiant de carnet, personne d'Immich, nom) ; un séjour annulé est retiré (`DELETE`). carnet range le séjour dans la fiche et le coffre Contacts ; une personne qu'il ne reconnaît pas va dans son À traiter.
+- **Identifiants reçus de la carte de réservation** (carte 2.4) : `/ha/sejour` accepte `personnes: [{nom, personne_id, immich_id}]` ; la fiche de Gazette garde l'identifiant de carnet (`carnet_personne_id`), qui passe avant le nom pour retrouver la personne dans carnet.
+- **Gazettes et Récidives** : à l'approbation d'une Gazette, le numéro part dans « Journaux parus » de carnet comme La Récidive ; les deux portent le lien de leur page dans Gazette.
+- **Photos « scandale »** : toutes les 6 heures, Gazette compte les photos taguées « scandale » dans Immich pour chaque fiche liée et envoie le compte à carnet (`/compteurs/gazette/photos_scandale`), affiché sur la fiche de carnet (tuile Gazette). Une personne **sans aucune photo scandale** arrive dans **À traiter › Aucune photo « scandale »** (Ignorer possible).
+- **File de nouvel essai** : un envoi raté (carnet arrêté, trop ancien) est gardé et réessayé toutes les 10 minutes ; Réglages › Envois vers carnet montre les envois en attente et « Tout envoyer à carnet » reprend tout l'historique. Rien ne part en lecture seule.
+
 ## 0.26.0 — 18 novembre 2026 (courrier des lecteurs dans la banque, plus de chats)
 - **Courrier des lecteurs dans la banque d'inspiration** (demande de Julien du 18/11) : section « # COURRIER » (aussi « Courrier des lecteurs », « Lettres »), une lettre par ligne au format « lettre ::: signature ::: réponse » (réponse facultative) ; lettre ≤ 400 signes avec {prenom}, signature ≤ 60, réponse ≤ 200. Bouton « Banque » à côté de « 4 lettres » dans La Récidive (4 lettres, jamais déjà parues) ; l'IA reçoit des lettres de la banque comme exemples, au format à étiquettes qu'elle doit rendre. Réglages : 5 compteurs.
 - **Plus aucun chat** (demande de Julien) : les chats deviennent des chiens dans la banque fabriquée par Claude, l'exemple du courrier donné à l'IA, l'exemple de la fiche complète et le prompt ChatGPT/Gemini.
