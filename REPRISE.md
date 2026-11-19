@@ -5,7 +5,8 @@
 ## Changement (19/11/2026) — 0.27.0 : envois vers carnet 3.1
 - `main.py`, section « 0.27 » : `_ids_de_ha` (corps `personnes` de la carte 2.4, identifiant `p-` + 10 hexa seulement), `_sejours_de_chambre`, `_personne_pour_carnet` (identifiant HA > fiche > contact trouvé par nom ; immich), `_corps_sejour`, `_vers_carnet` (PUT/DELETE vers carnet ; réseau, 401, 5xx, 404 « Not Found » → `base.garder_envoi`), `_sejours_vers_carnet` (appelé par `ha_sejour` et `annuler_sejour` : séjours nouveaux ou changés, disparus retirés), `_gazette_vers_carnet` (approbation d'une Gazette → `ecrire_paru` clé `gazette-<1er séjour>`), `compter_scandales` (6 h, réglage `scandales_compte`, envoi complet), `_sans_scandale` (À traiter, sorte d'ignorés `sans_scandale`), `renvoyer_a_carnet`, `_boucle_carnet` (10 min, pas en mode synchrone), routes `POST /api/carnet/envoyer-tout`, `GET /api/carnet/envois`. `_contact` passe d'abord par `carnet.par_identifiant(carnet_personne_id)`. `_envoyer_a_carnet` ajoute `lien`.
 - `base.py` : colonnes `personnes.carnet_personne_id`, `invites.carnet_id` / `immich_id` ; table `envois_carnet` (unique méthode + chemin ; un DELETE remplace un PUT en attente) ; `poser_sejour(…, ids)`.
-- `carnet.py` : `par_identifiant`, `envoyer` (passe par `_fiche`, injectable).
+- `carnet.py` : `par_identifiant`, `envoyer` (passe par `_fiche`, injectable) ; `fiche()` garde `eurovision` (carnet 3.1).
+- `fiche.py` : `eurovision(prenom, soirees, cible)` (cibles `CIBLES_EUROVISION`, 3 remarques les plus sévères : points puis note), ajouté au texte de `_tirage`.
 - Écrans : tuile « Aucune photo « scandale » » (`ATraiter.svelte`), bloc « Envois vers carnet » (`Reglages.svelte`).
 - Tests : `tests/test_carnet_031.py`. Jamais essayé sur la vraie installation. Demande carnet 3.1 (sinon les envois restent en attente, rien ne casse).
 

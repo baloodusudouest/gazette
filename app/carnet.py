@@ -235,6 +235,8 @@ class Carnet:
         connu = d.get("connu") if isinstance(d.get("connu"), dict) else {}
         f = {"pepites": fiche_pepites(d.get("pepites")), "connu": connu,
              "suggestions": d.get("suggestions") if isinstance(d.get("suggestions"), list) else None,
+             # 0.27 : remarques aux soirées Eurovision (carnet 3.1, envoyées par Douze points)
+             "eurovision": d.get("eurovision") if isinstance(d.get("eurovision"), list) else [],
              "immich_id": str(connu.get("immich_id") or d.get("immich_id") or ""), "lu_le": maintenant(), "garde": False}
         self.base.poser_reglage(f"fiche:{personne_id}", json.dumps(f, ensure_ascii=False))
         self._fiches[personne_id] = (time.monotonic(), f)

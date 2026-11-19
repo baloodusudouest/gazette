@@ -119,3 +119,15 @@ def test_027_envoyer_tout(monter):
     assert r["sejours"] == 1 and r["en_attente"] == 0
     assert any(ch.startswith("/evenements/gazette/sejour-") for m, ch, co in faux.appels)
     assert any(ch == "/compteurs/gazette/photos_scandale" for m, ch, co in faux.appels)
+
+
+def test_027_remarques_eurovision_pour_l_ia():
+    from app import fiche as FI
+    soirees = [{"soiree": "Finale 2026", "date": "2026-05-16", "remarques": [
+        {"pays": "Suède", "points": 0, "note": 2, "commentaire": "Une casserole"},
+        {"pays": "Italie", "points": 12, "note": 19, "commentaire": "Sublime"},
+        {"pays": "France", "points": 1, "note": 5.5, "commentaire": "Bof"}]}]
+    t = FI.eurovision("Camille", soirees, "rumeurs", nombre=2)
+    assert "Suède (0 point, 2/20) : « Une casserole »" in t and "France (1 point, 5.5/20)" in t and "Italie" not in t
+    assert "expulsion de Camille" in t and "de 12 à 0" in t
+    assert FI.eurovision("Camille", soirees, "horoscope") == "" and FI.eurovision("Camille", [], "rumeurs") == ""

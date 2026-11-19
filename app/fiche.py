@@ -143,6 +143,45 @@ def pour_ia(prenom: str, tirage: list[dict], ton_: str) -> str:
     return ". ".join(morceaux)
 
 
+# 0.27 (demande de Julien du 19/11/2026) : les remarques laissées aux soirées Eurovision de Douze points (rangées dans
+# carnet) nourrissent les brèves : « l'émissaire de Suède demande l'expulsion de Camille après ses 0 point ».
+# Points de l'Eurovision : de 12 (le meilleur) à 0 ; la note est sur 20.
+CIBLES_EUROVISION = ("rumeurs", "courrier", "droit", "une")
+
+
+def eurovision(prenom: str, soirees: list | None, cible: str, nombre: int = 3) -> str:
+    """Les remarques les plus sévères (moins de points, puis note la plus basse) pour l'IA ; vide si rien ou si la
+    demande ne s'y prête pas."""
+    if cible not in CIBLES_EUROVISION or not isinstance(soirees, list):
+        return ""
+    remarques = []
+    for s in soirees:
+        for r in (s.get("remarques") or []) if isinstance(s, dict) else []:
+            if isinstance(r, dict) and str(r.get("commentaire") or "").strip() and r.get("pays"):
+                remarques.append({**r, "soiree": s.get("soiree") or "une soirée Eurovision"})
+    if not remarques:
+        return ""
+    def cle(r):
+        pts = r.get("points") if isinstance(r.get("points"), (int, float)) else 12
+        note = r.get("note") if isinstance(r.get("note"), (int, float)) else 20
+        return (pts, note)
+    choisies = sorted(remarques, key=cle)[:nombre]
+    qui = prenom or "cette personne"
+
+    def ligne(r):
+        pts = r.get("points")
+        detail = []
+        if isinstance(pts, (int, float)):
+            detail.append(f"{pts:g} point" + ("s" if pts not in (0, 1) else ""))
+        if isinstance(r.get("note"), (int, float)):
+            detail.append(f"{r['note']:g}/20")
+        return f"{r['pays']}" + (f" ({', '.join(detail)})" if detail else "") + f" : « {' '.join(str(r['commentaire']).split())[:160]} »"
+    return (f"Remarques de {qui} aux soirées Eurovision de la maison (points de 12 à 0, note sur 20) : "
+            + " ; ".join(ligne(r) for r in choisies)
+            + f". Idée possible (une seule fois, pas obligatoire) : l'émissaire d'un de ces pays proteste officiellement "
+              f"ou demande l'expulsion de {qui} de son pays à cause de sa note")
+
+
 def _textes(prop) -> str:
     if isinstance(prop, dict):
         return " ".join(str(v) for v in prop.values() if isinstance(v, str))

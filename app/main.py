@@ -1599,6 +1599,9 @@ def _tirage(p: dict, journal_: str, numero: int, cible: str) -> tuple[str, dict]
         return "", {}
     tire = FI.tirer(f["pepites"])
     texte = FI.pour_ia(_prenom(p), tire, FI.ton(f["pepites"]))
+    # 0.27 : remarques aux soirées Eurovision (Douze points → carnet), pour les brèves « l'émissaire de … »
+    if (euro := FI.eurovision(_prenom(p), f.get("eurovision"), cible)):
+        texte = f"{texte}. {euro}" if texte else euro
     return texte, {"journal": journal_, "numero": numero, "cible": cible, "personne": _personne_carnet(p),
                    "ids": [x["id"] for x in tire]}
 
