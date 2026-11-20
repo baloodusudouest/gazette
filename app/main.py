@@ -2175,6 +2175,8 @@ def suggestions_carnet(q: str = ""):
 
 @app.get("/api/connexion/etat")
 def etat_connexions():
+    """Ancien écran Connexion (jusqu'à 0.28). 0.29 : remplacé par les fiches communes (/api/maison/services) ; gardé
+    une version, à retirer à la version suivante (rien d'autre ne le lit)."""
     base: Base = ETAT["base"]
     cfg: Config = ETAT["cfg"]
     return {"sources": base.stats_sources(), "erreurs": ETAT["sources"].erreurs,
@@ -2189,6 +2191,8 @@ def etat_connexions():
 
 @app.post("/api/connexion/verifier")
 def verifier_sources():
+    """Ancien « Vérifier les sources » (teste tout). 0.29 : chaque fiche a son « Vérifier » ; à retirer à la version
+    suivante."""
     r = ETAT["sources"].sonder()
     if ETAT["carnet"].actif:
         liste = ETAT["carnet"].personnes(forcer=True)
@@ -2206,6 +2210,204 @@ def verifier_sources():
     return r
 
 
+# ================================================================ fiches « Connexion » (0.29, contrat 3, socle 0.11.0)
+# Un service par fiche, textes « Lit » et « Écrit » repris de l'ancien écran (0.28). Chaque « Vérifier » ne teste que
+# son service, par la même lecture légère que l'ancien « Vérifier les sources » ; rien n'est écrit, rien n'est payé, le
+# PC n'est jamais réveillé (l'IA : liste des modèles seulement). Le rendu PDF (Chromium et polices du conteneur) n'est
+# pas un service extérieur : il passe dans Réglages.
+
+def _propre(texte) -> str:
+    """Une erreur gardée, montrée dans un guide : nettoyée comme un détail (ni adresse, ni clé)."""
+    return maison.nettoyer_detail(texte) or ""
+
+
+def _essai_source(nom: str):
+    def essai():
+        r = ETAT["sources"].sonder_une(nom, delai=6)
+        if r["ok"] is None:
+            return False, r["detail"]
+        pages = (ETAT["base"].stats_sources().get(CACHE_SOURCE.get(nom, "")) or {}).get("pages")
+        return bool(r["ok"]), r["detail"].capitalize() + (f" ; {pages} pages gardées." if pages else ".")
+    return essai
+
+
+CACHE_SOURCE = {"wikipedia-fr": "wp", "wikidata": "wd", "larousse": "lar"}
+
+
+def _guide_source(nom: str):
+    """Ce que l'ancienne tuile disait sous le nom : pages gardées dans la base, dernière erreur de lecture."""
+    def guide():
+        c = ETAT["base"].stats_sources().get(CACHE_SOURCE.get(nom, "")) if nom in CACHE_SOURCE else None
+        cle = "larousse" if nom == "larousse" else "wikidata" if nom == "wikidata" else "wikipedia"
+        err = ETAT["sources"].erreurs.get(cle) or ETAT["sources"].erreurs.get(nom)
+        reglages = []
+        if nom in CACHE_SOURCE:
+            reglages.append({"nom": "Pages gardées", "valeur": (f"{c['pages']} (dernière lecture {c['derniere'][:16].replace('T', ' ')})"
+                                                                if c else "rien de lu pour l'instant")})
+        if nom == "larousse":
+            reglages.append({"nom": "Lecture", "valeur": "allumée (Réglages › Le journal)" if _journal()["larousse"]
+                             else "coupée (Réglages › Le journal ; GAZETTE_LAROUSSE=non au premier démarrage)"})
+        if err:
+            reglages.append({"nom": "Dernière erreur", "valeur": _propre(err)})
+        return {"reglages": reglages}
+    return guide
+
+
+def _essai_ha():
+    """Gazette n'appelle jamais Home Assistant : c'est lui qui annonce les séjours. L'essai lit le dernier appel reçu."""
+    b: Base = ETAT["base"]
+    dernier = b.reglage("ha_dernier_appel")
+    if not dernier:
+        return False, "Porte ouverte, rien reçu de Home Assistant pour l'instant."
+    return True, f"Dernier séjour reçu le {dernier[:16].replace('T', ' à ')}."
+
+
+def _guide_ha():
+    b: Base = ETAT["base"]
+    dernier, corps = b.reglage("ha_dernier_appel"), b.reglage("ha_dernier_resume")
+    return {"reglages": [
+        {"nom": "Porte /ha/sejour", "valeur": "ouverte (GAZETTE_JETON_HA)" if ETAT["cfg"].jeton_ha else "fermée (jeton absent)"},
+        {"nom": "Dernier séjour reçu", "valeur": dernier[:16].replace("T", " à ") if dernier else "rien reçu"},
+        *([{"nom": "Dernier appel", "valeur": corps}] if corps else []),
+    ]}
+
+
+def _essai_carnet():
+    liste = ETAT["carnet"].personnes(forcer=True)
+    err = ETAT["carnet"].erreur
+    if err:
+        return False, err
+    return True, f"{len(liste)} contacts, {sum(1 for p in liste if p.get('naissance'))} avec date complète."
+
+
+def _guide_carnet():
+    e = ETAT["carnet"].etat()
+    reglages = []
+    if e["personnes"] is not None:
+        reglages.append({"nom": "Contacts lus", "valeur": f"{e['personnes']} contacts, {e['dates']} avec date complète"})
+    if e.get("lu_le"):
+        reglages.append({"nom": "Dernière lecture", "valeur": str(e["lu_le"])[:16].replace("T", " à ")})
+    n = len(ETAT["base"].envois_en_attente())
+    reglages.append({"nom": "Envois en attente", "valeur": (f"{n} (Réglages › Envois vers carnet)" if n else "aucun")})
+    if e["erreur"]:
+        reglages.append({"nom": "Dernière erreur", "valeur": _propre(e["erreur"])})
+    return {"reglages": reglages}
+
+
+def _essai_immich():
+    r = ETAT["immich"].sonder()
+    return bool(r["ok"]), (r["detail"] or "")[:1].upper() + (r["detail"] or "")[1:]
+
+
+def _guide_immich():
+    err = ETAT["immich"].erreur
+    return {"reglages": [{"nom": "Dernière erreur", "valeur": _propre(err)}]} if err else None
+
+
+def _essai_ia():
+    r = ETAT["ollama"].sonder(_ia_etat()["modele_second"])
+    return bool(r["ok"]), r["detail"] + "."
+
+
+def _guide_ia():
+    """Le guide complet de l'IA du PC (ollama.guide, avec le second modèle) ; la dernière erreur en tête des réglages."""
+    e = _ia_etat()
+    g = e["guide"]
+    if e["erreur"]:
+        g["reglages"].insert(0, {"nom": "Dernière erreur", "valeur": _propre(e["erreur"])})
+    return g
+
+
+def _essai_douze():
+    r = ETAT["douze"].sonder()
+    return bool(r["ok"]), (r["detail"] or "")[:1].upper() + (r["detail"] or "")[1:] + "."
+
+
+def _guide_douze():
+    e = ETAT["douze"].etat()
+    reglages = [
+        {"nom": "Adresse appelée", "valeur": e["url"] or "pas réglée (GAZETTE_DOUZE_POINTS_URL)"},
+        {"nom": "Édition spéciale", "valeur": "allumée (Réglages)" if _euro_actif() else "éteinte (Réglages) : rien n'est relu"},
+        {"nom": "Soirées lues", "valeur": (f"{e['soirees']} soirée(s) clôturée(s), {len(ETAT['base'].eurovisions())} numéro(s)"
+                                          if e["soirees"] is not None else "pas encore lu")},
+    ]
+    if e["erreur"]:
+        reglages.append({"nom": "Dernière erreur", "valeur": _propre(e["erreur"])})
+    return {"reglages": reglages}
+
+
+def _essai_sillage():
+    return maison.essai_http(ETAT["sillage"].url, "/health", duree=5)
+
+
+def _derniere_ecriture_carnet():
+    return ETAT["base"].reglage("carnet_derniere_ecriture") or None
+
+
+SERVICES = maison.Services(APPLI)
+SERVICES.ajouter(
+    "wikipedia-fr", "Wikipédia FR",
+    lit="pages « mois année », « année en France », « année », « jour mois » (wikitext brut)", ecrit="Rien.",
+    essai=_essai_source("wikipedia-fr"), guide=_guide_source("wikipedia-fr"))
+SERVICES.ajouter(
+    "wikipedia-en", "Wikipédia EN",
+    lit="pages « Month Year », en repli quand la semaine est pauvre ; proposées en anglais, jamais choisies seules",
+    ecrit="Rien.", essai=_essai_source("wikipedia-en"), guide=_guide_source("wikipedia-en"))
+SERVICES.ajouter(
+    "wikidata", "Wikidata",
+    lit="notoriété des pages (liens interlangues) et nature « être humain »", ecrit="Rien.",
+    essai=_essai_source("wikidata"), guide=_guide_source("wikidata"))
+SERVICES.ajouter(
+    "larousse", "Larousse",
+    lit="Journaux de l'année, chronologie du mois (1966 à 2003). Textes non libres : usage familial, rien ne sort du NAS",
+    ecrit="Rien.", regle=lambda: _journal()["larousse"], reglage="Réglages › Le journal › Larousse (pas une variable de la stack)",
+    essai=_essai_source("larousse"), guide=_guide_source("larousse"))
+SERVICES.ajouter(
+    "home-assistant", "Home Assistant",
+    lit="reçoit les séjours sur /ha/sejour (jeton GAZETTE_JETON_HA) ; HA lit /ha/etat", ecrit="Rien.",
+    regle=lambda: bool(ETAT["cfg"].jeton_ha), reglage="GAZETTE_JETON_HA", essai=_essai_ha, guide=_guide_ha)
+SERVICES.ajouter(
+    "carnet", "Carnet", genre="maison", cible="carnet",
+    lit="noms et dates de naissance sur /gazette/personnes (jeton commun MAISON_JETON) : fiche créée seule pour un invité "
+        "connu, saisie assistée, dates comparées",
+    # 0.29 : l'ancien écran disait « rien » depuis la 0.10 ; le flux « Gazette → carnet » du coffre fait foi.
+    ecrit="Les séjours annoncés par Home Assistant (retirés s'ils sont annulés), chaque Gazette et Récidive approuvée "
+          "(« Journaux parus »), le nombre de photos « scandale » de chaque personne (toutes les 6 heures), « Pour les "
+          "journaux » et les pépites de la fiche complète (ajoutées, modifiées, effacées, marquées « parues »). Jamais "
+          "en lecture seule ; un envoi raté est réessayé toutes les 10 minutes.",
+    regle=lambda: ETAT["carnet"].actif, reglage="GAZETTE_CARNET_URL et MAISON_JETON", essai=_essai_carnet,
+    guide=_guide_carnet, derniere_ecriture=_derniere_ecriture_carnet)
+SERVICES.ajouter(
+    "immich", "Immich",
+    lit="La Récidive : photos de l'invité entre deux séjours, photos taguées « scandale », aperçus (clé GAZETTE_IMMICH_CLE : "
+        "asset.read, asset.view, tag.read)",
+    ecrit="Rien.", regle=lambda: ETAT["immich"].actif, reglage="GAZETTE_IMMICH_URL et GAZETTE_IMMICH_CLE",
+    essai=_essai_immich, guide=_guide_immich)
+SERVICES.ajouter(
+    "ia-pc", "IA du PC",
+    lit=f"Ollama sur le PC ({ia.MODELE}) : il reçoit des descriptions écrites et les indices de la fiche (jamais une photo, "
+        f"jamais une date de naissance) et rend des propositions (titres de {MAXI_TITRE} caractères au plus, légendes, "
+        "rumeurs, courrier, horoscope, aides de la Gazette). « Autres propositions » redemande la même chose au second "
+        "modèle s'il est réglé (Réglages › Le journal ; « Vérifier » dit s'il est sur le PC).",
+    ecrit="Rien.", regle=lambda: ETAT["ollama"].actif, reglage="GAZETTE_OLLAMA_URL", essai=_essai_ia, guide=_guide_ia)
+SERVICES.ajouter(
+    "douze-points", "Douze points", genre="maison", cible="douze-points",
+    lit="soirées Eurovision clôturées sur /externe/soirees et leur journal figé (résultat, palmarès, commentaires, duos, "
+        "images de l'évènement), avec le jeton commun MAISON_JETON ; relues à l'ouverture d'À traiter et toutes les "
+        "10 minutes (adresse GAZETTE_DOUZE_POINTS_URL)",
+    ecrit="Rien.", regle=lambda: ETAT["douze"].actif, reglage="GAZETTE_DOUZE_POINTS_URL et MAISON_JETON",
+    essai=_essai_douze, guide=_guide_douze)
+SERVICES.ajouter(
+    "sillage", "Sillage", genre="maison", cible="sillage",
+    # 0.29 : absent de l'ancien écran ; flux « Sillage → Gazette » du coffre (0.23, fiche complète).
+    lit="les étapes du chemin d'une personne (/externe/personnes/…/etapes, jeton commun MAISON_JETON), proposées dans "
+        "la fiche complète",
+    ecrit="Rien.", regle=lambda: ETAT["sillage"].actif, reglage="GAZETTE_SILLAGE_URL et MAISON_JETON",
+    essai=_essai_sillage)
+# Monté APRÈS la garde (seul @app.middleware de Gazette, plus haut) : le dernier middleware ajouté passe en premier.
+maison.monter_services(app, SERVICES, lambda r: "sessions" in ETAT and ETAT["sessions"].connecte(r.cookies))
+
+
 @app.get("/api/reglages")
 def reglages():
     cfg: Config = ETAT["cfg"]
@@ -2214,6 +2416,8 @@ def reglages():
             "champs": {k: {"libelle": v[0], "aide": v[1], "maxi": v[2]} for k, v in journal.CHAMPS.items()},
             "libelles": journal.LIBELLES,
             "lecture_seule": cfg.lecture_seule, "lecture_seule_origine": _origine_lecture_seule(), "version": __version__,
+            # 0.29 : le rendu PDF quitte Connexion (pas un service extérieur)
+            "rendu": {"polices": rendu.polices_presentes() and rendu_recidive.polices_presentes()},
             "historique": ETAT["base"].journal(40)}
 
 
@@ -2343,6 +2547,7 @@ def ha_sejour(corps: dict = Body(...)):
     if not chambre:
         raise HTTPException(422, "Chambre manquante.")
     base.poser_reglage("ha_dernier_appel", maintenant())
+    SERVICES.noter("home-assistant", *_essai_ha())         # 0.29 : la fiche Connexion le sait sans « Vérifier »
     noms = [" ".join(str(n).split()) for n in (corps.get("noms") or []) if str(n).strip()][:4]
     ids = _ids_de_ha(corps, noms)                           # 0.27 : identifiants de carnet envoyés par la carte
     avant = base.sejours_a_venir_de_chambre(chambre)        # 0.22.1 : pour repérer les séjours annulés
@@ -2558,6 +2763,8 @@ def _vers_carnet(methode: str, chemin: str, corps: dict | None, quoi: str) -> st
         base.garder_envoi(methode, chemin, texte, quoi, f"carnet a répondu {statut}")
         return f"carnet a répondu {statut} : envoi gardé"
     base.envoi_fait(methode, chemin)
+    if statut < 400:
+        base.poser_reglage("carnet_derniere_ecriture", datetime.now().astimezone().isoformat(timespec="seconds"))  # 0.29
     if statut >= 400:
         base.noter("erreur", None, f"carnet refuse {quoi} : {rep.get('detail', statut)}"[:200])
         return f"refusé par carnet ({rep.get('detail', statut)})"

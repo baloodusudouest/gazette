@@ -20,7 +20,7 @@ def env_propre(monkeypatch):
 
 
 def test_copie_du_module_non_retouchee():
-    assert maison.CONTRAT == 2 and maison.CONTRAT_SAUVEGARDE == 1
+    assert maison.CONTRAT == 3 and maison.CONTRAT_SAUVEGARDE == 1
     assert maison.empreinte_calculee() == maison.empreinte_ecrite()
 
 

@@ -23,7 +23,7 @@ ESSAIS = 3
 DELAI = 120               # secondes : le modèle doit parfois se charger sur la carte graphique
 
 MARCHE = (f"Sur le PC : ouvrir Ollama depuis le menu Démarrer (pas depuis un PowerShell administrateur), attendre "
-          f"10 secondes, puis Connexion › Vérifier les sources. Le modèle {MODELE} doit être dans « ollama list ». "
+          f"10 secondes, puis Connexion › IA du PC › Vérifier. Le modèle {MODELE} doit être dans « ollama list ». "
           "Détails et pannes : Connexion › IA du PC.")
 
 
@@ -52,7 +52,7 @@ def guide(url: str) -> dict:
             "Allumer le PC (ou le sortir de veille).",
             "Ouvrir Ollama depuis le menu Démarrer. Pas depuis un PowerShell administrateur : lancé de là, il ne lit "
             "pas tes réglages (dossier des modèles, écoute du réseau). L'icône du lama apparaît près de l'horloge.",
-            "Attendre une dizaine de secondes, puis Connexion › Vérifier les sources : la tuile passe au vert.",
+            "Attendre une dizaine de secondes, puis Connexion › IA du PC › Vérifier : la fiche passe à « Répond ».",
             "La première demande charge le modèle sur la carte graphique (10 à 30 secondes) ; il reste ensuite prêt 5 minutes.",
             "En fin de soirée : rien à faire. Ollama peut rester ouvert ; PC éteint, Gazette ne propose rien et on écrit les titres soi-même.",
         ],
@@ -104,6 +104,10 @@ def guide(url: str) -> dict:
                        "gabarit reste toujours."],
              "commandes": []},
         ],
+        # 0.29 : textes que l'ancien écran Connexion écrivait lui-même autour du guide (fiche commune du socle 0.11.0)
+        "terminal": "Les commandes se tapent dans PowerShell sur le PC (menu Démarrer › PowerShell).",
+        "note": "Dans la stack : GAZETTE_OLLAMA_URL = adresse du PC et port 11434 ; GAZETTE_OLLAMA_MODELE pour changer "
+                "de modèle (facultatif).",
     }
 
 

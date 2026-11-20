@@ -169,25 +169,25 @@ class Sources:
         return contenu
 
     # ------------------------------------------------------------ état (écran Connexion)
+    ESSAIS = {
+        "wikipedia-fr": "https://fr.wikipedia.org/w/index.php?title=Wikip%C3%A9dia&action=raw",
+        "wikipedia-en": "https://en.wikipedia.org/w/index.php?title=Wikipedia&action=raw",
+        "wikidata": "https://query.wikidata.org/sparql?query=ASK%7B%7D&format=json",
+        "larousse": "https://www.larousse.fr/archives/journaux_annee/1984/chrono/1983-11",
+    }
+
+    def sonder_une(self, nom: str, delai: float = 15) -> dict:
+        """0.29 : une lecture légère d'UNE source, sans rien garder (« Vérifier » d'une fiche Connexion)."""
+        if nom == "larousse" and not self.larousse_actif:
+            return {"ok": None, "detail": "coupé (GAZETTE_LAROUSSE=non)"}
+        if not self.actives:
+            return {"ok": None, "detail": "lecture coupée"}
+        try:
+            r = self.client.get(self.ESSAIS[nom], timeout=delai)
+            return {"ok": r.status_code == 200, "detail": f"réponse {r.status_code}"}
+        except httpx.HTTPError as ex:
+            return {"ok": False, "detail": str(ex)[:120]}
+
     def sonder(self) -> dict:
         """Une lecture légère de chaque source, sans rien garder."""
-        res = {}
-        essais = {
-            "wikipedia-fr": "https://fr.wikipedia.org/w/index.php?title=Wikip%C3%A9dia&action=raw",
-            "wikipedia-en": "https://en.wikipedia.org/w/index.php?title=Wikipedia&action=raw",
-            "wikidata": "https://query.wikidata.org/sparql?query=ASK%7B%7D&format=json",
-            "larousse": "https://www.larousse.fr/archives/journaux_annee/1984/chrono/1983-11",
-        }
-        for nom, url in essais.items():
-            if nom == "larousse" and not self.larousse_actif:
-                res[nom] = {"ok": None, "detail": "coupé (GAZETTE_LAROUSSE=non)"}
-                continue
-            if not self.actives:
-                res[nom] = {"ok": None, "detail": "lecture coupée"}
-                continue
-            try:
-                r = self.client.get(url, timeout=15)
-                res[nom] = {"ok": r.status_code == 200, "detail": f"réponse {r.status_code}"}
-            except httpx.HTTPError as ex:
-                res[nom] = {"ok": False, "detail": str(ex)[:120]}
-        return res
+        return {nom: self.sonder_une(nom) for nom in self.ESSAIS}

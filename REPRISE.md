@@ -2,6 +2,15 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
+## Changement (20/11/2026) — 0.29.0 : fiches « Connexion » communes (contrat 3, socle 0.11.0)
+- `app/maison.py` recopié du socle 0.11.0 (contrat 3) et `frontend/src/lib/services/{Services,FicheService}.svelte` (copies signées : ne jamais les retoucher ; `python3 ../socle/tools/diffuser_maison.py .` pour les refaire). `pages/Services.svelte` retiré ; `App.svelte` monte l'écran commun (`etiquette="Gazette"`, `lectureSeule`).
+- `main.py`, section « fiches Connexion » (juste avant `/api/reglages`) : `SERVICES` (ids `wikipedia-fr`, `wikipedia-en`, `wikidata`, `larousse`, `home-assistant`, `carnet`, `immich`, `ia-pc`, `douze-points`, `sillage`), essais `_essai_*` (légers, sans écriture), guides `_guide_*` (réglages lus : pages gardées, dernier appel de HA, contacts lus, envois en attente, soirées lues, dernière erreur nettoyée par `_propre`) ; `_guide_ia` = `ollama.guide` complet + second modèle (`_ia_etat`) + dernière erreur. `maison.monter_services` après la garde (seul `@app.middleware`). `ha_sejour` appelle `SERVICES.noter("home-assistant", …)` ; `_vers_carnet` pose `carnet_derniere_ecriture` (réglage, ISO) après un envoi accepté → `derniere_ecriture` de la fiche carnet.
+- `sources.py` : `Sources.ESSAIS`, `sonder_une(nom, delai)` ; `sonder()` l'appelle pour chaque source. `ollama.guide` gagne `terminal` et `note` ; « Vérifier les sources » → « Connexion › IA du PC › Vérifier ».
+- Larousse « pas relié » = coupé dans Réglages › Le journal (pas une variable de la stack : le texte de `reglage` le dit). Rendu PDF → `GET /api/reglages` champ `rendu.polices`, section « Rendu PDF » de `Reglages.svelte`.
+- **À retirer à la version suivante** : `GET /api/connexion/etat`, `POST /api/connexion/verifier` (et les tests qui les lisent : `test_api`, `test_eurovision`, `test_recidive`, `test_second_modele`).
+- Tests : `tests/test_fiches_connexion.py` (le registre est remis à vide à chaque test). 234 tests, 48 tests d'écran. **Jamais essayé sur la vraie installation** (ni `ANNEAU_CLE`, ni la lecture par l'Anneau).
+- Variable de stack ajoutée : `ANNEAU_CLE` (facultative).
+
 ## Changement (20/11/2026) — 0.28.0 : « Good Evening Europe! » (édition spéciale Eurovision)
 - `app/douze_points.py` : `DouzePoints` (`soirees`, `journal(sid, version)` contrôle `format` = 1, `image(chemin)`, `sonder`, `etat`) ; `type_image` ; adresse `GAZETTE_DOUZE_POINTS_URL` (`config.douze_points_url`, défaut `http://douze-points:8088`), jeton `MAISON_JETON`. Injectable : `ETAT["douze_lire"]` ; `tests/conftest.py` coupe le réseau.
 - `app/eurovision.py` (pur) : `livret` (finale / qualifies), `numero_defaut`, `places`, `ecart_clair`, `rang`, `invite_une`, `haut_palmares` (invité en une retiré, complets seulement), `tirer` / `changer_commentaire` / `commentaires_vus` (2 ou 3, hasard, ≤ 220 signes), `duos_defaut` / `accorder_duos`, `grille`, `images_presentes`, `image_une`. Tous les calculs viennent du journal de Douze points.

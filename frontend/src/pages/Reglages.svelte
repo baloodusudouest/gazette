@@ -365,6 +365,16 @@
     {#if envois.message}<p class="mt-2 text-sm" role="status">{envois.message}</p>{/if}
   </section>
 
+  {#if r}
+    <!-- 0.29 : le rendu PDF quitte Connexion (ce n'est pas un service extérieur) -->
+    <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Rendu PDF">
+      <h2 class="text-lg font-semibold">Rendu PDF</h2>
+      <p class="mt-1 text-sm text-muted-foreground">Chromium dans le conteneur, polices embarquées ; rien n'est lu ni écrit ailleurs.</p>
+      <p class="mt-2 text-sm"><span class="inline-block size-2.5 rounded-full {r.rendu?.polices ? 'bg-valide' : 'bg-destructive'}" aria-hidden="true"></span>
+        {r.rendu?.polices ? 'Polices présentes.' : 'Polices absentes.'}</p>
+    </section>
+  {/if}
+
   <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Restaurer les réglages">
     <h2 class="text-lg font-semibold">Restaurer les réglages</h2>
     <p class="mt-1 text-sm text-muted-foreground">L'Anneau garde chaque nuit une copie des réglages du journal (rien d'autre : ni fiches, ni livrets, ni mot de passe). Choisis une date, vérifie ce qui changerait, puis confirme.</p>

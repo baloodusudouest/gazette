@@ -14,7 +14,7 @@
   import Livret from './pages/Livret.svelte'
   import Recidive from './pages/Recidive.svelte'
   import ATraiter from './pages/ATraiter.svelte'
-  import Services from './pages/Services.svelte'
+  import Services from '$lib/services/Services.svelte'   // 0.29 : écran commun (contrat 3, socle 0.11.0)
   import Reglages from './pages/Reglages.svelte'
   import Archives from './pages/Archives.svelte'
   import Fiche from './pages/Fiche.svelte'
@@ -124,7 +124,7 @@
           {:else if route.page === 'a-traiter'}
             <ATraiter onchange={compter} ondeconnecte={() => (connecte = false)} />
           {:else if route.page === 'connexion'}
-            <Services ondeconnecte={() => (connecte = false)} />
+            <Services etiquette="Gazette" lectureSeule={session.lecture_seule} ondeconnecte={() => (connecte = false)} />
           {:else if route.page === 'archives'}
             <Archives ondeconnecte={() => (connecte = false)} />
           {:else if route.page === 'reglages'}
