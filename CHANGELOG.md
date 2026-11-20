@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 0.29.1 — 20 novembre 2026 (socle 0.11.1)
+- Copies communes du socle 0.11.1 : sur une fiche « Connexion », le titre devient « Pour le relier » quand le réglage se fait dans Réglages de l'appli (et non dans la stack).
+- **Jamais essayé sur la vraie installation.**
+
 ## 0.29.0 — 20 novembre 2026 (fiches « Connexion » communes, contrat 3)
 - **Écran Connexion commun** (chantier « fiches Connexion », dossier et conseil du 20/11/2026) : `app/maison.py` passe au socle 0.11.0 (contrat 3) et l'écran devient celui du socle (`frontend/src/lib/services/Services.svelte` et `FicheService.svelte`, copies signées, jamais retouchées). Plus de 3 services : des tuiles à voyant (deux colonnes sur téléphone), la fiche s'ouvre au toucher avec son état en mots, **Ce qui est lu**, **Ce qui est écrit**, « Pour le relier, dans la stack » et son propre **Vérifier**, qui ne teste que ce service. L'ancien `pages/Services.svelte` est retiré.
 - **10 fiches** : Wikipédia FR, Wikipédia EN, Wikidata, Larousse, Home Assistant, carnet, Immich, IA du PC, Douze points, et **Sillage** (ajouté : la fiche complète lit ses étapes depuis la 0.23, flux « Sillage → Gazette » du coffre, mais l'ancien écran ne le montrait pas). Textes « Lit » repris mot pour mot de l'ancien écran.

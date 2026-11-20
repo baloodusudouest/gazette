@@ -33,7 +33,7 @@ def client(tmp_path, registre, monkeypatch):
 def test_health_porte_taches_et_copie(client):
     d = client.get("/health").json()
     assert d["ok"] is True and d["version"] == main.__version__ and "livrets" in d and "a_traiter" in d
-    assert d["version_socle"] == "0.11.0"
+    assert d["version_socle"] == "0.11.1"
     noms = {t["nom"]: t for t in d["taches"]}
     assert {"preparation", "recidive", "copie-des-bases"} <= set(noms)
     assert noms["preparation"]["type"] == noms["recidive"]["type"] == "demande"
