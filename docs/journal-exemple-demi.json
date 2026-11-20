@@ -1,0 +1,1334 @@
+{
+  "format": 1,
+  "version": 1,
+  "le": "2027-05-16T10:00:00+02:00",
+  "appli": "douze-points",
+  "version_appli": "1.8.0",
+  "soiree": {
+    "id": 1,
+    "nom": "Première demi-finale de démonstration",
+    "concours": "Eurovision",
+    "annee": 2027,
+    "emission": "demi1",
+    "type": "1re demi-finale",
+    "ville": "Villeneuve",
+    "date": "2027-05-15",
+    "numero": "2027 · Eurovision · 1re demi-finale",
+    "livret": "qualifies",
+    "avec_jury_maison": false,
+    "avec_jury_officiel": false
+  },
+  "images": {
+    "logo": null,
+    "banniere": null,
+    "poster": null,
+    "apero": null
+  },
+  "apero_immich_id": null,
+  "invites": [
+    {
+      "id": 2,
+      "prenom": "Barnabé",
+      "carnet_id": null,
+      "personne_id": null,
+      "jury": false,
+      "moyenne": 9.58,
+      "complet": true
+    },
+    {
+      "id": 1,
+      "prenom": "Aglaé",
+      "carnet_id": null,
+      "personne_id": null,
+      "jury": false,
+      "moyenne": 9.75,
+      "complet": true
+    },
+    {
+      "id": 4,
+      "prenom": "Désiré",
+      "carnet_id": null,
+      "personne_id": null,
+      "jury": false,
+      "moyenne": 9.25,
+      "complet": true
+    },
+    {
+      "id": 3,
+      "prenom": "Célestine",
+      "carnet_id": null,
+      "personne_id": null,
+      "jury": false,
+      "moyenne": 9.42,
+      "complet": true
+    }
+  ],
+  "chansons": [
+    {
+      "id": 1,
+      "ordre": 1,
+      "pays": "Pays 1",
+      "code_pays": null,
+      "artiste": "Artiste 1",
+      "titre": "Titre 1",
+      "maison": {
+        "points": 0,
+        "rang": 12,
+        "moyenne": 2.25,
+        "jury": {
+          "points": 0,
+          "rang": null
+        },
+        "public": {
+          "points": 0,
+          "rang": 12
+        }
+      },
+      "officiel": {
+        "jury": null,
+        "public": null,
+        "total": null,
+        "rang_jury": null,
+        "rang_public": null,
+        "rang": null,
+        "rang_saisi": null,
+        "qualifie": true
+      },
+      "ecart": {
+        "rang": null,
+        "jury": null,
+        "public": null
+      },
+      "notes": [
+        {
+          "invite": 2,
+          "note": 2.0,
+          "rang": 11,
+          "points": 0,
+          "commentaire": "Avis de Barnabé"
+        },
+        {
+          "invite": 1,
+          "note": 1.5,
+          "rang": 12,
+          "points": 0,
+          "commentaire": "Avis de Aglaé"
+        },
+        {
+          "invite": 4,
+          "note": 3.0,
+          "rang": 11,
+          "points": 0,
+          "commentaire": "Avis de Désiré"
+        },
+        {
+          "invite": 3,
+          "note": 2.5,
+          "rang": 11,
+          "points": 0,
+          "commentaire": "Avis de Célestine"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "ordre": 2,
+      "pays": "Pays 2",
+      "code_pays": null,
+      "artiste": "Artiste 2",
+      "titre": "Titre 2",
+      "maison": {
+        "points": 6,
+        "rang": 11,
+        "moyenne": 4.5,
+        "jury": {
+          "points": 0,
+          "rang": null
+        },
+        "public": {
+          "points": 6,
+          "rang": 11
+        }
+      },
+      "officiel": {
+        "jury": null,
+        "public": null,
+        "total": null,
+        "rang_jury": null,
+        "rang_public": null,
+        "rang": null,
+        "rang_saisi": null,
+        "qualifie": true
+      },
+      "ecart": {
+        "rang": null,
+        "jury": null,
+        "public": null
+      },
+      "notes": [
+        {
+          "invite": 2,
+          "note": 4.0,
+          "rang": 9,
+          "points": 2,
+          "commentaire": "Avis de Barnabé"
+        },
+        {
+          "invite": 1,
+          "note": 3.0,
+          "rang": 11,
+          "points": 0,
+          "commentaire": "Avis de Aglaé"
+        },
+        {
+          "invite": 4,
+          "note": 6.0,
+          "rang": 9,
+          "points": 2,
+          "commentaire": "Avis de Désiré"
+        },
+        {
+          "invite": 3,
+          "note": 5.0,
+          "rang": 9,
+          "points": 2,
+          "commentaire": "Avis de Célestine"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "ordre": 3,
+      "pays": "Pays 3",
+      "code_pays": null,
+      "artiste": "Artiste 3",
+      "titre": "Titre 3",
+      "maison": {
+        "points": 12,
+        "rang": 10,
+        "moyenne": 6.75,
+        "jury": {
+          "points": 0,
+          "rang": null
+        },
+        "public": {
+          "points": 12,
+          "rang": 10
+        }
+      },
+      "officiel": {
+        "jury": null,
+        "public": null,
+        "total": null,
+        "rang_jury": null,
+        "rang_public": null,
+        "rang": null,
+        "rang_saisi": null,
+        "qualifie": true
+      },
+      "ecart": {
+        "rang": null,
+        "jury": null,
+        "public": null
+      },
+      "notes": [
+        {
+          "invite": 2,
+          "note": 6.0,
+          "rang": 8,
+          "points": 3,
+          "commentaire": "Avis de Barnabé"
+        },
+        {
+          "invite": 1,
+          "note": 4.5,
+          "rang": 10,
+          "points": 1,
+          "commentaire": "Avis de Aglaé"
+        },
+        {
+          "invite": 4,
+          "note": 9.0,
+          "rang": 7,
+          "points": 4,
+          "commentaire": "Avis de Désiré"
+        },
+        {
+          "invite": 3,
+          "note": 7.5,
+          "rang": 7,
+          "points": 4,
+          "commentaire": "Avis de Célestine"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "ordre": 4,
+      "pays": "Pays 4",
+      "code_pays": null,
+      "artiste": "Artiste 4",
+      "titre": "Titre 4",
+      "maison": {
+        "points": 18,
+        "rang": 9,
+        "moyenne": 9.0,
+        "jury": {
+          "points": 0,
+          "rang": null
+        },
+        "public": {
+          "points": 18,
+          "rang": 9
+        }
+      },
+      "officiel": {
+        "jury": null,
+        "public": null,
+        "total": null,
+        "rang_jury": null,
+        "rang_public": null,
+        "rang": null,
+        "rang_saisi": null,
+        "qualifie": false
+      },
+      "ecart": {
+        "rang": null,
+        "jury": null,
+        "public": null
+      },
+      "notes": [
+        {
+          "invite": 2,
+          "note": 8.0,
+          "rang": 7,
+          "points": 4,
+          "commentaire": "Avis de Barnabé"
+        },
+        {
+          "invite": 1,
+          "note": 6.0,
+          "rang": 9,
+          "points": 2,
+          "commentaire": "Avis de Aglaé"
+        },
+        {
+          "invite": 4,
+          "note": 12.0,
+          "rang": 5,
+          "points": 6,
+          "commentaire": "Avis de Désiré"
+        },
+        {
+          "invite": 3,
+          "note": 10.0,
+          "rang": 5,
+          "points": 6,
+          "commentaire": "Avis de Célestine"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "ordre": 5,
+      "pays": "Pays 5",
+      "code_pays": null,
+      "artiste": "Artiste 5",
+      "titre": "Titre 5",
+      "maison": {
+        "points": 23,
+        "rang": 5,
+        "moyenne": 11.25,
+        "jury": {
+          "points": 0,
+          "rang": null
+        },
+        "public": {
+          "points": 23,
+          "rang": 5
+        }
+      },
+      "officiel": {
+        "jury": null,
+        "public": null,
+        "total": null,
+        "rang_jury": null,
+        "rang_public": null,
+        "rang": null,
+        "rang_saisi": null,
+        "qualifie": true
+      },
+      "ecart": {
+        "rang": null,
+        "jury": null,
+        "public": null
+      },
+      "notes": [
+        {
+          "invite": 2,
+          "note": 10.0,
+          "rang": 6,
+          "points": 5,
+          "commentaire": "Avis de Barnabé"
+        },
+        {
+          "invite": 1,
+          "note": 7.5,
+          "rang": 8,
+          "points": 3,
+          "commentaire": "Avis de Aglaé"
+        },
+        {
+          "invite": 4,
+          "note": 15.0,
+          "rang": 3,
+          "points": 8,
+          "commentaire": "Avis de Désiré"
+        },
+        {
+          "invite": 3,
+          "note": 12.5,
+          "rang": 4,
+          "points": 7,
+          "commentaire": "Avis de Célestine"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "ordre": 6,
+      "pays": "Pays 6",
+      "code_pays": null,
+      "artiste": "Artiste 6",
+      "titre": "Titre 6",
+      "maison": {
+        "points": 30,
+        "rang": 1,
+        "moyenne": 13.5,
+        "jury": {
+          "points": 0,
+          "rang": null
+        },
+        "public": {
+          "points": 30,
+          "rang": 1
+        }
+      },
+      "officiel": {
+        "jury": null,
+        "public": null,
+        "total": null,
+        "rang_jury": null,
+        "rang_public": null,
+        "rang": null,
+        "rang_saisi": null,
+        "qualifie": true
+      },
+      "ecart": {
+        "rang": null,
+        "jury": null,
+        "public": null
+      },
+      "notes": [
+        {
+          "invite": 2,
+          "note": 12.0,
+          "rang": 5,
+          "points": 6,
+          "commentaire": "Avis de Barnabé"
+        },
+        {
+          "invite": 1,
+          "note": 9.0,
+          "rang": 7,
+          "points": 4,
+          "commentaire": "Avis de Aglaé"
+        },
+        {
+          "invite": 4,
+          "note": 18.0,
+          "rang": 1,
+          "points": 12,
+          "commentaire": "Avis de Désiré"
+        },
+        {
+          "invite": 3,
+          "note": 15.0,
+          "rang": 3,
+          "points": 8,
+          "commentaire": "Avis de Célestine"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "ordre": 7,
+      "pays": "Pays 7",
+      "code_pays": null,
+      "artiste": "Artiste 7",
+      "titre": "Titre 7",
+      "maison": {
+        "points": 22,
+        "rang": 6,
+        "moyenne": 10.62,
+        "jury": {
+          "points": 0,
+          "rang": null
+        },
+        "public": {
+          "points": 22,
+          "rang": 6
+        }
+      },
+      "officiel": {
+        "jury": null,
+        "public": null,
+        "total": null,
+        "rang_jury": null,
+        "rang_public": null,
+        "rang": null,
+        "rang_saisi": null,
+        "qualifie": false
+      },
+      "ecart": {
+        "rang": null,
+        "jury": null,
+        "public": null
+      },
+      "notes": [
+        {
+          "invite": 2,
+          "note": 14.0,
+          "rang": 4,
+          "points": 7,
+          "commentaire": "Avis de Barnabé"
+        },
+        {
+          "invite": 1,
+          "note": 10.5,
+          "rang": 6,
+          "points": 5,
+          "commentaire": "Avis de Aglaé"
+        },
+        {
+          "invite": 4,
+          "note": 0.5,
+          "rang": 12,
+          "points": 0,
+          "commentaire": "Avis de Désiré"
+        },
+        {
+          "invite": 3,
+          "note": 17.5,
+          "rang": 2,
+          "points": 10,
+          "commentaire": "Avis de Célestine"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "ordre": 8,
+      "pays": "Pays 8",
+      "code_pays": null,
+      "artiste": "Artiste 8",
+      "titre": "Titre 8",
+      "maison": {
+        "points": 27,
+        "rang": 3,
+        "moyenne": 12.88,
+        "jury": {
+          "points": 0,
+          "rang": null
+        },
+        "public": {
+          "points": 27,
+          "rang": 3
+        }
+      },
+      "officiel": {
+        "jury": null,
+        "public": null,
+        "total": null,
+        "rang_jury": null,
+        "rang_public": null,
+        "rang": null,
+        "rang_saisi": null,
+        "qualifie": true
+      },
+      "ecart": {
+        "rang": null,
+        "jury": null,
+        "public": null
+      },
+      "notes": [
+        {
+          "invite": 2,
+          "note": 16.0,
+          "rang": 3,
+          "points": 8,
+          "commentaire": "Avis de Barnabé"
+        },
+        {
+          "invite": 1,
+          "note": 12.0,
+          "rang": 5,
+          "points": 6,
+          "commentaire": "Avis de Aglaé"
+        },
+        {
+          "invite": 4,
+          "note": 3.5,
+          "rang": 10,
+          "points": 1,
+          "commentaire": "Avis de Désiré"
+        },
+        {
+          "invite": 3,
+          "note": 20.0,
+          "rang": 1,
+          "points": 12,
+          "commentaire": "Avis de Célestine"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "ordre": 9,
+      "pays": "Pays 9",
+      "code_pays": null,
+      "artiste": "Artiste 9",
+      "titre": "Titre 9",
+      "maison": {
+        "points": 20,
+        "rang": 7,
+        "moyenne": 10.0,
+        "jury": {
+          "points": 0,
+          "rang": null
+        },
+        "public": {
+          "points": 20,
+          "rang": 7
+        }
+      },
+      "officiel": {
+        "jury": null,
+        "public": null,
+        "total": null,
+        "rang_jury": null,
+        "rang_public": null,
+        "rang": null,
+        "rang_saisi": null,
+        "qualifie": true
+      },
+      "ecart": {
+        "rang": null,
+        "jury": null,
+        "public": null
+      },
+      "notes": [
+        {
+          "invite": 2,
+          "note": 18.0,
+          "rang": 2,
+          "points": 10,
+          "commentaire": "Avis de Barnabé"
+        },
+        {
+          "invite": 1,
+          "note": 13.5,
+          "rang": 4,
+          "points": 7,
+          "commentaire": "Avis de Aglaé"
+        },
+        {
+          "invite": 4,
+          "note": 6.5,
+          "rang": 8,
+          "points": 3,
+          "commentaire": "Avis de Désiré"
+        },
+        {
+          "invite": 3,
+          "note": 2.0,
+          "rang": 12,
+          "points": 0,
+          "commentaire": "Avis de Célestine"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "ordre": 10,
+      "pays": "Pays 10",
+      "code_pays": null,
+      "artiste": "Artiste 10",
+      "titre": "Titre 10",
+      "maison": {
+        "points": 26,
+        "rang": 4,
+        "moyenne": 12.25,
+        "jury": {
+          "points": 0,
+          "rang": null
+        },
+        "public": {
+          "points": 26,
+          "rang": 4
+        }
+      },
+      "officiel": {
+        "jury": null,
+        "public": null,
+        "total": null,
+        "rang_jury": null,
+        "rang_public": null,
+        "rang": null,
+        "rang_saisi": null,
+        "qualifie": true
+      },
+      "ecart": {
+        "rang": null,
+        "jury": null,
+        "public": null
+      },
+      "notes": [
+        {
+          "invite": 2,
+          "note": 20.0,
+          "rang": 1,
+          "points": 12,
+          "commentaire": "Avis de Barnabé"
+        },
+        {
+          "invite": 1,
+          "note": 15.0,
+          "rang": 3,
+          "points": 8,
+          "commentaire": "Avis de Aglaé"
+        },
+        {
+          "invite": 4,
+          "note": 9.5,
+          "rang": 6,
+          "points": 5,
+          "commentaire": "Avis de Désiré"
+        },
+        {
+          "invite": 3,
+          "note": 4.5,
+          "rang": 10,
+          "points": 1,
+          "commentaire": "Avis de Célestine"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "ordre": 11,
+      "pays": "Pays 11",
+      "code_pays": null,
+      "artiste": "Artiste 11",
+      "titre": "Titre 11",
+      "maison": {
+        "points": 20,
+        "rang": 8,
+        "moyenne": 9.38,
+        "jury": {
+          "points": 0,
+          "rang": null
+        },
+        "public": {
+          "points": 20,
+          "rang": 8
+        }
+      },
+      "officiel": {
+        "jury": null,
+        "public": null,
+        "total": null,
+        "rang_jury": null,
+        "rang_public": null,
+        "rang": null,
+        "rang_saisi": null,
+        "qualifie": true
+      },
+      "ecart": {
+        "rang": null,
+        "jury": null,
+        "public": null
+      },
+      "notes": [
+        {
+          "invite": 2,
+          "note": 1.5,
+          "rang": 12,
+          "points": 0,
+          "commentaire": "Avis de Barnabé"
+        },
+        {
+          "invite": 1,
+          "note": 16.5,
+          "rang": 2,
+          "points": 10,
+          "commentaire": "Avis de Aglaé"
+        },
+        {
+          "invite": 4,
+          "note": 12.5,
+          "rang": 4,
+          "points": 7,
+          "commentaire": "Avis de Désiré"
+        },
+        {
+          "invite": 3,
+          "note": 7.0,
+          "rang": 8,
+          "points": 3,
+          "commentaire": "Avis de Célestine"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "ordre": 12,
+      "pays": "Pays 12",
+      "code_pays": null,
+      "artiste": "Artiste 12",
+      "titre": "Titre 12",
+      "maison": {
+        "points": 28,
+        "rang": 2,
+        "moyenne": 11.62,
+        "jury": {
+          "points": 0,
+          "rang": null
+        },
+        "public": {
+          "points": 28,
+          "rang": 2
+        }
+      },
+      "officiel": {
+        "jury": null,
+        "public": null,
+        "total": null,
+        "rang_jury": null,
+        "rang_public": null,
+        "rang": null,
+        "rang_saisi": null,
+        "qualifie": true
+      },
+      "ecart": {
+        "rang": null,
+        "jury": null,
+        "public": null
+      },
+      "notes": [
+        {
+          "invite": 2,
+          "note": 3.5,
+          "rang": 10,
+          "points": 1,
+          "commentaire": "Avis de Barnabé"
+        },
+        {
+          "invite": 1,
+          "note": 18.0,
+          "rang": 1,
+          "points": 12,
+          "commentaire": "Avis de Aglaé"
+        },
+        {
+          "invite": 4,
+          "note": 15.5,
+          "rang": 2,
+          "points": 10,
+          "commentaire": "Avis de Désiré"
+        },
+        {
+          "invite": 3,
+          "note": 9.5,
+          "rang": 6,
+          "points": 5,
+          "commentaire": "Avis de Célestine"
+        }
+      ]
+    }
+  ],
+  "podium_maison": [
+    6,
+    12,
+    8
+  ],
+  "podium_officiel": [],
+  "mieux_devines": [],
+  "plus_rates": [],
+  "palmares": [],
+  "plus_proche": null,
+  "commentaires": [
+    {
+      "invite": 2,
+      "chanson": 1,
+      "texte": "Avis de Barnabé",
+      "note": 2.0,
+      "points": 0
+    },
+    {
+      "invite": 1,
+      "chanson": 1,
+      "texte": "Avis de Aglaé",
+      "note": 1.5,
+      "points": 0
+    },
+    {
+      "invite": 4,
+      "chanson": 1,
+      "texte": "Avis de Désiré",
+      "note": 3.0,
+      "points": 0
+    },
+    {
+      "invite": 3,
+      "chanson": 1,
+      "texte": "Avis de Célestine",
+      "note": 2.5,
+      "points": 0
+    },
+    {
+      "invite": 2,
+      "chanson": 2,
+      "texte": "Avis de Barnabé",
+      "note": 4.0,
+      "points": 2
+    },
+    {
+      "invite": 1,
+      "chanson": 2,
+      "texte": "Avis de Aglaé",
+      "note": 3.0,
+      "points": 0
+    },
+    {
+      "invite": 4,
+      "chanson": 2,
+      "texte": "Avis de Désiré",
+      "note": 6.0,
+      "points": 2
+    },
+    {
+      "invite": 3,
+      "chanson": 2,
+      "texte": "Avis de Célestine",
+      "note": 5.0,
+      "points": 2
+    },
+    {
+      "invite": 2,
+      "chanson": 3,
+      "texte": "Avis de Barnabé",
+      "note": 6.0,
+      "points": 3
+    },
+    {
+      "invite": 1,
+      "chanson": 3,
+      "texte": "Avis de Aglaé",
+      "note": 4.5,
+      "points": 1
+    },
+    {
+      "invite": 4,
+      "chanson": 3,
+      "texte": "Avis de Désiré",
+      "note": 9.0,
+      "points": 4
+    },
+    {
+      "invite": 3,
+      "chanson": 3,
+      "texte": "Avis de Célestine",
+      "note": 7.5,
+      "points": 4
+    },
+    {
+      "invite": 2,
+      "chanson": 4,
+      "texte": "Avis de Barnabé",
+      "note": 8.0,
+      "points": 4
+    },
+    {
+      "invite": 1,
+      "chanson": 4,
+      "texte": "Avis de Aglaé",
+      "note": 6.0,
+      "points": 2
+    },
+    {
+      "invite": 4,
+      "chanson": 4,
+      "texte": "Avis de Désiré",
+      "note": 12.0,
+      "points": 6
+    },
+    {
+      "invite": 3,
+      "chanson": 4,
+      "texte": "Avis de Célestine",
+      "note": 10.0,
+      "points": 6
+    },
+    {
+      "invite": 2,
+      "chanson": 5,
+      "texte": "Avis de Barnabé",
+      "note": 10.0,
+      "points": 5
+    },
+    {
+      "invite": 1,
+      "chanson": 5,
+      "texte": "Avis de Aglaé",
+      "note": 7.5,
+      "points": 3
+    },
+    {
+      "invite": 4,
+      "chanson": 5,
+      "texte": "Avis de Désiré",
+      "note": 15.0,
+      "points": 8
+    },
+    {
+      "invite": 3,
+      "chanson": 5,
+      "texte": "Avis de Célestine",
+      "note": 12.5,
+      "points": 7
+    },
+    {
+      "invite": 2,
+      "chanson": 6,
+      "texte": "Avis de Barnabé",
+      "note": 12.0,
+      "points": 6
+    },
+    {
+      "invite": 1,
+      "chanson": 6,
+      "texte": "Avis de Aglaé",
+      "note": 9.0,
+      "points": 4
+    },
+    {
+      "invite": 4,
+      "chanson": 6,
+      "texte": "Avis de Désiré",
+      "note": 18.0,
+      "points": 12
+    },
+    {
+      "invite": 3,
+      "chanson": 6,
+      "texte": "Avis de Célestine",
+      "note": 15.0,
+      "points": 8
+    },
+    {
+      "invite": 2,
+      "chanson": 7,
+      "texte": "Avis de Barnabé",
+      "note": 14.0,
+      "points": 7
+    },
+    {
+      "invite": 1,
+      "chanson": 7,
+      "texte": "Avis de Aglaé",
+      "note": 10.5,
+      "points": 5
+    },
+    {
+      "invite": 4,
+      "chanson": 7,
+      "texte": "Avis de Désiré",
+      "note": 0.5,
+      "points": 0
+    },
+    {
+      "invite": 3,
+      "chanson": 7,
+      "texte": "Avis de Célestine",
+      "note": 17.5,
+      "points": 10
+    },
+    {
+      "invite": 2,
+      "chanson": 8,
+      "texte": "Avis de Barnabé",
+      "note": 16.0,
+      "points": 8
+    },
+    {
+      "invite": 1,
+      "chanson": 8,
+      "texte": "Avis de Aglaé",
+      "note": 12.0,
+      "points": 6
+    },
+    {
+      "invite": 4,
+      "chanson": 8,
+      "texte": "Avis de Désiré",
+      "note": 3.5,
+      "points": 1
+    },
+    {
+      "invite": 3,
+      "chanson": 8,
+      "texte": "Avis de Célestine",
+      "note": 20.0,
+      "points": 12
+    },
+    {
+      "invite": 2,
+      "chanson": 9,
+      "texte": "Avis de Barnabé",
+      "note": 18.0,
+      "points": 10
+    },
+    {
+      "invite": 1,
+      "chanson": 9,
+      "texte": "Avis de Aglaé",
+      "note": 13.5,
+      "points": 7
+    },
+    {
+      "invite": 4,
+      "chanson": 9,
+      "texte": "Avis de Désiré",
+      "note": 6.5,
+      "points": 3
+    },
+    {
+      "invite": 3,
+      "chanson": 9,
+      "texte": "Avis de Célestine",
+      "note": 2.0,
+      "points": 0
+    },
+    {
+      "invite": 2,
+      "chanson": 10,
+      "texte": "Avis de Barnabé",
+      "note": 20.0,
+      "points": 12
+    },
+    {
+      "invite": 1,
+      "chanson": 10,
+      "texte": "Avis de Aglaé",
+      "note": 15.0,
+      "points": 8
+    },
+    {
+      "invite": 4,
+      "chanson": 10,
+      "texte": "Avis de Désiré",
+      "note": 9.5,
+      "points": 5
+    },
+    {
+      "invite": 3,
+      "chanson": 10,
+      "texte": "Avis de Célestine",
+      "note": 4.5,
+      "points": 1
+    },
+    {
+      "invite": 2,
+      "chanson": 11,
+      "texte": "Avis de Barnabé",
+      "note": 1.5,
+      "points": 0
+    },
+    {
+      "invite": 1,
+      "chanson": 11,
+      "texte": "Avis de Aglaé",
+      "note": 16.5,
+      "points": 10
+    },
+    {
+      "invite": 4,
+      "chanson": 11,
+      "texte": "Avis de Désiré",
+      "note": 12.5,
+      "points": 7
+    },
+    {
+      "invite": 3,
+      "chanson": 11,
+      "texte": "Avis de Célestine",
+      "note": 7.0,
+      "points": 3
+    },
+    {
+      "invite": 2,
+      "chanson": 12,
+      "texte": "Avis de Barnabé",
+      "note": 3.5,
+      "points": 1
+    },
+    {
+      "invite": 1,
+      "chanson": 12,
+      "texte": "Avis de Aglaé",
+      "note": 18.0,
+      "points": 12
+    },
+    {
+      "invite": 4,
+      "chanson": 12,
+      "texte": "Avis de Désiré",
+      "note": 15.5,
+      "points": 10
+    },
+    {
+      "invite": 3,
+      "chanson": 12,
+      "texte": "Avis de Célestine",
+      "note": 9.5,
+      "points": 5
+    }
+  ],
+  "duos": [
+    {
+      "cle": "1-2",
+      "invites": [
+        1,
+        2
+      ],
+      "reciproques": true,
+      "tranche": "Âmes sœurs… de loin",
+      "photos": []
+    },
+    {
+      "cle": "2-3",
+      "invites": [
+        3,
+        2
+      ],
+      "reciproques": false,
+      "tranche": "Âmes sœurs… de loin",
+      "photos": []
+    },
+    {
+      "cle": "3-4",
+      "invites": [
+        4,
+        3
+      ],
+      "reciproques": false,
+      "tranche": "Âmes sœurs… de loin",
+      "photos": []
+    }
+  ],
+  "demi": {
+    "flair": [
+      {
+        "invite": 4,
+        "trouves": 9,
+        "sur": 10
+      },
+      {
+        "invite": 1,
+        "trouves": 8,
+        "sur": 10
+      },
+      {
+        "invite": 2,
+        "trouves": 8,
+        "sur": 10
+      },
+      {
+        "invite": 3,
+        "trouves": 8,
+        "sur": 10
+      }
+    ],
+    "notre_top": [
+      {
+        "chanson": 6,
+        "qualifie": true
+      },
+      {
+        "chanson": 12,
+        "qualifie": true
+      },
+      {
+        "chanson": 8,
+        "qualifie": true
+      },
+      {
+        "chanson": 10,
+        "qualifie": true
+      },
+      {
+        "chanson": 5,
+        "qualifie": true
+      },
+      {
+        "chanson": 7,
+        "qualifie": false
+      },
+      {
+        "chanson": 9,
+        "qualifie": true
+      },
+      {
+        "chanson": 11,
+        "qualifie": true
+      },
+      {
+        "chanson": 4,
+        "qualifie": false
+      },
+      {
+        "chanson": 3,
+        "qualifie": true
+      }
+    ],
+    "pleure": [
+      7,
+      4
+    ],
+    "deteste": [
+      1,
+      2
+    ],
+    "coup_de_coeur": 6,
+    "nul_point": 1,
+    "favoris": [
+      6,
+      12,
+      8
+    ],
+    "qualifies": [
+      1,
+      10,
+      11,
+      12,
+      2,
+      3,
+      5,
+      6,
+      8,
+      9
+    ],
+    "date_finale": "2027-05-15"
+  }
+}

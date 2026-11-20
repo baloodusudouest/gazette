@@ -33,9 +33,12 @@ CHAMPS = {
     "r_mot_modele": ("Droit de réponse par défaut", "le mot des hôtes de la page 4 ; {salut} (« Chère Camille », « Cher Paul ») et {prenom} sont remplacés ; une ligne vide sépare les paragraphes", 1500),
     # 0.22 : second modèle de l'IA du PC, pour « Autres propositions » (choix de Julien du 18/11 : on génère avec le
     # modèle habituel, GAZETTE_OLLAMA_MODELE, on régénère avec celui-ci). Un réglage de Gazette, pas de la stack.
+    # 0.28 : « Good Evening Europe! », l'édition spéciale Eurovision (un numéro par soirée Douze points clôturée)
+    "e_titre": ("Titre du magazine Eurovision", "le grand titre de l'édition spéciale ; le dernier mot est en rose", 40),
     "modele_second": ("Second modèle de l'IA", "nom dans « ollama list » (ex. qwen2.5:14b) ; sert au bouton « Autres propositions » ; vide : bouton caché", 80),
 }
-LIBELLES = {**{k: v[0] for k, v in CHAMPS.items()}, "larousse": "Larousse, Journaux de l'année"}
+LIBELLES = {**{k: v[0] for k, v in CHAMPS.items()}, "larousse": "Larousse, Journaux de l'année",
+            "eurovision": "Édition spéciale Eurovision (Douze points)"}
 MOT = ("Le {date}, le monde tournait comme le racontent ces pages. Ce soir, c'est {chez} que l'on vous attend.\n\n"
        "Ce petit journal est à vous, {prenom} : il raconte le monde tel qu'il était le jour de votre naissance. "
        "Gardez-le, glissez-le dans un livre, ou relisez-le au petit-déjeuner.\n\n"
@@ -48,7 +51,8 @@ DEFAUTS = {"titre": "La Gazette", "sous_titre": "Le monde tel qu'il était le jo
            "mot_modele": MOT, "accent": "#9E1B1B", "larousse": True,
            "r_titre": "La Récidive", "r_accroche_femme": "Elle est revenue, nous aussi",
            "r_accroche_homme": "Il est revenu, nous aussi", "r_accroche_autre": "{prenom} est de retour, nous aussi",
-           "r_mot_modele": R_MOT, "modele_second": "qwen2.5:14b"}
+           "r_mot_modele": R_MOT, "modele_second": "qwen2.5:14b",
+           "e_titre": "Good Evening Europe!", "eurovision": True}
 # Anciennes variables de la stack, lues une seule fois (premier démarrage) pour une clé absente de la base
 VARIABLES = {"titre": "GAZETTE_TITRE", "signature": "GAZETTE_SIGNATURE", "lieu": "GAZETTE_LIEU",
              "larousse": "GAZETTE_LAROUSSE"}
@@ -113,7 +117,7 @@ def valider(corps: dict, actuel: dict) -> dict:
         if len(v) > maxi:
             raise ValueError(f"{libelle} : {maxi} caractères au plus.")
         if cle in ("titre", "lieu", "chez", "signature", "mot_modele", "r_titre", "r_accroche_femme", "r_accroche_homme",
-                   "r_accroche_autre", "r_mot_modele") and not v:
+                   "r_accroche_autre", "r_mot_modele", "e_titre") and not v:
             raise ValueError(f"{libelle} : à remplir.")
         if cle == "accent" and not re.fullmatch(r"#[0-9a-fA-F]{6}", v):
             raise ValueError("Couleur d'accent : au format #RRGGBB.")
@@ -124,6 +128,10 @@ def valider(corps: dict, actuel: dict) -> dict:
         if not isinstance(corps["larousse"], bool):
             raise ValueError("Larousse : oui ou non attendu (true ou false).")
         j["larousse"] = corps["larousse"]
+    if "eurovision" in corps:                 # 0.28 : interrupteur du type « eurovision »
+        if not isinstance(corps["eurovision"], bool):
+            raise ValueError("Édition spéciale Eurovision : oui ou non attendu (true ou false).")
+        j["eurovision"] = corps["eurovision"]
     return j
 
 

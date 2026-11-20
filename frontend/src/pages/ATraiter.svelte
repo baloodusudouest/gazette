@@ -9,6 +9,8 @@
   import Siren from '@lucide/svelte/icons/siren'
   import ImageOff from '@lucide/svelte/icons/image-off'
   import ImagePlus from '@lucide/svelte/icons/image-plus'
+  import Mic from '@lucide/svelte/icons/mic-vocal'
+  import History from '@lucide/svelte/icons/history'
   import { api } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import FicheForm from '$lib/FicheForm.svelte'
@@ -23,7 +25,7 @@
   async function lire() {
     try {
       t = await api.get('/api/a-traiter')
-      if (!choisi) choisi = ['fiches', 'dates', 'anniversaires', 'recidives', 'relire', 'scandales', 'sans_scandale', 'erreurs'].find((k) => t[k]?.length) ?? null
+      if (!choisi) choisi = ['fiches', 'dates', 'anniversaires', 'recidives', 'eurovisions', 'eurovision_versions', 'relire', 'scandales', 'sans_scandale', 'erreurs'].find((k) => t[k]?.length) ?? null
       onchange?.()
     } catch (err) {
       if (err.statut === 401) ondeconnecte?.()
@@ -61,6 +63,8 @@
     { cle: 'dates', nom: 'Dates à vérifier', icone: CalendarClock, aide: 'différentes dans carnet' },
     { cle: 'anniversaires', nom: 'Anniversaires proches', icone: Cake, aide: 'à 14 jours du séjour' },
     { cle: 'recidives', nom: 'Récidives à relire', icone: Siren, aide: 'journal à scandale, dès le 2e séjour' },
+    { cle: 'eurovisions', nom: 'Good Evening Europe!', icone: Mic, aide: 'édition spéciale Eurovision à relire' },
+    { cle: 'eurovision_versions', nom: 'Nouvelle version du résultat', icone: History, aide: 'Douze points a reclôturé une soirée déjà parue' },
     { cle: 'relire', nom: 'Livrets à relire', icone: BookOpenCheck, aide: 'avant d\'approuver' },
     { cle: 'scandales', nom: 'Photos « scandale » à trouver', icone: ImageOff, aide: 'à taguer dans Immich' },
     { cle: 'sans_scandale', nom: 'Aucune photo « scandale »', icone: ImagePlus, aide: 'personne sans photo taguée dans Immich' },
@@ -176,6 +180,28 @@
         {#each t.recidives as r}
           <li class="flex items-center justify-between gap-2"><a class="underline-offset-4 hover:underline" href={'#/recidive/' + r.id}>{r.nom} · N° {r.numero}</a>
             <span class="text-xs {r.attendu ? 'text-primary' : 'text-muted-foreground'}">{r.attendu ? 'invité attendu le ' : 'séjour du '}{dateCourte(r.sejour_du)}</span></li>
+        {/each}
+      </ul>
+    </section>
+  {:else if choisi === 'eurovisions' && t.eurovisions?.length}
+    <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Good Evening Europe! à relire">
+      <h2 class="text-lg font-semibold">Good Evening Europe! : numéros à relire</h2>
+      <p class="mt-1 text-sm text-muted-foreground">Un numéro par soirée clôturée dans Douze points. Relire les images, les photos des duos et les commentaires tirés au hasard, puis approuver.</p>
+      <ul class="mt-3 grid gap-2">
+        {#each t.eurovisions as n (n.id)}
+          <li class="flex flex-wrap items-center justify-between gap-2"><a class="underline-offset-4 hover:underline" href={'#/eurovision/' + n.id}>{n.nom} · N° {n.numero}</a>
+            <span class="text-xs text-muted-foreground">{n.livret === 'qualifies' ? 'livret « qualifiés »' : 'livret « finale »'}{n.date ? ' · ' + dateCourte(n.date) : ''}</span></li>
+        {/each}
+      </ul>
+    </section>
+  {:else if choisi === 'eurovision_versions' && t.eurovision_versions?.length}
+    <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Nouvelle version du résultat">
+      <h2 class="text-lg font-semibold">Nouvelle version du résultat</h2>
+      <p class="mt-1 text-sm text-muted-foreground">Douze points a reclôturé une soirée dont le numéro a déjà paru. Le numéro imprimé ne change jamais seul : ouvre-le pour le refaire avec la nouvelle version, ou le garder tel quel.</p>
+      <ul class="mt-3 grid gap-2">
+        {#each t.eurovision_versions as n (n.id)}
+          <li class="flex flex-wrap items-center justify-between gap-2"><a class="underline-offset-4 hover:underline" href={'#/eurovision/' + n.id}>{n.nom} · N° {n.numero}</a>
+            <span class="text-xs text-muted-foreground">paru avec la version {n.version}, version {n.version_dispo} disponible</span></li>
         {/each}
       </ul>
     </section>

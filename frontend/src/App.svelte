@@ -18,6 +18,7 @@
   import Reglages from './pages/Reglages.svelte'
   import Archives from './pages/Archives.svelte'
   import Fiche from './pages/Fiche.svelte'
+  import Eurovision from './pages/Eurovision.svelte'
 
   const onglets = [
     { page: 'livrets', nom: 'Livrets', icone: Newspaper },
@@ -38,6 +39,9 @@
     if (m) return { page: 'livret', id: +m[1] }
     const r = h.match(/^recidive\/(\d+)/)
     if (r) return { page: 'recidive', id: +r[1] }
+    // 0.28 : « Good Evening Europe! », l'édition spéciale Eurovision (#/eurovision/<id>)
+    const ev = h.match(/^eurovision\/(\d+)/)
+    if (ev) return { page: 'eurovision', id: +ev[1] }
     // 0.23 : fiche complète d'une personne (#/fiche/<id>?retour=recidive/<id>)
     const f = h.match(/^fiche\/(\d+)(?:\?retour=([\w/-]+))?/)
     if (f) return { page: 'fiche', id: +f[1], retour: f[2] ?? '' }
@@ -61,7 +65,7 @@
     try { await api.post('/api/deconnexion') } catch { /* déjà déconnecté */ }
     connecte = false
   }
-  const actif = (o) => route.page === o.page || (['livret', 'recidive', 'fiche'].includes(route.page) && o.page === 'livrets')
+  const actif = (o) => route.page === o.page || (['livret', 'recidive', 'fiche'].includes(route.page) && o.page === 'livrets') || (route.page === 'eurovision' && o.page === 'a-traiter')
 
   onMount(verifier)
 </script>
@@ -113,6 +117,8 @@
             <Livret id={route.id} onchange={compter} ondeconnecte={() => (connecte = false)} />
           {:else if route.page === 'fiche'}
             <Fiche id={route.id} retour={route.retour} ondeconnecte={() => (connecte = false)} />
+          {:else if route.page === 'eurovision'}
+            <Eurovision id={route.id} onchange={compter} ondeconnecte={() => (connecte = false)} />
           {:else if route.page === 'recidive'}
             <Recidive id={route.id} onchange={compter} ondeconnecte={() => (connecte = false)} />
           {:else if route.page === 'a-traiter'}

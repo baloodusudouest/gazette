@@ -469,3 +469,44 @@ def test_banque_d_inspiration(navigateur, adresse, taille):
     page.get_by_text("aurait tenté d'adopter un rond-point").first.wait_for()
     sans_debordement(page)
     assert erreurs == []
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_edition_speciale_eurovision(navigateur, adresse, taille):
+    """0.28 : À traiter › Good Evening Europe! ouvre le numéro de la finale ; relecture, aperçu, nouveau tirage."""
+    page, erreurs = ouvrir(navigateur, adresse, taille, "#/a-traiter")
+    page.get_by_role("button", name="Good Evening Europe!").click()
+    page.get_by_role("link", name="Finale de démonstration · N° 2027 · Eurovision · Finale").click()
+    page.get_by_role("heading", name="Finale de démonstration").wait_for()
+    page.get_by_text("Le plus proche du vrai : Barnabé, à 4 places en moyenne du vrai classement").wait_for()
+    page.get_by_role("group", name="Images de l'évènement").wait_for()
+    page.get_by_title("Aperçu de l'édition spéciale").wait_for()
+    page.get_by_role("button", name="Nouveau tirage").click()
+    page.get_by_text("Entendu dans le salon").wait_for()
+    sans_debordement(page)
+    # La demi-finale : livret « qualifiés »
+    page.goto(adresse + "/#/a-traiter")
+    page.get_by_role("button", name="Good Evening Europe!").click()
+    page.get_by_role("link", name="Première demi-finale de démonstration · N° 2027 · Eurovision · 1re demi-finale").click()
+    page.get_by_text("livret « qualifiés »").first.wait_for()
+    page.get_by_role("group", name="Rendez-vous samedi").wait_for()
+    sans_debordement(page)
+    assert erreurs == []
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_eurovision_simuler_et_connexion(navigateur, adresse, taille):
+    """0.28 : Réglages › Simuler fait un numéro d'essai d'une soirée de Douze points ; Connexion montre Douze points."""
+    page, erreurs = ouvrir(navigateur, adresse, taille, "#/reglages")
+    page.get_by_role("button", name="Lire les soirées de Douze points").click()
+    page.get_by_label("Soirée Douze points", exact=True).select_option("1")
+    page.get_by_role("button", name="Simuler", exact=True).last.click()
+    page.get_by_text("Numéro d'essai (simulation)").wait_for()
+    page.get_by_role("button", name="Supprimer l'essai").click()
+    page.get_by_role("heading", name="Simuler un journal").wait_for()
+    page.get_by_text("Édition spéciale Eurovision", exact=True).wait_for()
+    page.goto(adresse + "/#/connexion")
+    page.get_by_role("button", name="Douze points").click()
+    page.get_by_text("soirées Eurovision clôturées").wait_for()
+    sans_debordement(page)
+    assert erreurs == []

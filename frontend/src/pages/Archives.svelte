@@ -27,7 +27,7 @@
 <header class="mb-5">
   <p class="etiquette">Gazette</p>
   <h1 class="titre">Archives</h1>
-  <p class="mt-1 text-sm text-muted-foreground">Les numéros approuvés dont le séjour est fini : Gazette du premier séjour et chaque Récidive.</p>
+  <p class="mt-1 text-sm text-muted-foreground">Les numéros approuvés dont le séjour est fini : Gazette du premier séjour, chaque Récidive, et chaque édition spéciale Eurovision.</p>
 </header>
 
 {#if erreur}<p class="mb-4 text-sm text-destructive" role="alert">{erreur}</p>{/if}
@@ -40,7 +40,7 @@
       {#each annees as a}<option value={a}>{a}</option>{/each}
     </select>
     <select class="h-10 rounded-lg border bg-background px-2 text-sm" bind:value={journal} aria-label="Journal">
-      <option value="">Les deux journaux</option><option value="gazette">La Gazette</option><option value="recidive">La Récidive</option>
+      <option value="">Tous les journaux</option><option value="gazette">La Gazette</option><option value="recidive">La Récidive</option><option value="eurovision">Édition Eurovision</option>
     </select>
   </div>
   {#if !liste.length}
@@ -57,10 +57,10 @@
             <a href={a.lien} class="flex flex-col gap-1 hover:text-primary">
               <span class="flex items-start justify-between gap-2">
                 <span class="font-medium">{a.nom}</span>
-                <span class="shrink-0 rounded-full border px-2 py-0.5 text-[0.7rem] {a.journal === 'recidive' ? 'border-destructive/60 text-destructive' : 'border-primary/60 text-primary'}">
-                  {a.journal === 'recidive' ? `La Récidive · N° ${a.numero}` : 'La Gazette'}</span>
+                <span class="shrink-0 rounded-full border px-2 py-0.5 text-[0.7rem] {a.journal === 'recidive' ? 'border-destructive/60 text-destructive' : a.journal === 'eurovision' ? 'border-valide/60 text-valide' : 'border-primary/60 text-primary'}">
+                  {a.journal === 'recidive' ? `La Récidive · N° ${a.numero}` : a.journal === 'eurovision' ? 'Édition Eurovision' : 'La Gazette'}</span>
               </span>
-              <span class="text-sm text-muted-foreground">séjour du {dateCourte(a.sejour.du)} au {dateCourte(a.sejour.jusqu_au)}{a.sejour.chambre ? ` · chambre ${a.sejour.chambre}` : ''}</span>
+              <span class="text-sm text-muted-foreground">{a.journal === 'eurovision' ? `soirée du ${dateCourte(a.sejour.du)} · N° ${a.numero}` : `séjour du ${dateCourte(a.sejour.du)} au ${dateCourte(a.sejour.jusqu_au)}`}{a.sejour.chambre ? ` · chambre ${a.sejour.chambre}` : ''}</span>
               {#if a.titre}<span class="line-clamp-2 font-serif text-sm italic">« {a.titre} »</span>{/if}
             </a>
             <span class="mt-auto flex flex-wrap gap-3 text-xs">

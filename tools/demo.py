@@ -23,6 +23,7 @@ from app.base import Base  # noqa: E402
 from app.config import Config  # noqa: E402
 from tests import fixtures as F  # noqa: E402
 from tests.carnet_simule import CarnetFiche  # noqa: E402
+from tests import douze_simule as DS  # noqa: E402
 
 MDP = "demo-demo-demo"
 JETON = "jeton-de-demo"
@@ -126,10 +127,13 @@ def configurer(data: Path) -> None:
     main.ETAT["sillage_lire"] = sillage_simule
     main.ETAT["cfg"] = Config(password=MDP, data=data, static=RACINE / "app" / "static", attente_connexion=False,
                               carnet_url="http://carnet.demo", carnet_jeton="jeton-de-demo", sillage_url="http://sillage.demo",
-                              sources_actives=False, synchrone=True, jeton_ha=JETON)
+                              sources_actives=False, synchrone=True, jeton_ha=JETON, douze_points_url="http://douze.demo")
     main.ETAT["anneau_lire"] = anneau_simule
     main.ETAT["immich_lire"] = immich_simule
     main.ETAT["ollama_lire"] = ollama_simule
+    # 0.28 : Douze points simulé (contrat de Douze points 1.9.0) — une finale et une demi-finale clôturées
+    main.ETAT["douze_lire"] = DS.DouzeSimule({1: [DS.habiller(DS.exemple(), 1)], 2: [DS.habiller(DS.exemple(demi=True), 2)]},
+                                             jeton="jeton-de-demo")
 
 
 def semer(adresse: str) -> None:
@@ -154,6 +158,7 @@ def semer(adresse: str) -> None:
         for du, fin in ((auj - timedelta(days=30), auj - timedelta(days=28)), (auj + timedelta(days=12), auj + timedelta(days=14))):
             c.post("/ha/sejour", headers={"Authorization": f"Bearer {JETON}"},
                    json={"chambre": "bleue", "noms": ["Lou Martin"], "du": du.isoformat(), "jusqu_au": fin.isoformat()})
+        c.post("/api/eurovision/relire")          # 0.28 : deux numéros de Good Evening Europe! à relire
 
 
 def lancer(port: int, data: Path) -> None:

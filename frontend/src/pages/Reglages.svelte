@@ -129,6 +129,18 @@
     catch (err) { sim.message = err.message }
     sim.attente = false
   }
+  // 0.28 : essai de « Good Evening Europe! » d'après une soirée clôturée de Douze points (jamais compté)
+  let simEuro = $state({ soirees: null, soiree: '', message: '', attente: false })
+  async function lireSoirees() {
+    try { simEuro.soirees = (await api.get('/api/eurovision/soirees')).soirees }
+    catch (err) { simEuro.soirees = []; simEuro.message = err.message }
+  }
+  async function simulerEuro() {
+    simEuro.attente = true; simEuro.message = ''
+    try { location.hash = (await api.post('/api/essais', { journal: 'eurovision', soiree_id: +simEuro.soiree })).lien }
+    catch (err) { simEuro.message = err.message }
+    simEuro.attente = false
+  }
   async function supprimerEssai(x) {
     await api.del(`/api/essais/${x.journal}/${x.id}`)
     await lireEssais()
@@ -202,11 +214,24 @@
     <Button onclick={simuler} disabled={(sim.carnet ? !sim.contact : !sim.personne) || sim.attente}>{sim.attente ? 'Création…' : 'Simuler'}</Button>
   </div>
   {#if sim.message}<p class="mt-2 text-sm text-destructive" role="alert">{sim.message}</p>{/if}
+  <div class="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
+    <span class="text-sm text-muted-foreground">Édition spéciale Eurovision :</span>
+    {#if simEuro.soirees === null}
+      <Button variant="outline" size="sm" onclick={lireSoirees}>Lire les soirées de Douze points</Button>
+    {:else if simEuro.soirees.length}
+      <select class="h-10 min-w-0 flex-1 rounded-lg border bg-background px-2 text-sm sm:max-w-xs" bind:value={simEuro.soiree} aria-label="Soirée Douze points">
+        <option value="">Choisir une soirée clôturée…</option>
+        {#each simEuro.soirees as so (so.id)}<option value={so.id}>{so.nom} ({so.annee ?? ''})</option>{/each}
+      </select>
+      <Button onclick={simulerEuro} disabled={!simEuro.soiree || simEuro.attente}>{simEuro.attente ? 'Création…' : 'Simuler'}</Button>
+    {:else if !simEuro.message}<span class="text-sm text-muted-foreground">aucune soirée clôturée dans Douze points.</span>{/if}
+    {#if simEuro.message}<span class="text-sm text-destructive" role="alert">{simEuro.message}</span>{/if}
+  </div>
   {#if sim.essais.length}
     <ul class="mt-3 grid gap-1.5 text-sm" aria-label="Essais en cours">
       {#each sim.essais as x (x.journal + x.id)}
         <li class="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-1.5">
-          <a class="hover:text-primary" href={x.lien}>{x.journal === 'recidive' ? `La Récidive N° ${x.numero}` : 'La Gazette'} d'essai · {x.nom}</a>
+          <a class="hover:text-primary" href={x.lien}>{x.journal === 'recidive' ? `La Récidive N° ${x.numero}` : x.journal === 'eurovision' ? `Édition Eurovision ${x.numero}` : 'La Gazette'} d'essai · {x.nom}</a>
           <button type="button" class="text-xs text-muted-foreground hover:text-destructive" onclick={() => supprimerEssai(x)}>Supprimer</button>
         </li>
       {/each}
@@ -259,6 +284,21 @@
           <span class="text-muted-foreground">{r.champs.r_mot_modele.libelle}</span>
           <textarea rows="5" class="rounded-lg border bg-background px-3 py-2 font-serif" maxlength={r.champs.r_mot_modele.maxi} bind:value={j.r_mot_modele} oninput={() => (modifie = true)}></textarea>
           <span class="text-xs text-muted-foreground">{r.champs.r_mot_modele.aide}</span>
+        </label>
+      </div>
+
+      <!-- 0.28 : « Good Evening Europe! », l'édition spéciale Eurovision (Douze points) -->
+      <h3 class="mt-6 text-base font-semibold">Édition spéciale Eurovision</h3>
+      <p class="mt-1 text-sm text-muted-foreground">Un livret de 4 pages par soirée clôturée dans Douze points (finale ou demi-finale), relu ici avant impression. Éteint : Douze points n'est plus lu et rien n'apparaît dans À traiter.</p>
+      <div class="mt-3 grid gap-3 sm:grid-cols-2">
+        <label class="grid gap-1 text-sm">
+          <span class="text-muted-foreground">{r.champs.e_titre.libelle}</span>
+          <input class="h-10 rounded-lg border bg-background px-3" maxlength={r.champs.e_titre.maxi} bind:value={j.e_titre} oninput={() => (modifie = true)} />
+          <span class="text-xs text-muted-foreground">{r.champs.e_titre.aide}</span>
+        </label>
+        <label class="flex items-center gap-3 self-center text-sm">
+          <input type="checkbox" bind:checked={j.eurovision} onchange={() => (modifie = true)} />
+          <span>Préparer l'édition spéciale après chaque soirée Douze points</span>
         </label>
       </div>
 

@@ -94,6 +94,17 @@ class Base:
                 id INTEGER PRIMARY KEY, methode TEXT NOT NULL, chemin TEXT NOT NULL, corps TEXT NOT NULL DEFAULT '',
                 quoi TEXT NOT NULL DEFAULT '', essais INTEGER NOT NULL DEFAULT 0, erreur TEXT NOT NULL DEFAULT '',
                 cree_le TEXT NOT NULL, UNIQUE (methode, chemin));
+            -- 0.28 : « Good Evening Europe! », un numéro par soirée Douze points clôturée (essai : Réglages › Simuler).
+            -- `journal` : la version lue (jamais changée une fois approuvé) ; `version_dispo` : la dernière vue chez
+            -- Douze points ; `images` : {sorte: gardée} ; `duos` : [{cle, photo, retiree}] ; `commentaires` : clés tirées.
+            CREATE TABLE IF NOT EXISTS eurovisions (
+                id INTEGER PRIMARY KEY, soiree_id INTEGER NOT NULL, essai INTEGER NOT NULL DEFAULT 0,
+                etat TEXT NOT NULL DEFAULT 'a_relire', version INTEGER NOT NULL DEFAULT 0,
+                version_dispo INTEGER NOT NULL DEFAULT 0, journal TEXT NOT NULL DEFAULT '{}',
+                numero_main TEXT NOT NULL DEFAULT '', images TEXT NOT NULL DEFAULT '{}', duos TEXT NOT NULL DEFAULT '[]',
+                commentaires TEXT NOT NULL DEFAULT '[]', refuses TEXT NOT NULL DEFAULT '[]', valides TEXT NOT NULL DEFAULT '{}',
+                erreur TEXT NOT NULL DEFAULT '', carnet TEXT NOT NULL DEFAULT '', cree_le TEXT NOT NULL,
+                approuve_le TEXT NOT NULL DEFAULT '', modifie_le TEXT NOT NULL DEFAULT '', UNIQUE (soiree_id, essai));
         """)
         # 0.9 : séjours d'avant Gazette notés sur la fiche (nombre et date d'arrivée du dernier)
         colonnes = {l["name"] for l in self._c.execute("PRAGMA table_info(personnes)")}
@@ -403,6 +414,54 @@ class Base:
             return [dict(l) for l in self._c.execute(
                 "SELECT DISTINCT s.du, s.jusqu_au, s.chambre FROM sejours s JOIN invites i ON i.sejour_id = s.id "
                 "WHERE i.personne_id = ? ORDER BY s.du", (pid,))]
+
+    # ------------------------------------------------------------ 0.28 : Good Evening Europe! (Eurovision)
+    _JSON_EURO = {"journal": "{}", "images": "{}", "duos": "[]", "commentaires": "[]", "refuses": "[]", "valides": "{}"}
+
+    def _eurovision(self, l) -> dict:
+        d = dict(l)
+        for k, defaut in self._JSON_EURO.items():
+            d[k] = json.loads(d.get(k) or defaut)
+        d["essai"] = bool(d["essai"])
+        return d
+
+    def eurovision(self, eid: int) -> dict | None:
+        with self._verrou:
+            l = self._c.execute("SELECT * FROM eurovisions WHERE id = ?", (eid,)).fetchone()
+        return self._eurovision(l) if l else None
+
+    def eurovision_de(self, soiree_id: int, essai: bool = False) -> dict | None:
+        with self._verrou:
+            l = self._c.execute("SELECT * FROM eurovisions WHERE soiree_id = ? AND essai = ?", (soiree_id, int(essai))).fetchone()
+        return self._eurovision(l) if l else None
+
+    def eurovisions(self, essais: bool = False) -> list[dict]:
+        """Les numéros, les plus récents d'abord ; sans les essais, sauf `essais` (alors les essais seuls)."""
+        with self._verrou:
+            ls = self._c.execute("SELECT * FROM eurovisions WHERE essai = ? ORDER BY soiree_id DESC", (int(essais),)).fetchall()
+        return [self._eurovision(l) for l in ls]
+
+    def creer_eurovision(self, soiree_id: int, essai: bool = False, **champs) -> int:
+        with self._verrou, self._c:
+            self._c.execute("DELETE FROM eurovisions WHERE soiree_id = ? AND essai = ? AND ? = 1", (soiree_id, int(essai), int(essai)))
+            cur = self._c.execute("INSERT INTO eurovisions (soiree_id, essai, cree_le, modifie_le) VALUES (?,?,?,?)",
+                                  (soiree_id, int(essai), maintenant(), maintenant()))
+            eid = cur.lastrowid
+        if champs:
+            self.maj_eurovision(eid, **champs)
+        return eid
+
+    def maj_eurovision(self, eid: int, **champs) -> None:
+        for k in list(champs):
+            if k in self._JSON_EURO:
+                champs[k] = json.dumps(champs[k], ensure_ascii=False)
+        champs["modifie_le"] = maintenant()
+        with self._verrou, self._c:
+            self._c.execute(f"UPDATE eurovisions SET {', '.join(k + ' = ?' for k in champs)} WHERE id = ?", (*champs.values(), eid))
+
+    def supprimer_eurovision(self, eid: int) -> None:
+        with self._verrou, self._c:
+            self._c.execute("DELETE FROM eurovisions WHERE id = ?", (eid,))
 
     # ------------------------------------------------------------ La Récidive (0.9)
     def _recidive(self, l) -> dict:

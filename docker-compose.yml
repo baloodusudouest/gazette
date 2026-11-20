@@ -28,5 +28,6 @@ services:
       - GAZETTE_OLLAMA_URL=${GAZETTE_OLLAMA_URL:-}     # 0.9.1 : Ollama du PC (http://<adresse du PC>:11434) ; vide : pas de titres proposés
       # - GAZETTE_OLLAMA_MODELE=qwen2.5:7b             # 0.9.6 : facultative, autre modèle installé sur le PC
       # - GAZETTE_SILLAGE_URL=http://sillage:8093      # 0.23 : facultative, Sillage vu depuis le conteneur (étapes proposées dans la fiche complète)
+      # - GAZETTE_DOUZE_POINTS_URL=http://douze-points:8088   # 0.28 : facultative, Douze points vu depuis le conteneur (édition spéciale Eurovision)
     volumes:
       - ${GAZETTE_DATA_DIR}:/data                      # gazette.db (fiches, livrets, réglages, cache des sources)

@@ -24,6 +24,7 @@ from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 
 from . import __version__, anniversaire, code_barres, culture, journal, maison, recidive as R, rendu, rendu_recidive
+from . import douze_points as DP, eurovision as EV, rendu_eurovision
 from . import fiche as FI
 from .carnet import Carnet, ErreurFiche
 from .sillage import Sillage
@@ -317,6 +318,8 @@ async def cycle(app: FastAPI):
                             ecrire=ETAT.get("carnet_ecrire"), paru=ETAT.get("carnet_paru"), fiche=ETAT.get("carnet_fiche"))
     # 0.23 : Sillage (étapes du chemin d'une personne) pour les suggestions de la fiche complète, même jeton commun
     ETAT["sillage"] = Sillage(lambda: cfg.sillage_url, cfg.carnet_jeton, lire=ETAT.get("sillage_lire"))
+    # 0.28 : Douze points (soirées Eurovision clôturées) pour « Good Evening Europe! », même jeton commun
+    ETAT["douze"] = DP.DouzePoints(lambda: cfg.douze_points_url, cfg.carnet_jeton, lire=ETAT.get("douze_lire"))
     ETAT["immich"] = Immich(cfg.immich_url, cfg.immich_cle, cfg.data / "photos", lire=ETAT.get("immich_lire"))
     ETAT["ollama"] = Ollama(cfg.ollama_url, lire=ETAT.get("ollama_lire"))
     maison.TACHES.declarer(TACHE_GAZETTE, type="demande")
@@ -1872,6 +1875,10 @@ def essais():
         p = base.personne(ed["personne_id"]) or {"nom": "?"}
         res.append({"journal": "recidive", "id": ed["id"], "nom": p["nom"], "etat": ed["etat"], "lien": f"#/recidive/{ed['id']}",
                     "numero": ed["numero_main"] or ed["numero"]})
+    for n in base.eurovisions(essais=True):      # 0.28 : Good Evening Europe! d'essai
+        r = _resume_euro(n)
+        res.append({"journal": "eurovision", "id": n["id"], "nom": r["nom"], "etat": n["etat"], "lien": f"#/eurovision/{n['id']}",
+                    "numero": r["numero"]})
     return {"essais": res}
 
 
@@ -1897,8 +1904,10 @@ def creer_essai(corps: dict = Body(...)):
     faite d'après carnet (nom, prénom, date de naissance) et part avec l'essai."""
     base: Base = ETAT["base"]
     journal_ = corps.get("journal")
+    if journal_ == "eurovision":                 # 0.28 : {journal: eurovision, soiree_id}
+        return _essai_eurovision(corps)
     if journal_ not in ("gazette", "recidive"):
-        raise HTTPException(422, "Journal inconnu (gazette ou recidive).")
+        raise HTTPException(422, "Journal inconnu (gazette, recidive ou eurovision).")
     p, contact = None, None
     if corps.get("carnet_id"):
         contact = _contact_par_id(str(corps["carnet_id"]))
@@ -1960,6 +1969,11 @@ def supprimer_essai(journal_: str, ident: int):
         porteur = base.personne(ed["personne_id"])          # 0.24 : la fiche d'essai faite pour elle part avec
         if porteur and porteur.get("essai_de") == ESSAI_PORTEUR and not base.recidives(porteur["id"], essais=True):
             base.supprimer_personne(porteur["id"])
+    elif journal_ == "eurovision":
+        n = base.eurovision(ident)
+        if not n or not n["essai"]:
+            raise HTTPException(404, "Essai introuvable.")
+        base.supprimer_eurovision(ident)
     else:
         raise HTTPException(422, "Journal inconnu.")
     return {"ok": True}
@@ -1990,6 +2004,14 @@ def _archives() -> list[dict]:
                     "numero": ed["numero_main"] or ed["numero"], "sejour": s, "approuve_le": ed["approuve_le"],
                     "titre": ed.get("titre_une") or R.titre_une(p["nom"]), "lien": f"#/recidive/{ed['id']}",
                     "pdf": f"/api/recidives/{ed['id']}/pdf"})
+    for n in base.eurovisions():           # 0.28 : Good Evening Europe!, dès l'approbation (la soirée est passée)
+        if n["etat"] != "approuve":
+            continue
+        r = _resume_euro(n)
+        res.append({"journal": "eurovision", "id": n["id"], "personne_id": None, "nom": r["nom"], "numero": r["numero"],
+                    "sejour": {"du": r["date"] or n["approuve_le"][:10], "jusqu_au": r["date"] or n["approuve_le"][:10], "chambre": ""},
+                    "approuve_le": n["approuve_le"], "titre": _titre_euro(), "lien": f"#/eurovision/{n['id']}",
+                    "pdf": f"/api/eurovisions/{n['id']}/pdf"})
     return sorted(res, key=lambda x: (x["sejour"]["du"], x["nom"]), reverse=True)
 
 
@@ -2095,10 +2117,19 @@ def a_traiter() -> dict:
                               "cle": f"{p['id']}:{c['naissance']}"})
     # 0.27 : personnes liées à Immich sans aucune photo taguée « scandale » (comptées toutes les 6 heures)
     sans_scandale = _sans_scandale()
+    # 0.28 : Good Evening Europe! — numéros à relire, nouvelles versions d'un numéro paru (si le type est allumé)
+    eurovisions, versions = [], []
+    if _euro_actif():
+        for n in base.eurovisions():
+            if n["etat"] != "approuve":
+                eurovisions.append(_resume_euro(n))
+            elif _nouvelle_version(n):
+                versions.append(_resume_euro(n))
     return {"fiches": fiches, "relire": relire, "anniversaires": annivs, "erreurs": erreurs, "dates": dates,
             "recidives": recidives, "scandales": scandales, "sans_scandale": sans_scandale,
+            "eurovisions": eurovisions, "eurovision_versions": versions,
             "total": len(fiches) + len(relire) + len(annivs) + len(erreurs) + len(dates) + len(recidives) + len(scandales)
-                     + len(sans_scandale)}
+                     + len(sans_scandale) + len(eurovisions) + len(versions)}
 
 
 def _carnet_sur(nom: str) -> dict | None:
@@ -2113,6 +2144,7 @@ def _carnet_sur(nom: str) -> dict | None:
 
 @app.get("/api/a-traiter")
 def route_a_traiter():
+    relire_douze_points()                 # 0.28 : relu à l'ouverture d'À traiter (30 s au plus souvent)
     return a_traiter()
 
 
@@ -2151,6 +2183,7 @@ def etat_connexions():
             "rendu": {"polices": rendu.polices_presentes()},
             "larousse": _journal()["larousse"],
             "carnet": ETAT["carnet"].etat(), "immich": ETAT["immich"].etat(), "ia": _ia_etat(),
+            "douze_points": {**ETAT["douze"].etat(), "actif": _euro_actif(), "numeros": len(ETAT["base"].eurovisions())},
             "rendu_recidive": {"polices": rendu_recidive.polices_presentes()}}
 
 
@@ -2163,6 +2196,7 @@ def verifier_sources():
         r["carnet"] = {"ok": not err, "detail": err or f"{len(liste)} contacts, {sum(1 for p in liste if p.get('naissance'))} avec date complète"}
     else:
         r["carnet"] = {"ok": None, "detail": "pas réglé (MAISON_JETON vide)"}
+    r["douze_points"] = ETAT["douze"].sonder()       # 0.28
     for cle in ("immich", "ollama"):        # 0.20.3 : une sonde qui plante ne fait plus tomber toute la vérification
         try:
             r["ia" if cle == "ollama" else cle] = (ETAT[cle].sonder(_ia_etat()["modele_second"]) if cle == "ollama"
@@ -2625,6 +2659,7 @@ async def _boucle_carnet() -> None:
         try:
             await asyncio.to_thread(renvoyer_a_carnet)
             await asyncio.to_thread(compter_scandales)
+            await asyncio.to_thread(relire_douze_points, True)       # 0.28 : soirées Eurovision clôturées
         except Exception as ex:  # noqa: BLE001 — la boucle ne s'arrête jamais
             log.warning("Envois vers carnet : %s", ex)
 
@@ -2687,10 +2722,431 @@ def ha_etat():
     lignes += [f"{r['nom']} : livret à relire" for r in t["relire"] if r["attendu"]]
     lignes += [f"{r['nom']} : La Récidive N° {r['numero']} à relire" for r in t["recidives"] if r["attendu"]]
     lignes += [f"{a['nom']} : anniversaire {a['libelle']} ({a['anniversaire']})" for a in t["anniversaires"]]
+    lignes += [f"{_titre_euro()} {n['numero']} à relire" for n in t["eurovisions"]]       # 0.28
     return {"a_traiter": len(lignes), "fiches_manquantes": len(t["fiches"]),
             "a_relire": sum(1 for r in t["relire"] if r["attendu"]) + sum(1 for r in t["recidives"] if r["attendu"]),
             "anniversaires": len(t["anniversaires"]),
             "liste": lignes, "adresse": _adresse()}
+
+
+# ================================================================ 0.28 : « Good Evening Europe! » (édition spéciale Eurovision)
+#
+# Dossier du 20/11/2026 (§ 8, 9 et 10 priment) : un numéro par soirée Douze points clôturée, le même pour tous ; A5 de
+# 4 pages comme la Gazette. Gazette relit `/externe/soirees` de Douze points à l'ouverture d'« À traiter » et toutes les
+# 10 minutes : une soirée nouvelle → un brouillon à relire ; une nouvelle version (reclôture) d'un numéro pas encore
+# approuvé → le brouillon la prend ; d'un numéro approuvé → tuile « Nouvelle version du résultat » (le numéro paru ne
+# change jamais seul ; la version lue est gardée). Tous les calculs viennent de Douze points. Commentaires tirés au
+# hasard, sans IA. À l'approbation (pas pour un essai) : parution notée dans carnet pour chaque invité qui a un
+# identifiant de carnet (file `envois_carnet`, clé `eurovision-<soirée>`).
+
+DOUZE_PAUSE = 30                   # secondes : « À traiter » ne relit pas Douze points plus souvent
+
+
+def _euro_actif() -> bool:
+    return bool(_journal().get("eurovision", True))
+
+
+def _dossier_euro(sid: int, version: int):
+    return ETAT["cfg"].data / "eurovision" / str(int(sid)) / str(int(version))
+
+
+def _garder_images_euro(j: dict) -> None:
+    """Copie locale des images figées du journal (logo, bannière, poster, apéro) et aperçus Immich (apéro, duos)."""
+    s = j.get("soiree") or {}
+    dossier = _dossier_euro(s.get("id", 0), j.get("version", 0))
+    dossier.mkdir(parents=True, exist_ok=True)
+    for sorte, chemin in (j.get("images") or {}).items():
+        f = dossier / f"{sorte}.img"
+        if chemin and sorte in DP.IMAGES and not f.is_file():
+            octets = ETAT["douze"].image(str(chemin))
+            if octets:
+                f.write_bytes(octets)
+    immich: Immich = ETAT["immich"]
+    if immich.actif:
+        if j.get("apero_immich_id"):
+            immich.apercu(str(j["apero_immich_id"]))
+        for d in j.get("duos") or []:
+            for ph in d.get("photos") or []:
+                if ph.get("immich_id"):
+                    immich.apercu(str(ph["immich_id"]))
+
+
+def _images_euro(n: dict) -> dict[str, bytes | None]:
+    """Les octets des images de ce numéro (sans appel réseau : copies gardées)."""
+    j = n["journal"]
+    s = j.get("soiree") or {}
+    dossier = _dossier_euro(s.get("id", 0), j.get("version", 0))
+    res = {}
+    for sorte in DP.IMAGES:
+        f = dossier / f"{sorte}.img"
+        res[sorte] = f.read_bytes() if f.is_file() else None
+    if not res.get("apero") and j.get("apero_immich_id"):
+        res["apero"] = ETAT["immich"].gardee(str(j["apero_immich_id"]))
+    return res
+
+
+def _duo_dispo(immich_id: str) -> bool:
+    return bool(ETAT["immich"].gardee(immich_id))
+
+
+def _champs_journal_euro(j: dict, ancien: dict | None = None) -> dict:
+    """Les champs d'un numéro tirés d'un journal ; `ancien` : choix de la relecture gardés (images, duos, commentaires)."""
+    possibles = {c["cle"] for c in EV.commentaires_possibles(j)}
+    if ancien:
+        gardes = [k for k in ancien.get("commentaires") or [] if k in possibles]
+        refuses = [k for k in ancien.get("refuses") or [] if k in possibles]
+        n = max(len(ancien.get("commentaires") or []), 2)
+        comms = EV.tirer(j, gardes, refuses, n=min(n, 3)) if len(gardes) < min(n, 3) else gardes
+        return {"journal": j, "version": int(j.get("version") or 0), "commentaires": comms, "refuses": refuses,
+                "duos": EV.accorder_duos(j, ancien.get("duos") or [], _duo_dispo), "erreur": ""}
+    return {"journal": j, "version": int(j.get("version") or 0), "commentaires": EV.tirer(j),
+            "duos": EV.duos_defaut(j, _duo_dispo), "images": {s: True for s in EV.images_presentes(j)}, "erreur": ""}
+
+
+def relire_douze_points(forcer: bool = False) -> dict:
+    """Relit les soirées clôturées de Douze points et tient les numéros à jour. Jamais une erreur (message gardé)."""
+    douze: DP.DouzePoints = ETAT["douze"]
+    if not douze.actif or not _euro_actif():
+        return {"nouveaux": 0, "mis_a_jour": 0}
+    if not forcer and not ETAT["cfg"].synchrone and time.monotonic() - ETAT.get("douze_lu", 0) < DOUZE_PAUSE:
+        return {"nouveaux": 0, "mis_a_jour": 0}
+    ETAT["douze_lu"] = time.monotonic()
+    base: Base = ETAT["base"]
+    nouveaux = maj = 0
+    try:
+        soirees = douze.soirees()
+    except RuntimeError:
+        return {"nouveaux": 0, "mis_a_jour": 0, "erreur": douze.erreur}
+    for s in soirees:
+        n = base.eurovision_de(s["id"])
+        try:
+            if not n:
+                j = douze.journal(s["id"], s["version"])
+                _garder_images_euro(j)
+                base.creer_eurovision(s["id"], version_dispo=s["version"], **_champs_journal_euro(j))
+                base.noter("eurovision", None, f"soirée « {s['nom']} » (version {s['version']}) : numéro à relire")
+                nouveaux += 1
+            elif s["version"] > max(n["version"], n["version_dispo"]):
+                if n["etat"] != "approuve":
+                    j = douze.journal(s["id"], s["version"])
+                    _garder_images_euro(j)
+                    base.maj_eurovision(n["id"], version_dispo=s["version"], **_champs_journal_euro(j, n))
+                    base.noter("eurovision", None, f"soirée « {s['nom']} » : nouvelle version {s['version']} prise par le brouillon")
+                else:
+                    base.maj_eurovision(n["id"], version_dispo=s["version"])
+                    base.noter("eurovision", None, f"soirée « {s['nom']} » : nouvelle version {s['version']} (numéro paru gardé)")
+                maj += 1
+        except RuntimeError as ex:
+            douze.erreur = str(ex)[:200]
+            if n:
+                base.maj_eurovision(n["id"], erreur=str(ex)[:300])
+    return {"nouveaux": nouveaux, "mis_a_jour": maj}
+
+
+def _numero_euro_ou_404(eid: int) -> dict:
+    n = ETAT["base"].eurovision(eid)
+    if not n:
+        raise HTTPException(404, "Numéro introuvable.")
+    return n
+
+
+def _titre_euro() -> str:
+    return (_journal().get("e_titre") or journal.DEFAUTS["e_titre"]).strip() or journal.DEFAUTS["e_titre"]
+
+
+def _resume_euro(n: dict) -> dict:
+    j = n["journal"]
+    s = j.get("soiree") or {}
+    return {"id": n["id"], "soiree_id": n["soiree_id"], "nom": s.get("nom") or "Soirée", "numero": n["numero_main"] or EV.numero_defaut(j),
+            "livret": EV.livret(j), "etat": n["etat"], "date": s.get("date") or "", "version": n["version"],
+            "version_dispo": n["version_dispo"], "essai": n["essai"], "approuve_le": n["approuve_le"], "erreur": n["erreur"]}
+
+
+def _nouvelle_version(n: dict) -> bool:
+    """Tuile « Nouvelle version du résultat » : numéro paru, version plus récente chez Douze points, pas ignorée. Le
+    magazine d'une demi-finale n'est jamais refait (sa fiche PDF, dans Douze points, est complétée après la finale)."""
+    return (n["etat"] == "approuve" and not n["essai"] and n["version_dispo"] > n["version"]
+            and EV.livret(n["journal"]) == "finale"
+            and f"{n['id']}:{n['version_dispo']}" not in ETAT["base"].ignores("eurovision_version"))
+
+
+def _vue_euro(n: dict) -> dict:
+    """Ce que l'écran de relecture montre (les faits calculés par Douze points, en phrases courtes)."""
+    j = n["journal"]
+    ch = EV.chansons(j)
+    pays = lambda c: (ch.get(int(c)) or {}).get("pays", "?")      # noqa: E731
+    imgs = _images_euro(n)
+    gardees = n["images"] or {}
+    presentes = EV.images_presentes(j)
+    une = EV.invite_une(j)
+    vue = {"soiree": j.get("soiree") or {}, "livret": EV.livret(j), "numero_defaut": EV.numero_defaut(j),
+           "avec_jury": EV.avec_jury(j), "titre": _titre_euro(),
+           "images": [{"sorte": s, "presente": bool(imgs.get(s)), "garder": gardees.get(s, True)} for s in presentes],
+           "image_une": EV.image_une(gardees, [s for s in presentes if imgs.get(s)]),
+           "une": une, "palmares": EV.haut_palmares(j),
+           "commentaires": EV.commentaires_vus(j, n["commentaires"]),
+           "commentaires_dispo": len(EV.commentaires_possibles(j)),
+           "duos": [{**d, "noms": EV.noms_duo(j, d["cle"]), "photos": [p for p in EV.photos_duo(j, d["cle"]) if _duo_dispo(p)]}
+                    for d in n["duos"]],
+           "immich": ETAT["immich"].actif,
+           "podium_maison": [pays(c) for c in j.get("podium_maison") or []],
+           "podium_officiel": [pays(c) for c in j.get("podium_officiel") or []],
+           "mieux": [pays(c) for c in j.get("mieux_devines") or []], "rates": [pays(c) for c in j.get("plus_rates") or []]}
+    if une and vue["livret"] == "finale":
+        une["phrase"] = f"{une['prenom']}, {EV.ecart_clair(une.get('ecart'))} du vrai classement"
+    elif une:
+        une["phrase"] = f"{une['prenom']}, {une.get('trouves')} qualifiés trouvés sur {une.get('sur') or 10}"
+    demi = j.get("demi")
+    if demi:
+        vue["demi"] = {"notre_top": [{"pays": pays(x["chanson"]), "qualifie": bool(x.get("qualifie"))} for x in demi.get("notre_top") or []],
+                       "qualifies": sorted((pays(c) for c in demi.get("qualifies") or []), key=str.casefold),
+                       "pleure": [pays(c) for c in demi.get("pleure") or []], "deteste": [pays(c) for c in demi.get("deteste") or []],
+                       "coup_de_coeur": pays(demi["coup_de_coeur"]) if demi.get("coup_de_coeur") else "",
+                       "nul_point": pays(demi["nul_point"]) if demi.get("nul_point") else "",
+                       "favoris": [pays(c) for c in demi.get("favoris") or []], "date_finale": demi.get("date_finale") or ""}
+    return vue
+
+
+@app.get("/api/eurovisions")
+def liste_eurovisions():
+    return {"eurovisions": [_resume_euro(n) for n in ETAT["base"].eurovisions()], "actif": _euro_actif()}
+
+
+@app.post("/api/eurovision/relire")
+def relire_eurovision():
+    """Bouton « Relire Douze points » : relecture tout de suite (pas de pause)."""
+    r = relire_douze_points(forcer=True)
+    return {**r, "douze_points": ETAT["douze"].etat()}
+
+
+@app.get("/api/eurovision/soirees")
+def soirees_eurovision():
+    """Pour Réglages › Simuler : les soirées clôturées lues dans Douze points."""
+    try:
+        return {"soirees": ETAT["douze"].soirees(), "regle": ETAT["douze"].actif}
+    except RuntimeError as ex:
+        raise HTTPException(503, str(ex))
+
+
+@app.get("/api/eurovisions/{eid}")
+def numero_eurovision(eid: int):
+    n = _numero_euro_ou_404(eid)
+    return {"numero": {k: v for k, v in n.items() if k != "journal"}, "vue": _vue_euro(n),
+            "nouvelle_version": _nouvelle_version(n), "carnet": _invites_carnet_euro(n)}
+
+
+def _bool_dict(v, cles) -> dict:
+    return {str(k): bool(x) for k, x in (v or {}).items() if str(k) in cles} if isinstance(v, dict) else {}
+
+
+@app.put("/api/eurovisions/{eid}")
+def enregistrer_eurovision(eid: int, corps: dict = Body(...)):
+    """La relecture : N° corrigé, images gardées ou retirées, photo de chaque duo, commentaires gardés, validations.
+    Un numéro approuvé qui change repasse « à relire » (photos modifiables jusqu'à l'approbation)."""
+    n = _numero_euro_ou_404(eid)
+    j = n["journal"]
+    champs = {}
+    if "numero_main" in corps:
+        champs["numero_main"] = " ".join(str(corps.get("numero_main") or "").split())[:60]
+    if "images" in corps:
+        champs["images"] = {**(n["images"] or {}), **_bool_dict(corps["images"], set(DP.IMAGES))}
+    if isinstance(corps.get("duos"), list):
+        recus = {str(x.get("cle")): x for x in corps["duos"] if isinstance(x, dict)}
+        duos = []
+        for d in n["duos"]:
+            r = recus.get(d["cle"])
+            if r:
+                photo = str(r.get("photo") or "")
+                d = {**d, "retiree": bool(r.get("retiree", d.get("retiree"))),
+                     "photo": photo if photo in EV.photos_duo(j, d["cle"]) else d.get("photo", "")}
+            duos.append(d)
+        champs["duos"] = duos
+    if isinstance(corps.get("commentaires"), list):
+        possibles = {c["cle"] for c in EV.commentaires_possibles(j)}
+        champs["commentaires"] = [str(k) for k in corps["commentaires"] if str(k) in possibles][:3]
+    if isinstance(corps.get("refuses"), list):
+        champs["refuses"] = [str(k)[:20] for k in corps["refuses"]][:200]
+    if "valides" in corps:
+        champs["valides"] = _valides(corps["valides"])
+    if champs:
+        if n["etat"] == "approuve" and any(k != "valides" and champs[k] != n.get(k) for k in champs):
+            champs["etat"], champs["approuve_le"] = "a_relire", ""
+        ETAT["base"].maj_eurovision(eid, **champs)
+    return {"ok": True, "etat": ETAT["base"].eurovision(eid)["etat"]}
+
+
+@app.post("/api/eurovisions/{eid}/tirer")
+def tirer_commentaires(eid: int, corps: dict = Body(default={})):
+    """Commentaires tirés au hasard (aucune IA) : `remplacer` = une clé → un autre à sa place (« Changer ») ;
+    `refuser` = une clé → retirée et jamais retirée de nouveau ; rien → un nouveau tirage complet (2 ou 3)."""
+    n = _numero_euro_ou_404(eid)
+    j, choisis, refuses = n["journal"], list(n["commentaires"]), list(n["refuses"])
+    if corps.get("refuser"):
+        k = str(corps["refuser"])
+        choisis, refuses = [x for x in choisis if x != k], refuses + [k]
+    elif corps.get("remplacer"):
+        choisis = EV.changer_commentaire(j, choisis, str(corps["remplacer"]), refuses)
+    else:
+        choisis = EV.tirer(j, [], refuses + choisis) or EV.tirer(j, [], refuses)
+    champs = {"commentaires": choisis, "refuses": refuses}
+    if n["etat"] == "approuve":
+        champs.update(etat="a_relire", approuve_le="")
+    ETAT["base"].maj_eurovision(eid, **champs)
+    return {"commentaires": EV.commentaires_vus(j, choisis)}
+
+
+@app.get("/api/eurovisions/{eid}/image/{sorte}")
+def image_eurovision(eid: int, sorte: str):
+    n = _numero_euro_ou_404(eid)
+    octets = _images_euro(n).get(sorte) if sorte in DP.IMAGES else None
+    if not octets:
+        raise HTTPException(404, "Pas d'image.")
+    return Response(octets, media_type=DP.type_image(octets) or "image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
+
+
+@app.get("/api/eurovisions/{eid}/photo/{asset}")
+def photo_eurovision(eid: int, asset: str):
+    n = _numero_euro_ou_404(eid)
+    connues = {p for d in n["journal"].get("duos") or [] for p in EV.photos_duo(n["journal"], str(d.get("cle")))}
+    if asset not in connues:
+        raise HTTPException(404, "Photo introuvable dans ce numéro.")
+    octets = ETAT["immich"].gardee(asset) or ETAT["immich"].apercu(asset)
+    if not octets:
+        raise HTTPException(404, "Aperçu indisponible (Immich injoignable ?).")
+    return Response(octets, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
+
+
+def _rendre_euro(eid: int, mode: str) -> tuple[str, dict]:
+    n = _numero_euro_ou_404(eid)
+    g = rendu_eurovision.donnees(n, _titre_euro(), _images_euro(n), ETAT["immich"].gardee)
+    return rendu_eurovision.document(g, mode), n
+
+
+@app.get("/api/eurovisions/{eid}/apercu")
+def apercu_eurovision(eid: int, mode: str = "ecran"):
+    doc, _ = _rendre_euro(eid, mode if mode in ("ecran", "impose", "lecture") else "ecran")
+    return HTMLResponse(doc, headers={"Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src data:; img-src data:"})
+
+
+@app.get("/api/eurovisions/{eid}/pdf")
+def pdf_eurovision(eid: int, mode: str = "impose"):
+    mode = mode if mode in ("impose", "lecture") else "impose"
+    doc, n = _rendre_euro(eid, mode)
+    try:
+        contenu, deborde = rendu.pdf(doc, mode)
+    except rendu.RenduImpossible as ex:
+        raise HTTPException(503, str(ex))
+    num = n["numero_main"] or EV.numero_defaut(n["journal"])
+    nom = "good-evening-europe-" + "".join(ch if ch.isalnum() else "-" for ch in cle_nom(num)).strip("-") + f"-{mode}.pdf"
+    return Response(contenu, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{re.sub("-+", "-", nom)}"', "X-Debordements": ",".join(map(str, deborde))})
+
+
+@app.get("/api/eurovisions/{eid}/mesure")
+def mesure_eurovision(eid: int):
+    doc, _ = _rendre_euro(eid, "lecture")
+    try:
+        return {"pages": rendu.mesurer(doc)}
+    except rendu.RenduImpossible as ex:
+        raise HTTPException(503, str(ex))
+
+
+def _personne_carnet_euro(inv: dict) -> str:
+    """L'identifiant maison de carnet d'un invité de la soirée : `personne_id`, sinon le contact de `carnet_id`."""
+    pid = str(inv.get("personne_id") or "").strip()
+    if pid:
+        return pid
+    cid = str(inv.get("carnet_id") or "").strip()
+    if cid and ETAT["carnet"].actif:
+        return str((_contact_par_id(cid) or {}).get("personne_id") or "")
+    return ""
+
+
+def _invites_carnet_euro(n: dict) -> list[dict]:
+    return [{"prenom": i.get("prenom") or "?", "carnet": bool(_personne_carnet_euro(i))} for i in n["journal"].get("invites") or []]
+
+
+def _parution_euro(n: dict) -> str:
+    """À l'approbation : « Journaux parus » de carnet pour chaque invité qui a un identifiant de carnet (file d'envoi)."""
+    j = n["journal"]
+    s = j.get("soiree") or {}
+    num = n["numero_main"] or EV.numero_defaut(j)
+    corps = {"journal": "eurovision", "numero": num, "le": s.get("date") or date.today().isoformat(),
+             "titre": f"{_titre_euro()} — {num}", "evenement": s.get("nom") or "",
+             "lien": _lien_absolu(f"{_adresse()}/#/eurovision/{n['id']}" if _adresse() else "")}
+    envoyes, sans = 0, 0
+    for inv in j.get("invites") or []:
+        pid = _personne_carnet_euro(inv)
+        if not pid:
+            sans += 1
+            continue
+        _vers_carnet("PUT", f"/gazette/personnes/{pid}/parus/eurovision-{n['soiree_id']}", corps,
+                     f"Good Evening Europe! ({inv.get('prenom') or '?'})")
+        envoyes += 1
+    return (f"parution notée pour {envoyes} invité{'s' if envoyes > 1 else ''}" if envoyes else "aucun invité lié à carnet") + \
+           (f", {sans} sans identifiant de carnet" if sans and envoyes else "")
+
+
+@app.post("/api/eurovisions/{eid}/approuver")
+def approuver_eurovision(eid: int):
+    """Contrôle qu'aucune page ne déborde, puis approuve ; parution notée dans carnet (jamais pour un essai)."""
+    doc, n = _rendre_euro(eid, "impose")
+    try:
+        _, deborde = rendu.pdf(doc, "impose")
+    except rendu.RenduImpossible:
+        deborde = []                      # sans Chromium (tests), pas de contrôle
+    if deborde:
+        raise HTTPException(409, "Page trop pleine : la page " + ", ".join(map(str, deborde))
+                            + " déborde. Retire un commentaire ou une image, ou raccourcis le N°.")
+    ETAT["base"].maj_eurovision(eid, etat="approuve", approuve_le=maintenant())
+    if n["essai"]:
+        return {"ok": True, "carnet": "essai : rien envoyé à carnet"}
+    message = _parution_euro(n)
+    ETAT["base"].maj_eurovision(eid, carnet=message)
+    ETAT["base"].noter("approuver", None, f"Good Evening Europe! {n['numero_main'] or EV.numero_defaut(n['journal'])} : {message}")
+    return {"ok": True, "carnet": message}
+
+
+@app.post("/api/eurovisions/{eid}/refaire")
+def refaire_eurovision(eid: int):
+    """Tuile « Nouvelle version du résultat » : le numéro reprend la dernière version de Douze points et repasse à relire
+    (les choix de la relecture sont gardés quand c'est possible)."""
+    n = _numero_euro_ou_404(eid)
+    if n["version_dispo"] <= n["version"]:
+        raise HTTPException(409, "Pas de version plus récente chez Douze points.")
+    try:
+        j = ETAT["douze"].journal(n["soiree_id"], n["version_dispo"])
+    except RuntimeError as ex:
+        raise HTTPException(503, str(ex))
+    _garder_images_euro(j)
+    ETAT["base"].maj_eurovision(eid, etat="a_relire", approuve_le="", **_champs_journal_euro(j, n))
+    ETAT["base"].noter("eurovision", None, f"numéro refait avec la version {n['version_dispo']}")
+    return {"ok": True}
+
+
+@app.post("/api/eurovisions/{eid}/ignorer-version")
+def ignorer_version_eurovision(eid: int):
+    n = _numero_euro_ou_404(eid)
+    ETAT["base"].ignorer("eurovision_version", f"{n['id']}:{n['version_dispo']}")
+    return {"ok": True}
+
+
+def _essai_eurovision(corps: dict) -> dict:
+    """Réglages › Simuler : un numéro d'essai d'une soirée clôturée (jamais compté : ni carnet, ni archives, ni tuile)."""
+    try:
+        sid = int(corps.get("soiree_id"))
+    except (TypeError, ValueError):
+        raise HTTPException(422, "Soirée manquante (soiree_id).")
+    try:
+        j = ETAT["douze"].journal(sid)
+    except DP.Introuvable:
+        raise HTTPException(404, "Soirée introuvable dans Douze points (clôturée ?).")
+    except RuntimeError as ex:
+        raise HTTPException(503, str(ex))
+    _garder_images_euro(j)
+    eid = ETAT["base"].creer_eurovision(sid, essai=True, version_dispo=int(j.get("version") or 0), **_champs_journal_euro(j))
+    ETAT["base"].noter("essai", None, f"Good Evening Europe! d'essai : {(j.get('soiree') or {}).get('nom', '')}")
+    return {"lien": f"#/eurovision/{eid}"}
 
 
 # ================================================================ interface

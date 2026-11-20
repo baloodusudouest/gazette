@@ -11,6 +11,7 @@
   import BookUser from '@lucide/svelte/icons/book-user'
   import Images from '@lucide/svelte/icons/images'
   import Sparkles from '@lucide/svelte/icons/sparkles'
+  import Mic from '@lucide/svelte/icons/mic-vocal'
   import { api } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import { dateCourte } from '$lib/format.js'
@@ -50,6 +51,7 @@
     { cle: 'carnet', nom: 'Carnet', icone: BookUser, cache: null, lit: 'noms et dates de naissance sur /gazette/personnes (jeton commun MAISON_JETON) : fiche créée seule pour un invité connu, saisie assistée, dates comparées', ecrit: 'rien' },
     { cle: 'immich', nom: 'Immich', icone: Images, cache: null, lit: "La Récidive : photos de l'invité entre deux séjours, photos taguées « scandale », aperçus (clé GAZETTE_IMMICH_CLE : asset.read, asset.view, tag.read)", ecrit: 'rien' },
     { cle: 'ia', nom: 'IA du PC', icone: Sparkles, cache: null, lit: `Ollama sur le PC (${e.ia.modele}) : il reçoit des descriptions écrites et les indices de la fiche (jamais une photo, jamais une date de naissance) et rend des propositions (titres de ${e.ia.maxi} caractères au plus, légendes, rumeurs, courrier, horoscope, aides de la Gazette).${e.ia.modele_second ? ` « Autres propositions » redemande la même chose à ${e.ia.modele_second} (Réglages › Le journal ; « Vérifier les sources » dit s'il est sur le PC).` : ''}`, ecrit: 'rien' },
+    { cle: 'douze_points', nom: 'Douze points', icone: Mic, cache: null, lit: `soirées Eurovision clôturées sur /externe/soirees et leur journal figé (résultat, palmarès, commentaires, duos, images de l'évènement), avec le jeton commun MAISON_JETON ; relues à l'ouverture d'À traiter et toutes les 10 minutes (adresse GAZETTE_DOUZE_POINTS_URL : ${e.douze_points.url || 'pas réglée'})`, ecrit: 'rien' },
     { cle: 'rendu', nom: 'Rendu PDF', icone: FileText, cache: null, lit: 'Chromium dans le conteneur, polices embarquées', ecrit: 'rien' },
   ] : [])
   function voyant(s) {
@@ -58,6 +60,7 @@
     if (s.cle === 'immich' && !sonde?.immich) return !e.immich.regle ? 'coupe' : e.immich.erreur ? 'ko' : 'attente'
     if (s.cle === 'ia' && !sonde?.ia) return !e.ia.regle ? 'coupe' : e.ia.erreur ? 'ko' : 'attente'
     if (s.cle === 'carnet' && !sonde?.carnet) return !e.carnet.regle ? 'coupe' : e.carnet.erreur ? 'ko' : e.carnet.personnes !== null ? 'ok' : 'attente'
+    if (s.cle === 'douze_points' && !sonde?.douze_points) return !e.douze_points.regle || !e.douze_points.actif ? 'coupe' : e.douze_points.erreur ? 'ko' : e.douze_points.soirees !== null ? 'ok' : 'attente'
     if (s.cle === 'larousse' && !e.larousse) return 'coupe'
     if (sonde?.[s.cle]) return sonde[s.cle].ok ? 'ok' : sonde[s.cle].ok === null ? 'coupe' : 'ko'
     if (e.erreurs[s.cle]) return 'ko'
@@ -70,6 +73,8 @@
     if (s.cle === 'ia' && !sonde?.ia) return !e.ia.regle ? 'pas réglée : écris les titres toi-même' : e.ia.erreur || 'réglée, à vérifier (PC allumé ?)'
     if (s.cle === 'carnet' && !sonde?.carnet) return !e.carnet.regle ? 'pas réglé (jeton absent)' : e.carnet.erreur ? e.carnet.erreur
       : e.carnet.personnes !== null ? `${e.carnet.personnes} contacts, ${e.carnet.dates} avec date complète` : 'pas encore lu'
+    if (s.cle === 'douze_points' && !sonde?.douze_points) return !e.douze_points.regle ? 'pas réglé (adresse ou jeton absent)' : !e.douze_points.actif ? 'édition spéciale éteinte (Réglages)'
+      : e.douze_points.erreur || (e.douze_points.soirees !== null ? `${e.douze_points.soirees} soirée(s) clôturée(s), ${e.douze_points.numeros} numéro(s)` : 'pas encore lu')
     if (sonde?.[s.cle]) return sonde[s.cle].detail
     if (e.erreurs[s.cle]) return e.erreurs[s.cle]
     return s.cache ? `${s.cache.pages} pages gardées` : 'rien de lu pour l\'instant'
