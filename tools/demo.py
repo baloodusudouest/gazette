@@ -24,6 +24,7 @@ from app.config import Config  # noqa: E402
 from tests import fixtures as F  # noqa: E402
 from tests.carnet_simule import CarnetFiche  # noqa: E402
 from tests import douze_simule as DS  # noqa: E402
+from tests.faux_paperless import FauxPaperless  # noqa: E402
 
 MDP = "demo-demo-demo"
 JETON = "jeton-de-demo"
@@ -127,11 +128,15 @@ def configurer(data: Path) -> None:
     main.ETAT["sillage_lire"] = sillage_simule
     main.ETAT["cfg"] = Config(password=MDP, data=data, static=RACINE / "app" / "static", attente_connexion=False,
                               carnet_url="http://carnet.demo", carnet_jeton="jeton-de-demo", sillage_url="http://sillage.demo",
-                              sources_actives=False, synchrone=True, jeton_ha=JETON, douze_points_url="http://douze.demo")
+                              sources_actives=False, synchrone=True, jeton_ha=JETON, douze_points_url="http://douze.demo",
+                              paperless_url="http://paperless.demo", paperless_jeton="jeton-paperless-demo")
     main.ETAT["anneau_lire"] = anneau_simule
     main.ETAT["immich_lire"] = immich_simule
     main.ETAT["ollama_lire"] = ollama_simule
     # 0.28 : Douze points simulé (contrat de Douze points 1.9.0) — une finale et une demi-finale clôturées
+    # 0.30 : Paperless simulé (faux Paperless du socle) : les numéros approuvés y sont rangés, rien ne sort
+    main.ETAT["paperless_transport"] = FauxPaperless(delai_traitement=0).compte("jeton-paperless-demo", 3).transport
+    main.ETAT["paperless_dormir"] = lambda s: None
     main.ETAT["douze_lire"] = DS.DouzeSimule({1: [DS.habiller(DS.exemple(), 1)], 2: [DS.habiller(DS.exemple(demi=True), 2)]},
                                              jeton="jeton-de-demo")
 

@@ -511,3 +511,14 @@ def test_eurovision_simuler_et_connexion(navigateur, adresse, taille):
     page.get_by_text("soirées Eurovision clôturées").wait_for()
     sans_debordement(page)
     assert erreurs == []
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_reglages_paperless(navigateur, adresse, taille):
+    """0.30 : section Paperless des Réglages (Paperless simulé dans la démo), sans erreur ni débordement."""
+    page, erreurs = ouvrir(navigateur, adresse, taille, "#/reglages")
+    sec = page.locator("section[aria-label=Paperless]")
+    sec.wait_for()
+    sec.get_by_text("Envoyer les numéros déjà approuvés").wait_for()
+    sans_debordement(page)
+    assert not erreurs

@@ -31,6 +31,7 @@ from .sillage import Sillage
 from .immich import Immich
 from . import ollama as ia
 from . import banque as B
+from . import paperless as PL
 from .ollama import ACTIONS_GAZETTE, MAXI as MAXI_TITRE, Ollama, sans_numero, texte_contexte
 from .auth import COMMUN, DUREE, Sessions, en_https
 from .base import ESSAI_GAZETTE, ESSAI_PORTEUR, ETATS, Base, cle_nom, maintenant
@@ -322,6 +323,12 @@ async def cycle(app: FastAPI):
     ETAT["douze"] = DP.DouzePoints(lambda: cfg.douze_points_url, cfg.carnet_jeton, lire=ETAT.get("douze_lire"))
     ETAT["immich"] = Immich(cfg.immich_url, cfg.immich_cle, cfg.data / "photos", lire=ETAT.get("immich_lire"))
     ETAT["ollama"] = Ollama(cfg.ollama_url, lire=ETAT.get("ollama_lire"))
+    # 0.30 : Paperless — chaque numéro approuvé y est rangé (compte « gazette »), retrouvé par son titre, jamais en double
+    ETAT["paperless"] = PL.Paperless(cfg.paperless_url, cfg.paperless_jeton, lecture_seule=lambda: ETAT["cfg"].lecture_seule,
+                                     transport=ETAT.get("paperless_transport"))
+    ETAT["paperless_file"] = PL.FileEnvois(ETAT["paperless"], chemin=cfg.data / "paperless-envois.json",
+                                           lire_source=_pdf_pour_paperless, apres_range=_range_dans_paperless,
+                                           dormir=ETAT.get("paperless_dormir") or time.sleep)
     maison.TACHES.declarer(TACHE_GAZETTE, type="demande")
     maison.TACHES.declarer(TACHE_RECIDIVE, type="demande")
     ouvrier = threading.Thread(target=_ouvrier, daemon=True, name="preparation")
@@ -939,7 +946,7 @@ def approuver(pid: int):
         return {"ok": True}
     # 0.23 : les pépites tirées pour le mot des hôtes retenu reçoivent `parue_le` dans carnet
     return {"ok": True, "fiche": _marquer_parues("gazette", pid, [lv.get("mot") or ""]),
-            "carnet": _gazette_vers_carnet(p)}
+            "carnet": _gazette_vers_carnet(p), "paperless": vers_paperless("gazette", pid)}
 
 
 @app.post("/api/livrets/{pid}/culture")
@@ -1532,7 +1539,7 @@ def approuver_edition(rid: int):
                ed.get("horoscope") or "", ed.get("mot") or "",
                *[f"{x.get('lettre', '')} {x.get('signe', '')} {x.get('reponse', '')}" for x in ed.get("courrier") or []]]
     return {"ok": True, "carnet": _envoyer_a_carnet(p, ETAT["base"].recidive(rid)),
-            "fiche": _marquer_parues("recidive", rid, retenus)}
+            "fiche": _marquer_parues("recidive", rid, retenus), "paperless": vers_paperless("recidive", rid)}
 
 
 def _envoyer_a_carnet(p: dict, ed: dict) -> str:
@@ -2017,7 +2024,9 @@ def _archives() -> list[dict]:
 
 @app.get("/api/archives")
 def archives():
-    return {"archives": _archives()}
+    etats = _etats_paperless()                     # 0.30 : badge « Rangé dans Paperless »
+    liste = [{**a, "paperless": etats.get(f"{a['journal']}-{a['id']}")} for a in _archives()]
+    return {"archives": liste, "paperless_relie": "paperless" in ETAT and ETAT["paperless"].regle}
 
 
 # ================================================================ Top 5 culturel
@@ -2344,6 +2353,142 @@ def _derniere_ecriture_carnet():
     return ETAT["base"].reglage("carnet_derniere_ecriture") or None
 
 
+# ================================================================ 0.30 : Paperless
+
+PAPERLESS_TYPE = "Journal maison"
+_PAPERLESS_VERROU = threading.Lock()
+
+
+def _date_fr(iso: str) -> str:
+    try:
+        return date.fromisoformat((iso or "")[:10]).strftime("%d/%m/%Y")
+    except ValueError:
+        return iso or ""
+
+
+def etiquette_personne(p: dict) -> str:
+    """« Prénom NOM », ou « Prénom NOM (1984) » si carnet a un autre contact du même nom (règle prévue pour carnet)."""
+    nom = (p.get("nom") or "").strip()
+    try:
+        homonymes = len(ETAT["carnet"].chercher(nom)) > 1 if ETAT["carnet"].actif else False
+    except Exception:  # noqa: BLE001 — carnet absent : pas d'année
+        homonymes = False
+    annee = (p.get("naissance") or "")[:4]
+    return f"{nom} ({annee})" if homonymes and annee.isdigit() else nom
+
+
+def _paperless_element(journal_: str, ident: int) -> dict | None:
+    """Ce qui part dans Paperless pour un numéro approuvé (None : essai ou introuvable)."""
+    base: Base = ETAT["base"]
+    if journal_ == "gazette":
+        p = base.personne(ident)
+        lv = base.livret(ident) if p else None
+        if not p or p.get("essai_de") or (lv or {}).get("etat") != "approuve":
+            return None
+        sej = base.sejours_de(ident)
+        le = sej[0]["du"] if sej else (lv.get("approuve_le") or maintenant())[:10]
+        return {"cle": f"gazette-{ident}", "source": f"gazette:{ident}", "date": le,
+                "titre": f"Gazette — {p['nom']} — {_date_fr(le)}", "etiquettes": [etiquette_personne(p)],
+                "nom_fichier": f"gazette-{ident}.pdf"}
+    if journal_ == "recidive":
+        ed = base.recidive(ident)
+        if not ed or ed.get("essai") or ed.get("etat") != "approuve":
+            return None
+        p = base.personne(ed["personne_id"]) or {"nom": "?"}
+        num = ed.get("numero_main") or ed["numero"]
+        return {"cle": f"recidive-{ident}", "source": f"recidive:{ident}", "date": ed["sejour_du"],
+                "titre": f"La Récidive n° {num} — {p['nom']} — séjour du {_date_fr(ed['sejour_du'])}",
+                "etiquettes": [etiquette_personne(p)], "nom_fichier": f"la-recidive-{ident}.pdf"}
+    if journal_ == "eurovision":
+        n = next((x for x in base.eurovisions() if x["id"] == ident), None)
+        if not n or n.get("essai") or n.get("etat") != "approuve":
+            return None
+        r_ = _resume_euro(n)
+        le = r_["date"] or (n.get("approuve_le") or maintenant())[:10]
+        return {"cle": f"eurovision-{ident}", "source": f"eurovision:{ident}", "date": le,
+                "titre": f"{_titre_euro()} — {r_['numero']} — {r_['nom']} — {_date_fr(le)}",
+                "etiquettes": [f"Eurovision — {r_['nom']}"], "nom_fichier": f"good-evening-europe-{ident}.pdf"}
+    return None
+
+
+def _pdf_pour_paperless(source: str) -> bytes:
+    """PDF de LECTURE (pas l'imposition à imprimer), refait au moment de l'envoi : la file ne garde aucun PDF."""
+    genre, _, ident = source.partition(":")
+    i = int(ident)
+    if genre == "gazette":
+        doc = _rendre(i, "lecture")[0]
+    elif genre == "recidive":
+        doc = _rendre_edition(i, "lecture")[0]
+    elif genre == "eurovision":
+        doc = _rendre_euro(i, "lecture")[0]
+    else:
+        raise ValueError(f"source inconnue : {source}")
+    contenu, _ = rendu.pdf(doc, "lecture")        # sans Chromium : RenduImpossible, réessayé plus tard
+    return contenu
+
+
+def _range_dans_paperless(e: dict) -> None:
+    ETAT["base"].noter("paperless", None, f"Rangé dans Paperless : {e['titre']} (n° {e['document_id']})"[:200])
+
+
+def mettre_en_file_paperless(journal_: str, ident: int, renvoi: bool = False) -> dict | None:
+    e = _paperless_element(journal_, ident)
+    if not e:
+        return None
+    if renvoi:
+        jour = date.today().strftime("%d/%m/%Y")
+        e = {**e, "cle": f"{e['cle']}-renvoi-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+             "titre": f"{e['titre']} (renvoi du {jour})"}
+    f: PL.FileEnvois = ETAT["paperless_file"]
+    try:
+        return f.ajouter(type_nom=PAPERLESS_TYPE, **e)
+    except ValueError:                             # même titre qu'un autre numéro (homonymes, même jour)
+        return f.ajouter(type_nom=PAPERLESS_TYPE, **{**e, "titre": f"{e['titre']} ({e['cle']})"})
+
+
+def tour_paperless() -> dict:
+    """Un tour de la file (un envoi à la fois). Jamais deux tours en même temps."""
+    if "paperless_file" not in ETAT or not _PAPERLESS_VERROU.acquire(blocking=False):
+        return {"ranges": 0, "erreurs": 0}
+    try:
+        return ETAT["paperless_file"].tour()
+    finally:
+        _PAPERLESS_VERROU.release()
+
+
+def _relancer_paperless() -> None:
+    if ETAT["cfg"].synchrone:
+        tour_paperless()
+    else:
+        threading.Thread(target=tour_paperless, daemon=True, name="paperless").start()
+
+
+def vers_paperless(journal_: str, ident: int) -> str:
+    """À l'approbation : met le numéro en file et lance un tour. Rend ce qui s'est passé (jamais une erreur)."""
+    client: PL.Paperless = ETAT.get("paperless")
+    if not client or not client.regle:
+        return "Paperless pas relié"
+    if ETAT["cfg"].lecture_seule:
+        return "pas rangé dans Paperless : lecture seule"
+    e = mettre_en_file_paperless(journal_, ident)
+    if not e:
+        return ""
+    _relancer_paperless()
+    e = ETAT["paperless_file"].element(e["cle"]) or e
+    return "rangé dans Paperless" if e.get("etat") == "range" else "en file pour Paperless"
+
+
+def _etats_paperless() -> dict[str, str]:
+    """Clé de base (gazette-12…) → état le plus avancé (un renvoi compte pour le numéro)."""
+    rang = {"range": 3, "parti": 2, "attente": 2, "a_verifier": 1, "abandon": 0}
+    res: dict[str, str] = {}
+    for e in ETAT["paperless_file"].elements() if "paperless_file" in ETAT else []:
+        cle = e["cle"].split("-renvoi-")[0]
+        if cle not in res or rang.get(e["etat"], 0) > rang.get(res[cle], 0):
+            res[cle] = e["etat"]
+    return res
+
+
 SERVICES = maison.Services(APPLI)
 SERVICES.ajouter(
     "wikipedia-fr", "Wikipédia FR",
@@ -2404,8 +2549,97 @@ SERVICES.ajouter(
         "la fiche complète",
     ecrit="Rien.", regle=lambda: ETAT["sillage"].actif, reglage="GAZETTE_SILLAGE_URL et MAISON_JETON",
     essai=_essai_sillage)
+
+
+def _essai_paperless():
+    ok, detail = ETAT["paperless"].essai()
+    r_ = ETAT["paperless_file"].resume()
+    morceaux = [detail] if detail else []
+    if r_["en_attente"]:
+        morceaux.append(f"{r_['en_attente']} numéro(s) en attente" + (" depuis plus de 24 h." if r_["a_signaler"] else "."))
+    if r_["compte"].get("a_verifier"):
+        morceaux.append(f"{r_['compte']['a_verifier']} à vérifier (Réglages › Paperless).")
+    return ok, " ".join(morceaux) or None
+
+
+SERVICES.ajouter(
+    "paperless", "Paperless", lit="Rien (seulement ses propres numéros, pour les retrouver).",
+    ecrit="Chaque numéro approuvé (Gazette, La Récidive, Good Evening Europe!), en PDF de lecture, type « Journal maison », "
+          "étiquette de la personne ou de la soirée.",
+    regle=lambda: "paperless" in ETAT and ETAT["paperless"].regle, reglage="GAZETTE_PAPERLESS_JETON",
+    essai=_essai_paperless,
+    derniere_ecriture=lambda: ETAT["paperless_file"].resume()["dernier_range"] if "paperless_file" in ETAT else None)
 # Monté APRÈS la garde (seul @app.middleware de Gazette, plus haut) : le dernier middleware ajouté passe en premier.
 maison.monter_services(app, SERVICES, lambda r: "sessions" in ETAT and ETAT["sessions"].connecte(r.cookies))
+
+
+# ---------------------------------------------------------------- 0.30 : Réglages › Paperless
+
+@app.get("/api/paperless")
+def etat_paperless():
+    client: PL.Paperless = ETAT["paperless"]
+    f: PL.FileEnvois = ETAT["paperless_file"]
+    elements = sorted(f.elements(), key=lambda e: e["cree_le"], reverse=True)
+    deja = set(_etats_paperless())
+    anciens = 0
+    for p in ETAT["base"].personnes():
+        if (ETAT["base"].livret(p["id"]) or {}).get("etat") == "approuve" and f"gazette-{p['id']}" not in deja:
+            anciens += 1
+    anciens += sum(1 for ed in ETAT["base"].recidives()
+                   if ed["etat"] == "approuve" and not ed.get("essai") and f"recidive-{ed['id']}" not in deja)
+    anciens += sum(1 for n in ETAT["base"].eurovisions()
+                   if n["etat"] == "approuve" and not n.get("essai") and f"eurovision-{n['id']}" not in deja)
+    return {"relie": client.regle, "lecture_seule": ETAT["cfg"].lecture_seule, "resume": f.resume(),
+            "anciens": anciens,
+            "elements": [{k: e.get(k) for k in ("cle", "titre", "etat", "document_id", "erreur", "cree_le", "range_le",
+                                                 "essais")} for e in elements[:200]]}
+
+
+@app.post("/api/paperless/anciens")
+def paperless_anciens():
+    """« Envoyer les numéros déjà approuvés » : une fois, un par un (les numéros déjà en file ne repartent pas)."""
+    exiger_ecriture("Paperless")
+    if not ETAT["paperless"].regle:
+        raise HTTPException(409, "Paperless pas relié (GAZETTE_PAPERLESS_JETON).")
+    base: Base = ETAT["base"]
+    mis = 0
+    candidats = [("gazette", p["id"]) for p in base.personnes() if (base.livret(p["id"]) or {}).get("etat") == "approuve"]
+    candidats += [("recidive", ed["id"]) for ed in base.recidives() if ed["etat"] == "approuve" and not ed.get("essai")]
+    candidats += [("eurovision", n["id"]) for n in base.eurovisions() if n["etat"] == "approuve" and not n.get("essai")]
+    deja = set(_etats_paperless())
+    for journal_, ident in candidats:
+        if f"{journal_}-{ident}" in deja:
+            continue
+        if mettre_en_file_paperless(journal_, ident):
+            mis += 1
+    if mis:
+        base.noter("paperless", None, f"{mis} numéro(s) déjà approuvé(s) mis en file pour Paperless")
+        _relancer_paperless()
+    return {"mis_en_file": mis}
+
+
+@app.post("/api/paperless/{cle}/renvoyer")
+def paperless_renvoyer(cle: str):
+    """Renvoi voulu d'un numéro (après correction) : nouveau document, titre suffixé « (renvoi du JJ/MM/AAAA) »."""
+    exiger_ecriture("Paperless")
+    m = re.fullmatch(r"(gazette|recidive|eurovision)-(\d+)", cle.split("-renvoi-")[0])
+    if not m:
+        raise HTTPException(404, "Numéro inconnu.")
+    e = mettre_en_file_paperless(m.group(1), int(m.group(2)), renvoi=True)
+    if not e:
+        raise HTTPException(409, "Ce numéro n'est pas approuvé (ou c'est un essai).")
+    _relancer_paperless()
+    return {"ok": True, "cle": e["cle"]}
+
+
+@app.post("/api/paperless/{cle}/rechercher")
+def paperless_rechercher(cle: str):
+    """« À vérifier » : relance seulement la recherche du titre dans Paperless (rien n'est renvoyé)."""
+    if not ETAT["paperless_file"].element(cle):
+        raise HTTPException(404, "Envoi inconnu.")
+    ETAT["paperless_file"].reprendre(cle)
+    _relancer_paperless()
+    return {"ok": True}
 
 
 @app.get("/api/reglages")
@@ -2867,6 +3101,7 @@ async def _boucle_carnet() -> None:
             await asyncio.to_thread(renvoyer_a_carnet)
             await asyncio.to_thread(compter_scandales)
             await asyncio.to_thread(relire_douze_points, True)       # 0.28 : soirées Eurovision clôturées
+            await asyncio.to_thread(tour_paperless)                  # 0.30 : numéros à ranger dans Paperless
         except Exception as ex:  # noqa: BLE001 — la boucle ne s'arrête jamais
             log.warning("Envois vers carnet : %s", ex)
 
@@ -3311,7 +3546,7 @@ def approuver_eurovision(eid: int):
     message = _parution_euro(n)
     ETAT["base"].maj_eurovision(eid, carnet=message)
     ETAT["base"].noter("approuver", None, f"Good Evening Europe! {n['numero_main'] or EV.numero_defaut(n['journal'])} : {message}")
-    return {"ok": True, "carnet": message}
+    return {"ok": True, "carnet": message, "paperless": vers_paperless("eurovision", eid)}
 
 
 @app.post("/api/eurovisions/{eid}/refaire")

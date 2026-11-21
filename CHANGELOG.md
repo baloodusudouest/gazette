@@ -1,5 +1,16 @@
 # Journal des versions
 
+## 0.30.0 — 21 novembre 2026 (rangement dans Paperless)
+- Chaque numéro **approuvé** (Gazette, La Récidive, Good Evening Europe!) est rangé dans **Paperless** avec le compte « gazette » : PDF de **lecture** (pas l'imposition), type « Journal maison », étiquette de la personne (« Prénom NOM », avec l'année de naissance si carnet a un homonyme) ou de la soirée (« Eurovision — <soirée> »), date = début du séjour ou date de la soirée. Titres uniques : « Gazette — Prénom NOM — JJ/MM/AAAA », « La Récidive n° N — Prénom NOM — séjour du JJ/MM/AAAA », « Good Evening Europe! — N° — soirée — JJ/MM/AAAA ».
+- Client commun du socle 0.12.0 (`app/paperless.py`) : file locale `paperless-envois.json` (aucun PDF gardé : refait au moment de l'envoi), **un envoi à la fois**, document **retrouvé par son titre**, **jamais de renvoi** automatique (Paperless 3 accepte les doublons). Un numéro réapprouvé ne repart pas ; « Renvoyer » (Réglages) envoie un nouveau document titré « (renvoi du JJ/MM/AAAA) ». Les essais (Simuler) ne partent jamais. Lecture seule : rien ne part.
+- **Réglages › Paperless** : état, « Envoyer les numéros déjà approuvés » (une fois, un par un), derniers envois avec leur état, « Chercher à nouveau » pour un envoi « à vérifier », « Renvoyer ».
+- **Archives** : pastille « Rangé dans Paperless » / « En file » / « à vérifier » / « Pas dans Paperless » sur chaque numéro (quand Paperless est relié).
+- **Connexion** : fiche « Paperless » (lit une page, montre les envois en attente) ; derniere écriture = dernier rangement.
+- Tour de la file : à chaque approbation, puis toutes les 10 minutes avec les envois vers carnet.
+- Nouvelles variables de stack : `GAZETTE_PAPERLESS_URL` (défaut `http://paperless:8000`), `GAZETTE_PAPERLESS_JETON` (compte « gazette » ; vide : rien n'est rangé).
+- Démo : Paperless simulé (faux Paperless du socle). Tests : `tests/test_paperless_030.py`, test d'écran de la section.
+- **Jamais essayé sur la vraie installation** (le client, lui, suit la sonde faite sur la vraie : droits, titres, doublons).
+
 ## 0.29.1 — 20 novembre 2026 (socle 0.11.1)
 - Copies communes du socle 0.11.1 : sur une fiche « Connexion », le titre devient « Pour le relier » quand le réglage se fait dans Réglages de l'appli (et non dans la stack).
 - **Jamais essayé sur la vraie installation.**

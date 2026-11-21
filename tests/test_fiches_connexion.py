@@ -11,7 +11,7 @@ from app import main
 RACINE = Path(__file__).resolve().parent.parent
 CLE = "cle-anneau-de-test-1234567890"
 IDS = ["wikipedia-fr", "wikipedia-en", "wikidata", "larousse", "home-assistant", "carnet", "immich", "ia-pc",
-       "douze-points", "sillage"]
+       "douze-points", "sillage", "paperless"]
 CHAMPS = {"id", "nom", "genre", "cible", "etat", "lit", "ecrit", "reglage", "detail", "verifie_le", "guide",
           "derniere_ecriture", "gestes"}
 

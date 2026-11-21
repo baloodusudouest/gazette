@@ -2,6 +2,15 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
+## Changement (21/11/2026) — 0.30.0 : rangement dans Paperless (socle 0.12.0)
+- `app/paperless.py` et `tests/faux_paperless.py` : copies du socle 0.12.0 (`python3 ../socle/tools/diffuser_maison.py --paperless .`), jamais retouchées.
+- `config.py` : `paperless_url` (`GAZETTE_PAPERLESS_URL`, défaut `http://paperless:8000`), `paperless_jeton` (`GAZETTE_PAPERLESS_JETON`).
+- `main.py`, section « 0.30 : Paperless » (juste avant `SERVICES`) : `etiquette_personne` (homonyme dans carnet → année), `_paperless_element` (clé `gazette-<pid>` / `recidive-<rid>` / `eurovision-<eid>`, source, titre, date, étiquettes ; None pour un essai), `_pdf_pour_paperless` (PDF de lecture refait), `mettre_en_file_paperless` (renvoi : clé `…-renvoi-<horodatage>`, titre suffixé), `tour_paperless` (verrou : un tour à la fois), `vers_paperless` (appelé par les trois approbations), `_etats_paperless` (pour Archives et « anciens »). `cycle` crée `ETAT["paperless"]` et `ETAT["paperless_file"]` (injectables : `paperless_transport`, `paperless_dormir`) ; `_boucle_carnet` appelle `tour_paperless`. Fiche Connexion `paperless` (`_essai_paperless`). Routes `GET /api/paperless`, `POST /api/paperless/anciens`, `POST /api/paperless/{cle}/renvoyer`, `POST /api/paperless/{cle}/rechercher` ; `/api/archives` gagne `paperless` par numéro et `paperless_relie`.
+- Écrans : section « Paperless » de `Reglages.svelte`, pastille dans `Archives.svelte`. Démo : faux Paperless (`tools/demo.py`).
+- Tests : `tests/test_paperless_030.py` (10), `test_ecran.py::test_reglages_paperless`, `IDS` de `test_fiches_connexion.py`. **Jamais essayé sur la vraie installation.**
+- Variables de stack ajoutées : `GAZETTE_PAPERLESS_URL`, `GAZETTE_PAPERLESS_JETON`.
+- Compte Paperless « gazette » : Document, Tag, DocumentType : Add et View ; règle « Propriétaire » de Paperless limitée au dossier d'arrivée et au courrier (sinon Gazette ne retrouve pas ses envois). Voir le coffre : « Paperless – Gazette et Dîme — dossier ».
+
 ## Changement (20/11/2026) — 0.29.0 : fiches « Connexion » communes (contrat 3, socle 0.11.0)
 - **0.29.1 (20/11/2026)** : copies communes du socle 0.11.1 (titre « Pour le relier » quand le réglage est dans l'appli).
 - `app/maison.py` recopié du socle 0.11.0 (contrat 3) et `frontend/src/lib/services/{Services,FicheService}.svelte` (copies signées : ne jamais les retoucher ; `python3 ../socle/tools/diffuser_maison.py .` pour les refaire). `pages/Services.svelte` retiré ; `App.svelte` monte l'écran commun (`etiquette="Gazette"`, `lectureSeule`).

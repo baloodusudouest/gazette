@@ -8,13 +8,14 @@
 
   let { ondeconnecte } = $props()
   let liste = $state(null)
+  let paperlessRelie = $state(false)      // 0.30 : badge « Rangé dans Paperless »
   let erreur = $state('')
   let cherche = $state('')
   let annee = $state('')
   let journal = $state('')
 
   onMount(async () => {
-    try { liste = (await api.get('/api/archives')).archives }
+    try { const d = await api.get('/api/archives'); liste = d.archives; paperlessRelie = d.paperless_relie }
     catch (err) { if (err.statut === 401) ondeconnecte?.(); else erreur = err.message }
   })
   const plat = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -66,6 +67,12 @@
             <span class="mt-auto flex flex-wrap gap-3 text-xs">
               <a class="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground" href={`${a.pdf}?mode=impose`}><Download class="size-3.5" aria-hidden="true" />PDF à imprimer</a>
               <a class="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground" href={`${a.pdf}?mode=lecture`}><Download class="size-3.5" aria-hidden="true" />PDF lecture</a>
+              {#if paperlessRelie}
+                <span class="ml-auto inline-flex items-center gap-1.5 {a.paperless === 'range' ? 'text-valide' : a.paperless === 'a_verifier' ? 'text-destructive' : 'text-muted-foreground'}">
+                  <span class="inline-block size-2 rounded-full {a.paperless === 'range' ? 'bg-valide' : a.paperless === 'a_verifier' ? 'bg-destructive' : a.paperless ? 'bg-muted-foreground' : 'border border-muted-foreground'}" aria-hidden="true"></span>
+                  {a.paperless === 'range' ? 'Rangé dans Paperless' : a.paperless === 'a_verifier' ? 'Paperless : à vérifier' : a.paperless ? 'En file pour Paperless' : 'Pas dans Paperless'}
+                </span>
+              {/if}
             </span>
           </li>
         {/each}

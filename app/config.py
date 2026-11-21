@@ -6,7 +6,9 @@ jeton de Home Assistant (GAZETTE_JETON_HA) et l'adresse de carnet dans la stack 
 et la clé d'Immich (GAZETTE_IMMICH_URL, GAZETTE_IMMICH_CLE) pour La Récidive ; 0.9.1 : l'IA du PC (GAZETTE_OLLAMA_URL). Le titre du
 journal, le lieu, les hôtes, le mot par défaut, la couleur et Larousse se règlent dans l'appli (journal.py). 0.23 : l'adresse
 de Sillage (GAZETTE_SILLAGE_URL, défaut http://sillage:8093) pour les étapes proposées dans la fiche complète. 0.28 : l'adresse
-de Douze points (GAZETTE_DOUZE_POINTS_URL, défaut http://douze-points:8088) pour « Good Evening Europe! »."""
+de Douze points (GAZETTE_DOUZE_POINTS_URL, défaut http://douze-points:8088) pour « Good Evening Europe! ». 0.30 : Paperless
+(GAZETTE_PAPERLESS_URL, défaut http://paperless:8000 ; GAZETTE_PAPERLESS_JETON, jeton du compte « gazette », vide = rien
+n'est rangé) : chaque numéro approuvé y est rangé."""
 from __future__ import annotations
 
 import os
@@ -49,6 +51,8 @@ class Config:
     ollama_url: str = ""                 # 0.9.1 : GAZETTE_OLLAMA_URL (Ollama du PC, http://<PC>:11434) ; vide : pas d'IA
     sillage_url: str = ""                # 0.23 : GAZETTE_SILLAGE_URL (http://sillage:8093 par défaut) ; vide : pas de Sillage
     douze_points_url: str = ""           # 0.28 : GAZETTE_DOUZE_POINTS_URL (http://douze-points:8088 par défaut) ; vide : pas lu
+    paperless_url: str = ""              # 0.30 : GAZETTE_PAPERLESS_URL (http://paperless:8000 par défaut)
+    paperless_jeton: str = ""            # 0.30 : GAZETTE_PAPERLESS_JETON (compte « gazette ») ; vide : rien n'est rangé
 
 
 def charger() -> Config:
@@ -69,4 +73,6 @@ def charger() -> Config:
         ollama_url=os.environ.get("GAZETTE_OLLAMA_URL", "").strip().rstrip("/"),
         sillage_url=os.environ.get("GAZETTE_SILLAGE_URL", "").strip().rstrip("/") or "http://sillage:8093",
         douze_points_url=os.environ.get("GAZETTE_DOUZE_POINTS_URL", "").strip().rstrip("/") or "http://douze-points:8088",
+        paperless_url=os.environ.get("GAZETTE_PAPERLESS_URL", "").strip().rstrip("/") or "http://paperless:8000",
+        paperless_jeton=os.environ.get("GAZETTE_PAPERLESS_JETON", "").strip(),
     )

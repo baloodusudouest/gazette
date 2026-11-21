@@ -21,6 +21,28 @@
   async function lireEnvois() {
     try { envois.attente = (await api.get('/api/carnet/envois')).en_attente } catch { envois.attente = null }
   }
+  // 0.30 : Paperless (chaque numéro approuvé y est rangé ; anciens numéros envoyés une fois ; renvoi à la main)
+  let pl = $state({ etat: null, message: '', encours: false })
+  const ETATS_PL = { attente: 'en file', parti: 'envoyé, recherche en cours', range: 'rangé', a_verifier: 'à vérifier', abandon: 'abandonné' }
+  async function lirePaperless() {
+    try { pl.etat = await api.get('/api/paperless') } catch { pl.etat = null }
+  }
+  async function envoyerAnciens() {
+    pl.encours = true; pl.message = ''
+    try {
+      const r2 = await api.post('/api/paperless/anciens', {})
+      pl.message = r2.mis_en_file ? `${r2.mis_en_file} numéro(s) mis en file : ils partent un par un.` : 'Aucun numéro à envoyer.'
+      await lirePaperless()
+    } catch (err) { pl.message = err.message } finally { pl.encours = false }
+  }
+  async function gestePaperless(e, geste) {
+    pl.message = ''
+    try {
+      await api.post(`/api/paperless/${encodeURIComponent(e.cle)}/${geste}`, {})
+      pl.message = geste === 'renvoyer' ? `« ${e.titre} » renvoyé sous un nouveau titre.` : 'Nouvelle recherche lancée.'
+      await lirePaperless()
+    } catch (err) { pl.message = err.message }
+  }
   async function toutEnvoyer() {
     envois.encours = true; envois.message = ''
     try {
@@ -32,6 +54,7 @@
   }
   async function lire() {
     lireEnvois()
+    lirePaperless()
     try {
       r = await api.get('/api/reglages'); c = await api.get('/api/culture')
       j = { ...r.journal }; modifie = false
@@ -363,6 +386,39 @@
       </ul>
     {/if}
     {#if envois.message}<p class="mt-2 text-sm" role="status">{envois.message}</p>{/if}
+  </section>
+
+  <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Paperless">
+    <h2 class="text-lg font-semibold">Paperless</h2>
+    <p class="mt-1 text-sm text-muted-foreground">Chaque numéro approuvé (Gazette, La Récidive, Good Evening Europe!) est rangé dans Paperless en PDF de lecture, avec l'étiquette de la personne ou de la soirée. Un numéro n'y part qu'une fois : le réapprouver ne le renvoie pas.</p>
+    {#if pl.etat && !pl.etat.relie}
+      <p class="mt-2 text-sm">Pas relié : il manque le jeton du compte « gazette » de Paperless (variable <code>GAZETTE_PAPERLESS_JETON</code> de la stack).</p>
+    {:else if pl.etat}
+      <div class="mt-3 flex flex-wrap items-center gap-3">
+        <Button variant="outline" disabled={pl.encours || !pl.etat.anciens || pl.etat.lecture_seule} onclick={envoyerAnciens}>
+          {pl.encours ? 'Mise en file…' : 'Envoyer les numéros déjà approuvés'}</Button>
+        <span class="text-sm text-muted-foreground">{pl.etat.anciens ? `${pl.etat.anciens} numéro(s) pas encore dans Paperless` : 'Tous les numéros approuvés sont en file ou rangés.'}</span>
+      </div>
+      {#if pl.etat.resume.en_attente}<p class="mt-2 text-sm text-muted-foreground">{pl.etat.resume.en_attente} envoi(s) en cours{pl.etat.resume.a_signaler ? ', dont un depuis plus de 24 h' : ''}.</p>{/if}
+      {#if pl.etat.elements.length}
+        <ul class="mt-3 grid gap-1.5 text-sm" aria-label="Numéros envoyés à Paperless">
+          {#each pl.etat.elements.slice(0, 12) as e (e.cle)}
+            <li class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border bg-background px-3 py-2">
+              <span class="inline-block size-2 shrink-0 rounded-full {e.etat === 'range' ? 'bg-valide' : e.etat === 'a_verifier' ? 'bg-destructive' : 'bg-muted-foreground'}" aria-hidden="true"></span>
+              <span class="min-w-0 flex-1 break-words">{e.titre}</span>
+              <span class="text-xs text-muted-foreground">{ETATS_PL[e.etat] ?? e.etat}{e.document_id ? ` · n° ${e.document_id}` : ''}</span>
+              {#if e.etat === 'a_verifier'}
+                <Button size="sm" variant="outline" onclick={() => gestePaperless(e, 'rechercher')}>Chercher à nouveau</Button>
+              {:else if e.etat === 'range' && !e.cle.includes('-renvoi-')}
+                <Button size="sm" variant="ghost" onclick={() => gestePaperless(e, 'renvoyer')}>Renvoyer</Button>
+              {/if}
+              {#if e.erreur}<span class="basis-full text-xs text-muted-foreground">{e.erreur}</span>{/if}
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    {/if}
+    {#if pl.message}<p class="mt-2 text-sm" role="status">{pl.message}</p>{/if}
   </section>
 
   {#if r}
