@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 0.30.1 — 22 novembre 2026 (barre d'onglets collée en bas)
+- **iPhone : barre d'onglets collée au bord bas**, sur toute la largeur, au lieu de la pilule flottante (demande de Julien, 22/11/2026, pour toutes les applis maison ; socle 0.12.1). Le rail des PC ne change pas.
+- **Jamais essayé sur la vraie installation.**
+
 ## 0.30.0 — 21 novembre 2026 (rangement dans Paperless)
 - Chaque numéro **approuvé** (Gazette, La Récidive, Good Evening Europe!) est rangé dans **Paperless** avec le compte « gazette » : PDF de **lecture** (pas l'imposition), type « Journal maison », étiquette de la personne (« Prénom NOM », avec l'année de naissance si carnet a un homonyme) ou de la soirée (« Eurovision — <soirée> »), date = début du séjour ou date de la soirée. Titres uniques : « Gazette — Prénom NOM — JJ/MM/AAAA », « La Récidive n° N — Prénom NOM — séjour du JJ/MM/AAAA », « Good Evening Europe! — N° — soirée — JJ/MM/AAAA ».
 - Client commun du socle 0.12.0 (`app/paperless.py`) : file locale `paperless-envois.json` (aucun PDF gardé : refait au moment de l'envoi), **un envoi à la fois**, document **retrouvé par son titre**, **jamais de renvoi** automatique (Paperless 3 accepte les doublons). Un numéro réapprouvé ne repart pas ; « Renvoyer » (Réglages) envoie un nouveau document titré « (renvoi du JJ/MM/AAAA) ». Les essais (Simuler) ne partent jamais. Lecture seule : rien ne part.
