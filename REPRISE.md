@@ -91,6 +91,8 @@
 - `/health` fusionne `maison.sante(request, jeton_commun=maison.jetons(), session_ok=...)` dans les deux réponses (normale et de repli). Un seul worker uvicorn (registre en mémoire).
 - Tests : `tests/test_sante_taches.py`. Jamais essayé sur la vraie installation (ni la copie de nuit, ni la remise en place d'une copie).
 
+## État (23/11/2026) — 0.30.2 : listes déroulantes lisibles en sombre (`frontend/src/app.css`, bloc « Listes déroulantes (socle 0.12.2) » : `select option, select optgroup` aux couleurs `--popover`). Jamais essayé sur la vraie installation.
+
 ## État (22/11/2026) — 0.30.1 : barre d'onglets collée en bas sur iPhone (`App.svelte`, classes du socle 0.12.1 : `fixed inset-x-0 bottom-0 … pb-[calc(0.375rem+env(safe-area-inset-bottom))]`, `md:right-auto md:justify-start`). Jamais essayé sur la vraie installation.
 
 ## État (17/11/2026) — 0.20.3 (vérification de l'IA réparée pour un modèle sans étiquette ; marche à suivre de l'IA du PC dans Connexion ; tuile corrigée en 0.20.1 ; La Récidive + IA du PC pour les deux journaux + albums Immich + photo et code-barres en page 4 de la Gazette) sur 0.8.0, temps 1 livré + top 5 culturel + journal réglé dans l'appli + texte complet + aide à la place + carnet + réglages sauvegardés par l'Anneau, installé sur le NAS le 14/11 (pas encore de vrai livret)
