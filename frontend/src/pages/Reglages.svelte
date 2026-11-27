@@ -35,13 +35,19 @@
       await lirePaperless()
     } catch (err) { pl.message = err.message } finally { pl.encours = false }
   }
-  async function gestePaperless(e, geste) {
-    pl.message = ''
+  // 0.31.2 : « Renvoyer » crée un second document : on le confirme (deuxième toucher), et un seul geste à la fois
+  let aConfirmer = $state('')
+  let geste = $state('')
+  async function gestePaperless(e, quoi) {
+    if (quoi === 'renvoyer' && aConfirmer !== e.cle) { aConfirmer = e.cle; setTimeout(() => { if (aConfirmer === e.cle) aConfirmer = '' }, 5000); return }
+    if (geste) return
+    aConfirmer = ''; geste = e.cle; pl.message = ''
     try {
-      await api.post(`/api/paperless/${encodeURIComponent(e.cle)}/${geste}`, {})
-      pl.message = geste === 'renvoyer' ? `« ${e.titre} » renvoyé sous un nouveau titre.` : 'Nouvelle recherche lancée.'
+      await api.post(`/api/paperless/${encodeURIComponent(e.cle)}/${quoi}`, {})
+      pl.message = quoi === 'renvoyer' ? `« ${e.titre} » renvoyé : un second document sera créé dans Paperless.`
+        : quoi === 'annuler' ? `« ${e.titre} » retiré de la file : rien ne partira.` : 'Nouvelle recherche lancée.'
       await lirePaperless()
-    } catch (err) { pl.message = err.message }
+    } catch (err) { pl.message = err.message } finally { geste = '' }
   }
   async function toutEnvoyer() {
     envois.encours = true; envois.message = ''
@@ -390,7 +396,7 @@
 
   <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Paperless">
     <h2 class="text-lg font-semibold">Paperless</h2>
-    <p class="mt-1 text-sm text-muted-foreground">Chaque numéro approuvé (Gazette, La Récidive, Good Evening Europe!) est rangé dans Paperless en PDF de lecture, avec l'étiquette de la personne ou de la soirée. Un numéro n'y part qu'une fois : le réapprouver ne le renvoie pas.</p>
+    <p class="mt-1 text-sm text-muted-foreground">Chaque numéro approuvé (Gazette, La Récidive, Good Evening Europe!) est rangé dans Paperless en PDF de lecture, avec l'étiquette du journal et celle de la personne ou de la soirée. Un numéro n'y part qu'une fois : le réapprouver ne le renvoie pas. Les numéros déjà rangés reçoivent aussi l'étiquette du journal : inutile de les renvoyer ; « Renvoyer » crée un second document (pour un numéro corrigé).</p>
     {#if pl.etat && !pl.etat.relie}
       <p class="mt-2 text-sm">Pas relié : il manque le jeton du compte « gazette » de Paperless (variable <code>GAZETTE_PAPERLESS_JETON</code> de la stack).</p>
     {:else if pl.etat}
@@ -407,10 +413,13 @@
               <span class="inline-block size-2 shrink-0 rounded-full {e.etat === 'range' ? 'bg-valide' : e.etat === 'a_verifier' ? 'bg-destructive' : 'bg-muted-foreground'}" aria-hidden="true"></span>
               <span class="min-w-0 flex-1 break-words">{e.titre}</span>
               <span class="text-xs text-muted-foreground">{ETATS_PL[e.etat] ?? e.etat}{e.document_id ? ` · n° ${e.document_id}` : ''}</span>
-              {#if e.etat === 'a_verifier'}
+              {#if e.etat === 'attente'}
+                <Button size="sm" variant="ghost" disabled={!!geste} onclick={() => gestePaperless(e, 'annuler')}>Annuler</Button>
+              {:else if e.etat === 'a_verifier'}
                 <Button size="sm" variant="outline" onclick={() => gestePaperless(e, 'rechercher')}>Chercher à nouveau</Button>
               {:else if e.etat === 'range' && !e.cle.includes('-renvoi-')}
-                <Button size="sm" variant="ghost" onclick={() => gestePaperless(e, 'renvoyer')}>Renvoyer</Button>
+                <Button size="sm" variant={aConfirmer === e.cle ? 'outline' : 'ghost'} disabled={!!geste}
+                        onclick={() => gestePaperless(e, 'renvoyer')}>{aConfirmer === e.cle ? 'Créer un second document ?' : 'Renvoyer'}</Button>
               {/if}
               {#if e.erreur}<span class="basis-full text-xs text-muted-foreground">{e.erreur}</span>{/if}
             </li>

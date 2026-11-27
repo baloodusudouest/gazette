@@ -2646,7 +2646,7 @@ def etat_paperless():
     return {"relie": client.regle, "lecture_seule": ETAT["cfg"].lecture_seule, "resume": f.resume(),
             "anciens": anciens,
             "elements": [{k: e.get(k) for k in ("cle", "titre", "etat", "document_id", "erreur", "cree_le", "range_le",
-                                                 "essais")} for e in elements[:200]]}
+                                                 "essais")} for e in elements[:200] if e.get("etat") != "abandon"]}
 
 
 @app.post("/api/paperless/anciens")
@@ -2679,11 +2679,32 @@ def paperless_renvoyer(cle: str):
     m = re.fullmatch(r"(gazette|recidive|eurovision)-(\d+)", cle.split("-renvoi-")[0])
     if not m:
         raise HTTPException(404, "Numéro inconnu.")
+    base_cle = f"{m.group(1)}-{m.group(2)}"
+    # 0.31.2 : un seul renvoi en cours par numéro (deux touchers créaient deux documents)
+    if any(x["cle"].startswith(base_cle + "-renvoi-") and x.get("etat") in ("attente", "parti")
+           for x in ETAT["paperless_file"].elements()):
+        raise HTTPException(409, "Un renvoi de ce numéro est déjà en file.")
     e = mettre_en_file_paperless(m.group(1), int(m.group(2)), renvoi=True)
     if not e:
         raise HTTPException(409, "Ce numéro n'est pas approuvé (ou c'est un essai).")
     _relancer_paperless()
     return {"ok": True, "cle": e["cle"]}
+
+
+@app.post("/api/paperless/{cle}/annuler")
+def paperless_annuler(cle: str):
+    """0.31.2 : retire de la file un envoi qui n'est pas encore parti (« en file ») ; rien n'est créé dans Paperless."""
+    f: PL.FileEnvois = ETAT["paperless_file"]
+    e = f.element(cle)
+    if not e:
+        raise HTTPException(404, "Envoi inconnu.")
+    if e.get("etat") != "attente":
+        raise HTTPException(409, "Trop tard : cet envoi est déjà parti vers Paperless (le supprimer dans Paperless).")
+    with _PAPERLESS_VERROU:                        # pas pendant un tour de la file
+        if (f.element(cle) or {}).get("etat") != "attente":
+            raise HTTPException(409, "Trop tard : cet envoi vient de partir vers Paperless.")
+        f.abandonner(cle)
+    return {"ok": True}
 
 
 @app.post("/api/paperless/{cle}/rechercher")

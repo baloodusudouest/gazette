@@ -2,6 +2,9 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
+## Changement (27/11/2026) — 0.31.2 : annuler un envoi, renvoi confirmé
+- `POST /api/paperless/{cle}/annuler` (`FileEnvois.abandonner`, sous `_PAPERLESS_VERROU`, seulement `attente`) ; `GET /api/paperless` ne liste plus les `abandon` ; `paperless_renvoyer` refuse (409) un renvoi si un `<clé>-renvoi-…` est `attente`/`parti`. `Reglages.svelte` : bouton Annuler, confirmation de Renvoyer (`aConfirmer`), `geste` (un à la fois). **Jamais essayé sur la vraie installation.**
+
 ## Changement (27/11/2026) — 0.31.1 : étiquette du journal dans Paperless
 - `main.ETIQUETTE_JOURNAL` (gazette → « Gazette », recidive → « La Récidive », eurovision → « Eurovision ») ajoutée en tête des `etiquettes` de `_paperless_element`.
 - `_etiqueter_ranges` (appelée par `tour_paperless`) : éléments `range` sans l'étiquette du journal → `POST /api/documents/bulk_edit/` `{documents, method: add_tag, parameters: {tag}}` par journal (par `client._appel`, `paperless.py` du socle inchangé) ; clés faites dans `<données>/paperless-etiquetes.json`. **Jamais essayé sur la vraie installation.**

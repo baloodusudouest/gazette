@@ -1,5 +1,13 @@
 # Journal des versions
 
+## 0.31.2 — 27 novembre 2026 (Paperless : annuler un envoi, renvoi confirmé)
+
+- **Constaté le 27/11/2026** (Réglages › Paperless, capture de Julien) : plusieurs « Renvoyer » touchés, dont deux fois de suite sur le même numéro, ont mis cinq renvois en file (et un sixième déjà rangé) : autant de doubles dans Paperless.
+- **« Annuler »** sur un envoi encore « en file » : il sort de la file, rien n'est créé dans Paperless (`POST /api/paperless/{clé}/annuler` ; refusé s'il est déjà parti). Les envois annulés ne sont plus listés.
+- **« Renvoyer » se confirme** (deuxième toucher : « Créer un second document ? ») et un seul geste à la fois ; le serveur refuse un deuxième renvoi du même numéro tant que le premier est en file.
+- Texte de Réglages : les numéros déjà rangés reçoivent l'étiquette du journal sans être renvoyés.
+- Test `test_annuler_un_envoi_en_file_et_un_seul_renvoi`. Jamais essayé sur la vraie installation.
+
 ## 0.31.1 — 27 novembre 2026 (Paperless : étiquette du journal)
 
 - **Une étiquette par journal dans Paperless** (demande de Julien, 27/11/2026, essai GAZ-02) : « Gazette », « La Récidive » ou « Eurovision », en plus de l'étiquette de la personne ou de la soirée.

@@ -172,3 +172,25 @@ def test_etiquette_du_journal_posee_aux_numeros_deja_ranges(appli, faux):
     assert {faux.tags[t]["name"] for t in faux.documents[doc]["tags"]} == {"Gazette", "Camille Fabre"}
     main.tour_paperless()
     assert len(groupes) == 1                                                          # une fois seulement
+
+
+def test_annuler_un_envoi_en_file_et_un_seul_renvoi(appli, faux, monkeypatch):
+    """0.31.2 : un envoi pas encore parti s'annule ; un deuxième renvoi du même numéro est refusé tant que le premier
+    est en file (deux touchers créaient deux documents)."""
+    c = appli()
+    pid, r = _deux_sejours(c)
+    main.ETAT["base"].maj_livret(pid, etat="approuve", approuve_le="2026-01-01")
+    c.post("/api/paperless/anciens")
+    cle = f"gazette-{pid}"
+    assert main.ETAT["paperless_file"].element(cle)["etat"] == "range"
+    main.ETAT["cfg"] = replace(main.ETAT["cfg"], synchrone=False)
+    monkeypatch.setattr(main, "_relancer_paperless", lambda: None)   # le tour ne passe pas : le renvoi reste en file
+    r1 = c.post(f"/api/paperless/{cle}/renvoyer")
+    assert r1.status_code == 200
+    r2 = c.post(f"/api/paperless/{cle}/renvoyer")
+    assert r2.status_code == 409 and "déjà en file" in r2.json()["detail"]
+    renvoi = r1.json()["cle"]
+    assert c.post(f"/api/paperless/{renvoi}/annuler").json() == {"ok": True}
+    assert renvoi not in [e["cle"] for e in c.get("/api/paperless").json()["elements"]]   # plus montré
+    assert c.post(f"/api/paperless/{cle}/annuler").status_code == 409                      # déjà rangé : trop tard
+    assert c.post(f"/api/paperless/{cle}/renvoyer").status_code == 200                     # un nouveau renvoi possible
