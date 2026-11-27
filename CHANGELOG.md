@@ -1,5 +1,12 @@
 # Journal des versions
 
+## 0.31.3 — 27 novembre 2026 (Paperless : un renvoi attend 2 minutes)
+
+- **Constaté le 27/11/2026** (Julien, essai de « Annuler ») : « Trop tard : cet envoi est déjà parti vers Paperless ». Un envoi partait quelques secondes après la mise en file et la liste des Réglages ne se relisait pas : le bouton « Annuler » était presque toujours périmé.
+- **Un renvoi attend 2 minutes** avant de partir (`DELAI_RENVOI_S`) : la ligne affiche « en file · part dans 1 min 40 », « Annuler » le retire pendant ce temps ; un tour est relancé juste après le délai. Les numéros approuvés partent toujours tout de suite.
+- **La liste Paperless des Réglages se relit seule** toutes les 5 s tant qu'un envoi est en file ou en recherche.
+- Test `test_renvoi_attend_deux_minutes_et_s_annule`. Jamais essayé sur la vraie installation.
+
 ## 0.31.2 — 27 novembre 2026 (Paperless : annuler un envoi, renvoi confirmé)
 
 - **Constaté le 27/11/2026** (Réglages › Paperless, capture de Julien) : plusieurs « Renvoyer » touchés, dont deux fois de suite sur le même numéro, ont mis cinq renvois en file (et un sixième déjà rangé) : autant de doubles dans Paperless.

@@ -1,5 +1,6 @@
 """0.30 : les numéros approuvés sont rangés dans Paperless (compte « gazette »), retrouvés par leur titre, jamais en
 double. Faux Paperless du socle (formes relevées par la sonde du 21/11/2026), personnes inventées."""
+import time
 from dataclasses import replace
 
 import pytest
@@ -87,7 +88,8 @@ def test_essai_jamais_range(appli, faux):
     assert faux.envois == 0
 
 
-def test_renvoi_voulu_autre_titre(appli, faux):
+def test_renvoi_voulu_autre_titre(appli, faux, monkeypatch):
+    monkeypatch.setattr(main, "DELAI_RENVOI_S", 0)          # sans le délai de 0.31.3 : part tout de suite
     c = appli()
     pid, r = _deux_sejours(c)
     rid = int(r["invites"][0]["lien"].rsplit("/", 1)[1])
@@ -175,6 +177,7 @@ def test_etiquette_du_journal_posee_aux_numeros_deja_ranges(appli, faux):
 
 
 def test_annuler_un_envoi_en_file_et_un_seul_renvoi(appli, faux, monkeypatch):
+    monkeypatch.setattr(main, "DELAI_RENVOI_S", 0)
     """0.31.2 : un envoi pas encore parti s'annule ; un deuxième renvoi du même numéro est refusé tant que le premier
     est en file (deux touchers créaient deux documents)."""
     c = appli()
@@ -194,3 +197,29 @@ def test_annuler_un_envoi_en_file_et_un_seul_renvoi(appli, faux, monkeypatch):
     assert renvoi not in [e["cle"] for e in c.get("/api/paperless").json()["elements"]]   # plus montré
     assert c.post(f"/api/paperless/{cle}/annuler").status_code == 409                      # déjà rangé : trop tard
     assert c.post(f"/api/paperless/{cle}/renvoyer").status_code == 200                     # un nouveau renvoi possible
+
+
+def test_renvoi_attend_deux_minutes_et_s_annule(appli, faux, monkeypatch):
+    """0.31.3 : un renvoi reste en file 2 minutes (« part dans … ») : un tour de la file ne l'envoie pas avant,
+    « Annuler » le retire ; un renvoi laissé part après le délai."""
+    c = appli()
+    pid, r = _deux_sejours(c)
+    main.ETAT["base"].maj_livret(pid, etat="approuve", approuve_le="2026-01-01")
+    c.post("/api/paperless/anciens")
+    cle = f"gazette-{pid}"
+    f = main.ETAT["paperless_file"]
+    assert f.element(cle)["etat"] == "range" and faux.envois == 1
+    r1 = c.post(f"/api/paperless/{cle}/renvoyer").json()
+    assert r1["part_dans"] == 120
+    el = next(e for e in c.get("/api/paperless").json()["elements"] if e["cle"] == r1["cle"])
+    assert el["etat"] == "attente" and 110 <= el["part_dans"] <= 120
+    main.tour_paperless()
+    assert faux.envois == 1                                  # pas parti pendant le délai
+    assert c.post(f"/api/paperless/{r1['cle']}/annuler").json() == {"ok": True}
+    time.sleep(1.1)                                          # la clé d'un renvoi est à la seconde
+    r2 = c.post(f"/api/paperless/{cle}/renvoyer").json()
+    t0 = f.horloge()
+    monkeypatch.setattr(f, "horloge", lambda: t0 + 121)      # deux minutes plus tard
+    main.tour_paperless()
+    assert faux.envois == 2 and f.element(r2["cle"])["etat"] == "range"
+    assert len(_titres(faux)) == 2

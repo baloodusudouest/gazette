@@ -2,6 +2,9 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
+## Changement (27/11/2026) — 0.31.3 : un renvoi attend 2 minutes
+- `main.DELAI_RENVOI_S` (120) : `paperless_renvoyer` pose `prochain_essai = horloge() + délai` sur le renvoi (par `FileEnvois._modifier`, `paperless.py` du socle inchangé) et lance un `threading.Timer(délai + 1, tour_paperless)` (pas en mode synchrone) ; délai 0 = départ immédiat (tests anciens). `GET /api/paperless` : `part_dans` (secondes) par élément `attente`. `Reglages.svelte` : « part dans … », relecture toutes les 5 s tant qu'un élément est `attente`/`parti`. Clé d'un renvoi à la seconde : un renvoi annulé puis refait dans la même seconde retrouverait l'ancien (sans effet en vrai, confirmation en deux touchers). **Jamais essayé sur la vraie installation.**
+
 ## Changement (27/11/2026) — 0.31.2 : annuler un envoi, renvoi confirmé
 - `POST /api/paperless/{cle}/annuler` (`FileEnvois.abandonner`, sous `_PAPERLESS_VERROU`, seulement `attente`) ; `GET /api/paperless` ne liste plus les `abandon` ; `paperless_renvoyer` refuse (409) un renvoi si un `<clé>-renvoi-…` est `attente`/`parti`. `Reglages.svelte` : bouton Annuler, confirmation de Renvoyer (`aConfirmer`), `geste` (un à la fois). **Jamais essayé sur la vraie installation.**
 

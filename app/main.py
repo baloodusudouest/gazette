@@ -2367,6 +2367,7 @@ def _derniere_ecriture_carnet():
 PAPERLESS_TYPE = "Journal maison"
 # 0.31.1 (demande de Julien, 27/11/2026) : une étiquette par journal, en plus de celle de la personne ou de la soirée
 ETIQUETTE_JOURNAL = {"gazette": "Gazette", "recidive": "La Récidive", "eurovision": "Eurovision"}
+DELAI_RENVOI_S = 120              # 0.31.3 : un renvoi attend 2 min avant de partir (le temps de l'« Annuler »)
 _PAPERLESS_VERROU = threading.Lock()
 
 
@@ -2645,8 +2646,12 @@ def etat_paperless():
                    if n["etat"] == "approuve" and not n.get("essai") and f"eurovision-{n['id']}" not in deja)
     return {"relie": client.regle, "lecture_seule": ETAT["cfg"].lecture_seule, "resume": f.resume(),
             "anciens": anciens,
-            "elements": [{k: e.get(k) for k in ("cle", "titre", "etat", "document_id", "erreur", "cree_le", "range_le",
-                                                 "essais")} for e in elements[:200] if e.get("etat") != "abandon"]}
+            "elements": [{**{k: e.get(k) for k in ("cle", "titre", "etat", "document_id", "erreur", "cree_le",
+                                                    "range_le", "essais")},
+                          # 0.31.3 : secondes avant le départ d'un envoi en file retenu (renvoi), 0 sinon
+                          "part_dans": max(0, int((e.get("prochain_essai") or 0) - f.horloge()))
+                          if e.get("etat") == "attente" else 0}
+                         for e in elements[:200] if e.get("etat") != "abandon"]}
 
 
 @app.post("/api/paperless/anciens")
@@ -2687,8 +2692,18 @@ def paperless_renvoyer(cle: str):
     e = mettre_en_file_paperless(m.group(1), int(m.group(2)), renvoi=True)
     if not e:
         raise HTTPException(409, "Ce numéro n'est pas approuvé (ou c'est un essai).")
-    _relancer_paperless()
-    return {"ok": True, "cle": e["cle"]}
+    f: PL.FileEnvois = ETAT["paperless_file"]
+    if DELAI_RENVOI_S > 0:
+        # 0.31.3 : le renvoi attend DELAI_RENVOI_S avant de partir (« Annuler » possible pendant ce temps) ; le tour
+        # le passe tant que `prochain_essai` n'est pas atteint, puis un tour est relancé juste après le délai
+        f._modifier(e["cle"], prochain_essai=f.horloge() + DELAI_RENVOI_S)
+        if not ETAT["cfg"].synchrone:
+            t = threading.Timer(DELAI_RENVOI_S + 1, tour_paperless)
+            t.daemon = True
+            t.start()
+    else:
+        _relancer_paperless()
+    return {"ok": True, "cle": e["cle"], "part_dans": max(0, DELAI_RENVOI_S)}
 
 
 @app.post("/api/paperless/{cle}/annuler")

@@ -24,8 +24,16 @@
   // 0.30 : Paperless (chaque numéro approuvé y est rangé ; anciens numéros envoyés une fois ; renvoi à la main)
   let pl = $state({ etat: null, message: '', encours: false })
   const ETATS_PL = { attente: 'en file', parti: 'envoyé, recherche en cours', range: 'rangé', a_verifier: 'à vérifier', abandon: 'abandonné' }
+  // 0.31.3 : tant qu'un envoi est en cours, la liste se relit toute seule (5 s) : un « Annuler » n'est jamais périmé
+  let suiviPl = null
   async function lirePaperless() {
     try { pl.etat = await api.get('/api/paperless') } catch { pl.etat = null }
+    clearTimeout(suiviPl)
+    if (pl.etat?.elements?.some((x) => x.etat === 'attente' || x.etat === 'parti')) suiviPl = setTimeout(lirePaperless, 5000)
+  }
+  $effect(() => () => clearTimeout(suiviPl))
+  function depart(s) {
+    return s >= 60 ? `part dans ${Math.floor(s / 60)} min ${String(s % 60).padStart(2, '0')}` : `part dans ${s} s`
   }
   async function envoyerAnciens() {
     pl.encours = true; pl.message = ''
@@ -44,7 +52,7 @@
     aConfirmer = ''; geste = e.cle; pl.message = ''
     try {
       await api.post(`/api/paperless/${encodeURIComponent(e.cle)}/${quoi}`, {})
-      pl.message = quoi === 'renvoyer' ? `« ${e.titre} » renvoyé : un second document sera créé dans Paperless.`
+      pl.message = quoi === 'renvoyer' ? `« ${e.titre} » renvoyé : il part dans 2 minutes (« Annuler » d'ici là), puis un second document sera créé dans Paperless.`
         : quoi === 'annuler' ? `« ${e.titre} » retiré de la file : rien ne partira.` : 'Nouvelle recherche lancée.'
       await lirePaperless()
     } catch (err) { pl.message = err.message } finally { geste = '' }
@@ -412,7 +420,7 @@
             <li class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border bg-background px-3 py-2">
               <span class="inline-block size-2 shrink-0 rounded-full {e.etat === 'range' ? 'bg-valide' : e.etat === 'a_verifier' ? 'bg-destructive' : 'bg-muted-foreground'}" aria-hidden="true"></span>
               <span class="min-w-0 flex-1 break-words">{e.titre}</span>
-              <span class="text-xs text-muted-foreground">{ETATS_PL[e.etat] ?? e.etat}{e.document_id ? ` · n° ${e.document_id}` : ''}</span>
+              <span class="text-xs text-muted-foreground">{ETATS_PL[e.etat] ?? e.etat}{e.etat === 'attente' && e.part_dans ? ` · ${depart(e.part_dans)}` : ''}{e.document_id ? ` · n° ${e.document_id}` : ''}</span>
               {#if e.etat === 'attente'}
                 <Button size="sm" variant="ghost" disabled={!!geste} onclick={() => gestePaperless(e, 'annuler')}>Annuler</Button>
               {:else if e.etat === 'a_verifier'}
