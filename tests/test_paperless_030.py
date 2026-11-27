@@ -56,7 +56,7 @@ def test_recidive_approuvee_rangee(appli, faux):
     doc = next(iter(faux.documents.values()))
     assert doc["title"] == f"La Récidive n° 2 — Camille Fabre — séjour du {j(10)[8:10]}/{j(10)[5:7]}/{j(10)[:4]}"
     assert doc["owner"] == 3 and doc["created"] == j(10)
-    assert {faux.tags[t]["name"] for t in doc["tags"]} == {"Camille Fabre"}
+    assert {faux.tags[t]["name"] for t in doc["tags"]} == {"La Récidive", "Camille Fabre"}   # 0.31.1 : le journal aussi
     assert faux.types[doc["document_type"]]["name"] == "Journal maison"
     assert faux.tags[doc["tags"][0]]["matching_algorithm"] == 0
     # deuxième approbation (après correction) : rien ne repart
@@ -143,3 +143,32 @@ def test_homonyme_dans_carnet_annee_ajoutee(appli, faux):
     assert main.etiquette_personne({"nom": "Camille Fabre", "naissance": "1988-07-07"}) == "Camille Fabre (1988)"
     main.ETAT["carnet"].chercher = lambda nom: [{"nom": nom}]
     assert main.etiquette_personne({"nom": "Camille Fabre", "naissance": "1988-07-07"}) == "Camille Fabre"
+
+
+def test_etiquette_du_journal_posee_aux_numeros_deja_ranges(appli, faux):
+    """0.31.1 : les numéros rangés avant l'étiquette du journal la reçoivent une fois (édition groupée « add_tag »)."""
+    import json as _json
+    c = appli()
+    groupes = []
+    origine = faux.transport
+
+    def transport(methode, url, entetes, donnees, delai):
+        if url.endswith("/api/documents/bulk_edit/") and methode == "POST":
+            corps = _json.loads(donnees)
+            groupes.append(corps)
+            for d in corps["documents"]:
+                faux.documents[d]["tags"].append(corps["parameters"]["tag"])
+            return 200, {"Content-Type": "application/json"}, b'{"result": "OK"}'
+        return origine(methode, url, entetes, donnees, delai)
+    main.ETAT["paperless"].transport = transport
+    perso = faux.ajouter_tag("Camille Fabre", proprietaire=3)
+    doc = faux.ajouter_document("Gazette — Camille Fabre — 01/01/2026", proprietaire=3, tags=(perso,))
+    f = main.ETAT["paperless_file"]
+    f.ajouter(cle="gazette-99", source="gazette:99", titre="Gazette — Camille Fabre — 01/01/2026",
+              type_nom="Journal maison", etiquettes=["Camille Fabre"])
+    f._modifier("gazette-99", etat="range", document_id=doc)
+    main.tour_paperless()
+    assert len(groupes) == 1 and groupes[0]["method"] == "add_tag" and groupes[0]["documents"] == [doc]
+    assert {faux.tags[t]["name"] for t in faux.documents[doc]["tags"]} == {"Gazette", "Camille Fabre"}
+    main.tour_paperless()
+    assert len(groupes) == 1                                                          # une fois seulement

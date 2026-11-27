@@ -2,6 +2,10 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
+## Changement (27/11/2026) — 0.31.1 : étiquette du journal dans Paperless
+- `main.ETIQUETTE_JOURNAL` (gazette → « Gazette », recidive → « La Récidive », eurovision → « Eurovision ») ajoutée en tête des `etiquettes` de `_paperless_element`.
+- `_etiqueter_ranges` (appelée par `tour_paperless`) : éléments `range` sans l'étiquette du journal → `POST /api/documents/bulk_edit/` `{documents, method: add_tag, parameters: {tag}}` par journal (par `client._appel`, `paperless.py` du socle inchangé) ; clés faites dans `<données>/paperless-etiquetes.json`. **Jamais essayé sur la vraie installation.**
+
 ## Changement (27/11/2026) — 0.31.0 : « Du nouveau dans les souvenirs » (Sillage ≥ 0.26)
 - `app/sillage.py` : `_lire_nouveautes_http` (GET `/externe/nouveautes?personne=&depuis=`), `Sillage.nouveautes` → `{lignes (4 au plus), autres_photos}` ; injectable par `ETAT["sillage_nouveautes"]` ; `tests/conftest.py` coupe le réseau par défaut.
 - `main._preparer_recidive` : lecture best-effort avec `depuis` = `precedent.jusqu_au` (sinon `du`) ; colonne `recidives.souvenirs` (JSON, liste vide ou un élément).

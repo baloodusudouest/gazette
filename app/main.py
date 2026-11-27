@@ -2365,6 +2365,8 @@ def _derniere_ecriture_carnet():
 # ================================================================ 0.30 : Paperless
 
 PAPERLESS_TYPE = "Journal maison"
+# 0.31.1 (demande de Julien, 27/11/2026) : une étiquette par journal, en plus de celle de la personne ou de la soirée
+ETIQUETTE_JOURNAL = {"gazette": "Gazette", "recidive": "La Récidive", "eurovision": "Eurovision"}
 _PAPERLESS_VERROU = threading.Lock()
 
 
@@ -2397,7 +2399,7 @@ def _paperless_element(journal_: str, ident: int) -> dict | None:
         sej = base.sejours_de(ident)
         le = sej[0]["du"] if sej else (lv.get("approuve_le") or maintenant())[:10]
         return {"cle": f"gazette-{ident}", "source": f"gazette:{ident}", "date": le,
-                "titre": f"Gazette — {p['nom']} — {_date_fr(le)}", "etiquettes": [etiquette_personne(p)],
+                "titre": f"Gazette — {p['nom']} — {_date_fr(le)}", "etiquettes": [ETIQUETTE_JOURNAL["gazette"], etiquette_personne(p)],
                 "nom_fichier": f"gazette-{ident}.pdf"}
     if journal_ == "recidive":
         ed = base.recidive(ident)
@@ -2407,7 +2409,7 @@ def _paperless_element(journal_: str, ident: int) -> dict | None:
         num = ed.get("numero_main") or ed["numero"]
         return {"cle": f"recidive-{ident}", "source": f"recidive:{ident}", "date": ed["sejour_du"],
                 "titre": f"La Récidive n° {num} — {p['nom']} — séjour du {_date_fr(ed['sejour_du'])}",
-                "etiquettes": [etiquette_personne(p)], "nom_fichier": f"la-recidive-{ident}.pdf"}
+                "etiquettes": [ETIQUETTE_JOURNAL["recidive"], etiquette_personne(p)], "nom_fichier": f"la-recidive-{ident}.pdf"}
     if journal_ == "eurovision":
         n = next((x for x in base.eurovisions() if x["id"] == ident), None)
         if not n or n.get("essai") or n.get("etat") != "approuve":
@@ -2416,7 +2418,8 @@ def _paperless_element(journal_: str, ident: int) -> dict | None:
         le = r_["date"] or (n.get("approuve_le") or maintenant())[:10]
         return {"cle": f"eurovision-{ident}", "source": f"eurovision:{ident}", "date": le,
                 "titre": f"{_titre_euro()} — {r_['numero']} — {r_['nom']} — {_date_fr(le)}",
-                "etiquettes": [f"Eurovision — {r_['nom']}"], "nom_fichier": f"good-evening-europe-{ident}.pdf"}
+                "etiquettes": [ETIQUETTE_JOURNAL["eurovision"], f"Eurovision — {r_['nom']}"],
+                "nom_fichier": f"good-evening-europe-{ident}.pdf"}
     return None
 
 
@@ -2455,12 +2458,54 @@ def mettre_en_file_paperless(journal_: str, ident: int, renvoi: bool = False) ->
         return f.ajouter(type_nom=PAPERLESS_TYPE, **{**e, "titre": f"{e['titre']} ({e['cle']})"})
 
 
+def _etiqueter_ranges() -> int:
+    """0.31.1 : les numéros rangés avant l'étiquette du journal la reçoivent une fois (édition groupée de Paperless,
+    « add_tag ») ; ceux déjà faits sont notés dans `paperless-etiquetes.json`. Rend le nombre étiqueté ; une panne
+    attend le tour suivant."""
+    client: PL.Paperless = ETAT.get("paperless")
+    if not client or not client.regle or ETAT["cfg"].lecture_seule:
+        return 0
+    fichier = ETAT["cfg"].data / "paperless-etiquetes.json"
+    try:
+        faits = set(json.loads(fichier.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        faits = set()
+    a_faire: dict[str, list] = {}
+    for e in ETAT["paperless_file"].elements():
+        genre = e["cle"].split("-", 1)[0]
+        if e.get("etat") != "range" or not e.get("document_id") or e["cle"] in faits or genre not in ETIQUETTE_JOURNAL:
+            continue
+        if ETIQUETTE_JOURNAL[genre] in (e.get("etiquettes") or []):
+            faits.add(e["cle"])                      # parti avec l'étiquette : rien à faire
+            continue
+        a_faire.setdefault(genre, []).append(e)
+    n = 0
+    for genre, liste in a_faire.items():
+        try:
+            tag = client.etiquette(ETIQUETTE_JOURNAL[genre])
+            client._appel("POST", "/api/documents/bulk_edit/",
+                          corps={"documents": [int(e["document_id"]) for e in liste], "method": "add_tag",
+                                 "parameters": {"tag": tag}})
+        except Exception as ex:  # noqa: BLE001 — Paperless muet : au prochain tour
+            log.info("Étiquette %s pas encore posée : %s", ETIQUETTE_JOURNAL[genre], ex)
+            continue
+        faits.update(e["cle"] for e in liste)
+        n += len(liste)
+    try:
+        fichier.write_text(json.dumps(sorted(faits)), encoding="utf-8")
+    except OSError:
+        pass
+    return n
+
+
 def tour_paperless() -> dict:
     """Un tour de la file (un envoi à la fois). Jamais deux tours en même temps."""
     if "paperless_file" not in ETAT or not _PAPERLESS_VERROU.acquire(blocking=False):
         return {"ranges": 0, "erreurs": 0}
     try:
-        return ETAT["paperless_file"].tour()
+        res = ETAT["paperless_file"].tour()
+        _etiqueter_ranges()
+        return res
     finally:
         _PAPERLESS_VERROU.release()
 

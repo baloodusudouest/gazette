@@ -1,5 +1,11 @@
 # Journal des versions
 
+## 0.31.1 — 27 novembre 2026 (Paperless : étiquette du journal)
+
+- **Une étiquette par journal dans Paperless** (demande de Julien, 27/11/2026, essai GAZ-02) : « Gazette », « La Récidive » ou « Eurovision », en plus de l'étiquette de la personne ou de la soirée.
+- **Numéros déjà rangés** : ils reçoivent l'étiquette de leur journal une fois, au prochain tour de la file (édition groupée de Paperless, `add_tag` ; faits notés dans `paperless-etiquetes.json`). Paperless muet : au tour suivant.
+- Tests : `test_etiquette_du_journal_posee_aux_numeros_deja_ranges`. Jamais essayé sur la vraie installation (forme de `bulk_edit` d'après l'API de Paperless 10, pas relevée par la sonde du 21/11).
+
 ## 0.31.0 — 27 novembre 2026 (« Du nouveau dans les souvenirs » dans La Récidive)
 
 - **Page 3 de La Récidive** : rubrique « Du nouveau dans les souvenirs de <prénom> » (demande de Julien, 27/11/2026, « Quoi de neuf » de Sillage). À la préparation de l'édition, Gazette lit dans **Sillage ≥ 0.26** les nouveautés du sillage de la personne depuis la **fin de son séjour précédent** (`GET /externe/nouveautes`, jeton commun, contrat 1) : 4 lignes au plus (« Nouvelle affaire : Vacances au lac, 2026 (9 photos). », « 12 nouvelles pièces au dossier « Mariage de Paul, 1987 ». Ressorties des archives. »), puis « Et n autres clichés versés au dossier. ». Gardé dans l'édition (colonne `souvenirs` de `recidives`).
