@@ -130,6 +130,8 @@ class Base:
             self._c.execute("ALTER TABLE recidives ADD COLUMN evenement TEXT NOT NULL DEFAULT ''")
         if "code_barres" not in colonnes:        # 0.11.4 : message du code-barres de la page 4
             self._c.execute("ALTER TABLE recidives ADD COLUMN code_barres TEXT NOT NULL DEFAULT ''")
+        if "souvenirs" not in colonnes:          # 0.31 : « Du nouveau dans les souvenirs » (Sillage), page 3
+            self._c.execute("ALTER TABLE recidives ADD COLUMN souvenirs TEXT NOT NULL DEFAULT '[]'")
         if "macaron" not in colonnes:            # 0.9.2 : place du macaron « Exclusif ! » sur la photo de la une
             self._c.execute("ALTER TABLE recidives ADD COLUMN macaron TEXT NOT NULL DEFAULT 'hd'")
         for col in ("titre_une", "description_une", "propositions_une", "rumeurs", "indices_rumeurs", "propositions_rumeurs",
@@ -486,6 +488,7 @@ class Base:
         d["propositions_courrier"] = [x for x in d["propositions_courrier"]
                                       if not (isinstance(x, dict) and CORPS.search(" ".join(str(v) for v in x.values())))]
         d["precedent"] = json.loads(d["precedent"] or "{}") or None
+        d["souvenirs"] = json.loads(d.get("souvenirs") or "[]")                  # 0.31 : nouveautés de Sillage
         d["manque_scandale"], d["tag_absent"] = bool(d["manque_scandale"]), bool(d["tag_absent"])
         return d
 
@@ -527,7 +530,7 @@ class Base:
 
     def maj_recidive(self, rid: int, **champs) -> None:
         for k in ("photos", "precedent", "propositions_une", "rumeurs", "propositions_rumeurs", "courrier",
-                  "propositions_courrier", "propositions_horoscope", "valides"):
+                  "propositions_courrier", "propositions_horoscope", "valides", "souvenirs"):
             if k in champs:
                 champs[k] = json.dumps(champs[k] or ({} if k in ("precedent", "valides") else []), ensure_ascii=False)
         for k in ("manque_scandale", "tag_absent"):

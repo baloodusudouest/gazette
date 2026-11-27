@@ -1,5 +1,11 @@
 # Journal des versions
 
+## 0.31.0 — 27 novembre 2026 (« Du nouveau dans les souvenirs » dans La Récidive)
+
+- **Page 3 de La Récidive** : rubrique « Du nouveau dans les souvenirs de <prénom> » (demande de Julien, 27/11/2026, « Quoi de neuf » de Sillage). À la préparation de l'édition, Gazette lit dans **Sillage ≥ 0.26** les nouveautés du sillage de la personne depuis la **fin de son séjour précédent** (`GET /externe/nouveautes`, jeton commun, contrat 1) : 4 lignes au plus (« Nouvelle affaire : Vacances au lac, 2026 (9 photos). », « 12 nouvelles pièces au dossier « Mariage de Paul, 1987 ». Ressorties des archives. »), puis « Et n autres clichés versés au dossier. ». Gardé dans l'édition (colonne `souvenirs` de `recidives`).
+- Sillage muet, pas réglé ou rien de neuf : pas de rubrique, rien ne bloque. La Gazette du premier séjour ne change pas.
+- `app/sillage.py` : `Sillage.nouveautes(immich_id, depuis)`, `SOUVENIRS_MAX` ; `main._preparer_recidive` ; `rendu_recidive._souvenirs`. Tests : `tests/test_souvenirs_031.py` (3, dont la page 3 qui tient avec 4 rumeurs). Jamais essayé sur la vraie installation.
+
 ## 0.30.2 — 23 novembre 2026 (listes déroulantes lisibles en sombre)
 
 - **Listes déroulantes illisibles sur PC** (constaté par Julien dans Dîme, 23/11/2026) : la liste ouverte d'un `<select>` gardait un fond blanc tout en reprenant le texte crème de l'appli. `frontend/src/app.css` reprend le bloc du socle 0.12.2 (« Listes déroulantes (socle 0.12.2) ») : choix aux couleurs des menus, titres de groupe en gras, choix désactivés en gris.

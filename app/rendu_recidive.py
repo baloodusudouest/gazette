@@ -141,6 +141,10 @@ p,h1,h2,h3{margin:0}
 .pied{display:flex;justify-content:space-between;align-items:flex-end;font-family:'Oswald',sans-serif;font-size:12px;letter-spacing:.06em;text-transform:uppercase}
 .lecture body{background:#e9e4d8}
 .lecture .feuille{width:148.5mm;height:210mm}
+.souv{border:2px solid #111;padding:8px 12px;background:#fffbe0}
+.souv h3{font-family:'Oswald',sans-serif;font-weight:700;font-size:14px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px}
+.souv ul{margin:0;padding-left:16px;font-size:12.5px;line-height:1.35}
+.souv li.reste{list-style:none;margin-left:-16px;font-style:italic}
 .lecture .page + .page{border-left:0}
 .ecran body{background:#2a2521;padding:6mm;display:flex;flex-direction:column;gap:6mm;align-items:center}
 .ecran .feuille{box-shadow:0 2mm 6mm rgba(0,0,0,.35)}
@@ -271,8 +275,35 @@ def page3(g: dict) -> str:
 <div><b>{g['n_anc']}</b><span>ancien{'s' if g['n_anc'] > 1 else ''} scandale{'s' if g['n_anc'] > 1 else ''}</span></div>
 <div><b>{absence if absence is not None else '?'}</b><span>jours d'absence</span></div></div>
 <p class="note">{note}</p>
+{_souvenirs(g)}
 {_rumeurs(g)}
 </div></section>"""
+
+
+def _souvenirs(g: dict) -> str:
+    """0.31 : « Du nouveau dans les souvenirs » : ce que Sillage a vu arriver dans le sillage de la personne depuis
+    son séjour précédent (nouvelle étape, ou photos de plus dans une étape ; « retrouvée » : photo ancienne arrivée
+    depuis). Rien sans nouveauté."""
+    s = (g.get("souvenirs") or [None])[0]
+    if not s or not s.get("lignes"):
+        return ""
+    nom = g["prenom"]
+    lignes = []
+    for x in s["lignes"]:
+        quoi = f"{x['nom']}, {x['annee']}" if x.get("nom") else f"l'année {x['annee']}"
+        n = x["photos"]
+        if x.get("nouvelle"):
+            t = f"Nouvelle affaire : {quoi} ({n} photo{'s' if n > 1 else ''})."
+        else:
+            t = f"{n} nouvelle{'s' if n > 1 else ''} pièce{'s' if n > 1 else ''} au dossier « {quoi} »."
+        if x.get("retrouvee"):
+            t += " Ressortie des archives." if n == 1 or x.get("nouvelle") else " Ressorties des archives."
+        lignes.append(f'<li>{e(t)}</li>')
+    if s.get("autres_photos"):
+        a = s["autres_photos"]
+        lignes.append(f'<li class="reste">Et {a} autre{"s" if a > 1 else ""} cliché{"s" if a > 1 else ""} versé{"s" if a > 1 else ""} au dossier.</li>')
+    return (f'<div class="souv" data-bloc="souvenirs"><h3>Du nouveau dans les souvenirs de {e(nom)}</h3>'
+            f'<ul>{"".join(lignes)}</ul></div>')
 
 
 def _rumeurs(g: dict) -> str:
@@ -354,6 +385,7 @@ def document(personne: dict, edition: dict, j: dict, image: Callable[[str], byte
         "code_barres": edition.get("code_barres") or message_defaut(prenom),
         "courrier": edition.get("courrier") or [], "horoscope": edition.get("horoscope") or "",
         "signe": signe(personne.get("naissance") or "")[0], "macaron": edition.get("macaron") or "hd",
+        "souvenirs": edition.get("souvenirs") or [],                                  # 0.31 : nouveautés de Sillage
         "titre": (j.get("r_titre") or "La Récidive").strip() or "La Récidive",      # 0.18 : Réglages › La Récidive
     }
     if mode == "impose":

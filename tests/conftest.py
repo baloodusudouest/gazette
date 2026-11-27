@@ -10,6 +10,8 @@ from app import carnet, douze_points, sillage
 def _sans_reseau_fiche(monkeypatch):
     monkeypatch.setattr(carnet, "_fiche_http", lambda url, jeton, methode, chemin, corps: (404, {"detail": "Not Found"}))
     monkeypatch.setattr(sillage, "_lire_http", lambda url, jeton, immich_id: {"contrat": 1, "etapes": []})
+    # 0.31 : nouveautés de Sillage pour La Récidive : rien par défaut (les tests injectent `ETAT["sillage_nouveautes"]`)
+    monkeypatch.setattr(sillage, "_lire_nouveautes_http", lambda url, jeton, immich_id, depuis: {"contrat": 1, "etapes": []})
 
 
 def _douze_hors_reseau(url, jeton, chemin):

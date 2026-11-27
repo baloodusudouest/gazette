@@ -287,12 +287,20 @@ def _preparer_recidive(rid: int, completer: bool = False) -> None:
                 x["contexte"] = immich.contexte(x["id"], immich_id)
                 if gabarit:                                 # la légende de gabarit nomme les personnes de la photo
                     x["legende"] = R.legende(x)
+    # 0.31 : « Du nouveau dans les souvenirs » : les nouveautés du sillage depuis le séjour précédent (Sillage ≥ 0.26) ;
+    # Sillage muet ou pas réglé : la rubrique n'apparaît pas, rien ne bloque
+    souvenirs = {"lignes": [], "autres_photos": 0}
+    try:
+        souvenirs = ETAT["sillage"].nouveautes(immich_id, prec.get("jusqu_au") or prec["du"])
+    except Exception as ex:  # noqa: BLE001
+        log.info("Nouveautés de Sillage non lues : %s", ex)
     vide = not any(not x.get("retiree") for x in choix["photos"])
     accroche = ed["accroche"] if (completer and ed["accroche"]) else R.accroche(genre or "", _prenom(p), _journal())
     base.maj_recidive(rid, etat="vide" if vide else "a_relire", photos=choix["photos"], trouvees=choix["trouvees"],
                       manque_scandale=choix["manque_scandale"], tag_absent=choix["tag_absent"], genre=genre or "",
                       immich_id=immich_id,
-                      accroche=accroche, precedent=prec, prepare_le=maintenant(), approuve_le="", erreur="")
+                      accroche=accroche, precedent=prec, prepare_le=maintenant(), approuve_le="", erreur="",
+                      souvenirs=[souvenirs] if souvenirs["lignes"] else [])
     base.noter("recidive", p["id"], "aucune photo dans la fenêtre : la Gazette sert" if vide
                else f"{sum(1 for x in choix['photos'] if not x.get('retiree'))} photo(s)")
     if vide:                             # repli : le séjour garde la Gazette, qui doit être prête
@@ -318,7 +326,8 @@ async def cycle(app: FastAPI):
     ETAT["carnet"] = Carnet(cfg.carnet_url, cfg.carnet_jeton, base, lire=ETAT.get("carnet_lire"),
                             ecrire=ETAT.get("carnet_ecrire"), paru=ETAT.get("carnet_paru"), fiche=ETAT.get("carnet_fiche"))
     # 0.23 : Sillage (étapes du chemin d'une personne) pour les suggestions de la fiche complète, même jeton commun
-    ETAT["sillage"] = Sillage(lambda: cfg.sillage_url, cfg.carnet_jeton, lire=ETAT.get("sillage_lire"))
+    ETAT["sillage"] = Sillage(lambda: cfg.sillage_url, cfg.carnet_jeton, lire=ETAT.get("sillage_lire"),
+                              lire_nouveautes=ETAT.get("sillage_nouveautes"))
     # 0.28 : Douze points (soirées Eurovision clôturées) pour « Good Evening Europe! », même jeton commun
     ETAT["douze"] = DP.DouzePoints(lambda: cfg.douze_points_url, cfg.carnet_jeton, lire=ETAT.get("douze_lire"))
     ETAT["immich"] = Immich(cfg.immich_url, cfg.immich_cle, cfg.data / "photos", lire=ETAT.get("immich_lire"))

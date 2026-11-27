@@ -2,6 +2,12 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
+## Changement (27/11/2026) — 0.31.0 : « Du nouveau dans les souvenirs » (Sillage ≥ 0.26)
+- `app/sillage.py` : `_lire_nouveautes_http` (GET `/externe/nouveautes?personne=&depuis=`), `Sillage.nouveautes` → `{lignes (4 au plus), autres_photos}` ; injectable par `ETAT["sillage_nouveautes"]` ; `tests/conftest.py` coupe le réseau par défaut.
+- `main._preparer_recidive` : lecture best-effort avec `depuis` = `precedent.jusqu_au` (sinon `du`) ; colonne `recidives.souvenirs` (JSON, liste vide ou un élément).
+- `rendu_recidive._souvenirs` (page 3, bloc `.souv`, `data-bloc="souvenirs"`, entre la note et les rumeurs).
+- Tests : `tests/test_souvenirs_031.py`. **Jamais essayé sur la vraie installation.** Aucune variable de stack ajoutée (`GAZETTE_SILLAGE_URL` existe).
+
 ## Changement (21/11/2026) — 0.30.0 : rangement dans Paperless (socle 0.12.0)
 - `app/paperless.py` et `tests/faux_paperless.py` : copies du socle 0.12.0 (`python3 ../socle/tools/diffuser_maison.py --paperless .`), jamais retouchées.
 - `config.py` : `paperless_url` (`GAZETTE_PAPERLESS_URL`, défaut `http://paperless:8000`), `paperless_jeton` (`GAZETTE_PAPERLESS_JETON`).
