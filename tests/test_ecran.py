@@ -522,3 +522,21 @@ def test_reglages_paperless(navigateur, adresse, taille):
     sec.get_by_text("Envoyer les numéros déjà approuvés").wait_for()
     sans_debordement(page)
     assert not erreurs
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_livret_pas_prepare_sans_ecran_fige(navigateur, adresse, taille):
+    """0.31.4 : un livret vide (jamais préparé, ou remis à zéro par une annulation) montrait « Lecture… » sans fin
+    (erreur de page) : il dit maintenant qu'il n'est pas préparé et propose de le préparer ou de supprimer la fiche."""
+    from app import main
+    b = main.ETAT["base"]
+    pid = b.creer_personne("Noé Vide", "Noé", "1991-05-05")
+    try:
+        page, erreurs = ouvrir(navigateur, adresse, taille, f"#/livret/{pid}")
+        page.get_by_text("Cette Gazette n'est pas préparée.").wait_for()
+        page.get_by_role("button", name="Préparer la Gazette").wait_for()
+        page.get_by_role("button", name="Supprimer la fiche").wait_for()
+        sans_debordement(page)
+        assert erreurs == []
+    finally:
+        b.supprimer_personne(pid)

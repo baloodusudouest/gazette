@@ -2,6 +2,11 @@
 
 À lire en premier ; mis à jour dans le même commit que le code.
 
+## Changement (27/11/2026) — 0.31.4 : séjour annulé, la fiche part
+- `_apres_annulation` : plus aucun séjour → Gazette approuvée gardée ; sinon si `base.recidives(pid)` ou `sejours_avant` → `remettre_livret` (fiche gardée) ; sinon `supprimer_personne` + note « fiche et Gazette supprimées » (geste `fiche`). Séjour raccourci : (personne, arrivée) inchangé, rien de disparu.
+- `Base.fiches_remises_a_zero` + `main._menage_remises_a_zero` (au démarrage, après `_menage_orphelines`) : critère = livret `a_preparer` à `contenu` vide, aucun invité ni Récidive, `sejours_avant` 0, ligne de journal « Gazette remise à zéro ».
+- `Livret.svelte` : branche `contenu && !contenu.une` (pas préparée : « Préparer la Gazette », « Supprimer la fiche », relectures `suivre`). `Livrets.svelte` : texte de confirmation de « Séjour annulé ». **Jamais essayé sur la vraie installation.**
+
 ## Changement (27/11/2026) — 0.31.3 : un renvoi attend 2 minutes
 - `main.DELAI_RENVOI_S` (120) : `paperless_renvoyer` pose `prochain_essai = horloge() + délai` sur le renvoi (par `FileEnvois._modifier`, `paperless.py` du socle inchangé) et lance un `threading.Timer(délai + 1, tour_paperless)` (pas en mode synchrone) ; délai 0 = départ immédiat (tests anciens). `GET /api/paperless` : `part_dans` (secondes) par élément `attente`. `Reglages.svelte` : « part dans … », relecture toutes les 5 s tant qu'un élément est `attente`/`parti`. Clé d'un renvoi à la seconde : un renvoi annulé puis refait dans la même seconde retrouverait l'ancien (sans effet en vrai, confirmation en deux touchers). **Jamais essayé sur la vraie installation.**
 

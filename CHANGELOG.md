@@ -1,5 +1,13 @@
 # Journal des versions
 
+## 0.31.4 — 27 novembre 2026 (séjour annulé : la fiche part, plus de livret figé)
+
+- **Constaté le 27/11/2026** (Julien, captures) : deux fiches de séjours annulés restaient dans Livrets, « à préparer » ; les ouvrir laissait l'écran sur « Lecture… » (erreur de page : livret vide, `contenu.une` absent).
+- **Séjour annulé** (par Home Assistant ou au bouton « Séjour annulé ») : si l'invité n'a plus aucun séjour, **sa fiche et sa Gazette pas approuvée sont supprimées** (choix de Julien ; avant, la Gazette repartait à zéro et la fiche restait). Gardée : Gazette approuvée, numéro de La Récidive restant, séjours d'avant Gazette. **Un séjour raccourci** (même date d'arrivée) ne touche à rien. Copie de la base avant, comme avant.
+- **Au démarrage**, les fiches laissées par l'ancienne règle (livret vide, aucun séjour, ligne « Gazette remise à zéro » au journal) sont supprimées (copie « avant-menage-fiches »). Une fiche créée à la main sans séjour reste.
+- **Livret pas préparé** : plus d'écran figé ; « Cette Gazette n'est pas préparée », avec « Préparer la Gazette » et « Supprimer la fiche ».
+- Tests : `test_annulation.py` (fiche supprimée, habitué gardé, séjour raccourci, ménage au démarrage), `test_sejours_024.py`, `test_ecran.py::test_livret_pas_prepare_sans_ecran_fige`. Jamais essayé sur la vraie installation.
+
 ## 0.31.3 — 27 novembre 2026 (Paperless : un renvoi attend 2 minutes)
 
 - **Constaté le 27/11/2026** (Julien, essai de « Annuler ») : « Trop tard : cet envoi est déjà parti vers Paperless ». Un envoi partait quelques secondes après la mise en file et la liste des Réglages ne se relisait pas : le bouton « Annuler » était presque toujours périmé.

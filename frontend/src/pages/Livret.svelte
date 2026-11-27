@@ -76,6 +76,7 @@
   let largeur = $state(400)
   let mes = $state(null)           // mesure de Chromium du livret enregistré (null : pas de mesure)
   let minuteur = null
+  let suivre = 0                   // 0.31.4 : relectures après « Préparer la Gazette » (la file peut attendre)
 
   async function lire() {
     try {
@@ -91,7 +92,7 @@
       modifie = false
       tampon = Date.now()
       clearTimeout(minuteur)
-      if (d.livret.etat === 'en_preparation') minuteur = setTimeout(lire, 3000)
+      if (d.livret.etat === 'en_preparation' || (suivre > 0 && !contenu?.une)) { suivre -= 1; minuteur = setTimeout(lire, 3000) }
       else mesurer()
     } catch (err) {
       if (err.statut === 401) ondeconnecte?.()
@@ -220,6 +221,10 @@
     await api.del(`/api/personnes/${id}`, { confirmation: true })   // le serveur exige la confirmation (0.20.9)
     location.hash = '#/livrets'
   }
+  async function preparerVide() {
+    attente = 'preparer'; message = ''
+    try { await api.post(`/api/livrets/${id}/preparer`, {}); suivre = 40; await lire() } catch (err) { message = err.message } finally { attente = '' }
+  }
   function basculer(o) { o.masque = !o.masque; toucher() }
   function ouvrir(bloc, index = null) { ouvert = ouvert?.bloc === bloc && ouvert?.index === index ? null : { bloc, index } }
   const evts = $derived(d?.livret.propositions.evenements ?? [])
@@ -276,7 +281,25 @@
   <ArrowLeft class="size-4" aria-hidden="true" /> Livrets
 </a>
 
-{#if d && contenu}
+{#if d && contenu && !contenu.une}
+  <!-- 0.31.4 : Gazette jamais préparée (ou remise à zéro) : plus d'écran figé sur « Lecture… » -->
+  <section class="max-w-xl rounded-2xl border bg-card p-5" aria-label="Gazette pas préparée">
+    <p class="etiquette">né·e le {dateLongue(d.personne.naissance)}</p>
+    <h1 class="titre">{d.personne.nom}</h1>
+    <p class="mt-3 text-sm">
+      {d.livret.etat === 'en_preparation' ? 'Lecture des sources en cours…' : 'Cette Gazette n\'est pas préparée.'}
+      {#if !d.sejours.length}Aucun séjour n'est connu pour cette personne (séjour annulé ?).{/if}
+    </p>
+    {#if d.livret.erreur}<p class="mt-2 text-xs text-muted-foreground">{d.livret.erreur}</p>{/if}
+    {#if d.livret.etat !== 'en_preparation'}
+      <div class="mt-4 flex flex-wrap gap-2">
+        <Button onclick={preparerVide} disabled={!!attente}>Préparer la Gazette</Button>
+        <Button variant="outline" onclick={supprimer}>Supprimer la fiche</Button>
+      </div>
+    {/if}
+    {#if message}<p class="mt-3 text-sm" role="status">{message}</p>{/if}
+  </section>
+{:else if d && contenu}
   <header class="sticky top-0 z-10 -mx-2 mb-5 flex flex-wrap items-end justify-between gap-3 bg-background/90 px-2 py-2 backdrop-blur">
     <div>
       <p class="etiquette">né·e le {dateLongue(d.personne.naissance)}</p>

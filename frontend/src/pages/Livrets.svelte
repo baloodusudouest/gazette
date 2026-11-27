@@ -29,7 +29,7 @@
   const aujourdhui = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
   async function annuler(s) {
     const noms = s.invites.map((i) => i.nom).join(', ')
-    if (!confirm(`Séjour annulé : ${noms}, chambre ${s.chambre}, du ${dateCourte(s.du)} ?\n\nSa Récidive est supprimée (même approuvée) ; une Gazette pas approuvée repart à zéro si l'invité n'a plus de séjour ; la fiche reste.`)) return
+    if (!confirm(`Séjour annulé : ${noms}, chambre ${s.chambre}, du ${dateCourte(s.du)} ?\n\nSa Récidive est supprimée (même approuvée) ; si l'invité n'a plus de séjour, sa fiche et sa Gazette pas approuvée sont supprimées.`)) return
     message = ''
     try {
       const r = await api.del(`/api/sejours/${s.id}`)

@@ -1,7 +1,7 @@
 {
   "name": "gazette-interface",
   "private": true,
-  "version": "0.31.3",
+  "version": "0.31.4",
   "type": "module",
   "scripts": {
     "dev": "vite",

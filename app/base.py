@@ -372,6 +372,19 @@ class Base:
                             "valides = '{}', code_barres = '', modifie_le = ? WHERE personne_id = ?", (maintenant(), pid))
             self._c.execute("DELETE FROM tirages WHERE journal = 'gazette' AND numero = ?", (pid,))     # 0.23
 
+    def fiches_remises_a_zero(self) -> list[int]:
+        """0.31.4 : fiches laissées par l'ancienne annulation (Gazette « remise à zéro », jamais repréparée) : livret
+        à préparer et vide, aucun séjour, aucun numéro de La Récidive, aucun séjour d'avant Gazette, et une ligne
+        « Gazette remise à zéro » dans le journal."""
+        with self._verrou:
+            return [l["id"] for l in self._c.execute(
+                "SELECT p.id FROM personnes p JOIN livrets l ON l.personne_id = p.id "
+                "WHERE l.etat = 'a_preparer' AND (l.contenu = '{}' OR l.contenu = '') AND COALESCE(p.sejours_avant, 0) = 0 "
+                "AND NOT EXISTS (SELECT 1 FROM invites i WHERE i.personne_id = p.id) "
+                "AND NOT EXISTS (SELECT 1 FROM recidives r WHERE r.personne_id = p.id) "
+                "AND EXISTS (SELECT 1 FROM journal j WHERE j.personne_id = p.id AND j.geste = 'livret' "
+                "            AND j.detail LIKE '%Gazette remise à zéro%')")]
+
     def relier_invites(self) -> None:
         """Après la création ou le renommage d'une fiche : relie les invités restés sans fiche."""
         with self._verrou, self._c:

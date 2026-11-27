@@ -346,6 +346,7 @@ async def cycle(app: FastAPI):
     copie = asyncio.create_task(maison.planifier_copie(APPLI, [chemin_base], cfg.data / "copies",
                                                        maison.HEURES_COPIE[APPLI]))
     _menage_orphelines()                  # 0.24 : numéros de séjours annulés avant la 0.22.1
+    _menage_remises_a_zero()              # 0.31.4 : fiches de séjours annulés laissées « à préparer »
     envois = None if cfg.synchrone else asyncio.create_task(_boucle_carnet())   # 0.27 : renvois et photos scandale
     # Livrets restés « en préparation » (redémarrage pendant une lecture) : on reprend
     for p in base.personnes():
@@ -2927,8 +2928,10 @@ def ha_sejour(corps: dict = Body(...)):
 def _apres_annulation(chambre: str, avant: set[tuple[int, str]]) -> list[str]:
     """0.22.1 : un séjour pas encore commencé a disparu de Home Assistant (séjour annulé, chambre libérée avant
     l'arrivée, invité retiré, dates changées). Choix de Julien : son numéro de La Récidive est supprimé, même
-    approuvé ; si l'invité n'a plus aucun séjour, sa Gazette repart à zéro (une Gazette approuvée est gardée) ; la
-    fiche reste. Des dates seulement déplacées : le numéro suit le séjour. Un séjour commencé ou fini n'est jamais
+    approuvé ; si l'invité n'a plus aucun séjour, sa fiche et sa Gazette sont supprimées (0.31.4, choix de Julien :
+    avant, la Gazette repartait à zéro et la fiche restait, « à préparer », sans jamais être refaite) ; une Gazette
+    approuvée, un numéro de La Récidive restant ou des séjours d'avant Gazette gardent la fiche. Un séjour
+    raccourci (même arrivée) n'est pas un séjour disparu. Des dates seulement déplacées : le numéro suit le séjour. Un séjour commencé ou fini n'est jamais
     touché (la chambre libérée au départ garde tout). Copie de la base avant toute suppression."""
     base: Base = ETAT["base"]
     apres = base.sejours_a_venir_de_chambre(chambre)
@@ -2954,13 +2957,33 @@ def _apres_annulation(chambre: str, avant: set[tuple[int, str]]) -> list[str]:
             base.noter("recidive", pid, f"séjour du {du} annulé ({chambre}) : numéro de La Récidive supprimé")
         if not base.sejours_de(pid):
             lv = base.livret(pid)
-            if lv and lv["etat"] != "approuve":
-                base.remettre_livret(pid)
-                base.noter("livret", pid, f"séjour du {du} annulé ({chambre}) : Gazette remise à zéro")
-            elif lv:
+            if lv and lv["etat"] == "approuve":
                 base.noter("livret", pid, f"séjour du {du} annulé ({chambre}) : Gazette approuvée gardée")
+            elif base.recidives(pid) or (p.get("sejours_avant") or 0):
+                base.remettre_livret(pid)
+                base.noter("livret", pid, f"séjour du {du} annulé ({chambre}) : Gazette remise à zéro (fiche gardée)")
+            else:                                          # 0.31.4 : plus aucun séjour : la fiche part avec sa Gazette
+                base.supprimer_personne(pid)
+                base.noter("fiche", None, f"{p['nom']} : séjour du {du} annulé ({chambre}) : fiche et Gazette supprimées")
         annules.append(f"{p['nom']} ({du})")
     return annules
+
+
+def _menage_remises_a_zero() -> list[str]:
+    """0.31.4 : au démarrage, les fiches laissées « à préparer » par une annulation d'avant la 0.31.4 (Gazette remise
+    à zéro, aucun séjour, rien d'autre) sont supprimées, comme à l'annulation désormais. Copie de la base avant."""
+    base: Base = ETAT["base"]
+    pids = base.fiches_remises_a_zero()
+    if not pids:
+        return []
+    base.copie(ETAT["cfg"].data / "sauvegardes", f"gazette-{maintenant()[:19].replace(':', '-')}-avant-menage-fiches.db")
+    faits = []
+    for pid in pids:
+        p = base.personne(pid) or {"nom": "?"}
+        base.supprimer_personne(pid)
+        base.noter("fiche", None, f"{p['nom']} : séjour annulé avant la 0.31.4 : fiche et Gazette supprimées")
+        faits.append(p["nom"])
+    return faits
 
 
 def _menage_orphelines() -> list[str]:

@@ -94,7 +94,8 @@ def test_jour_d_arrivee_recidive_supprimee_par_ha(monter):
     assert rep["annules"] == [f"Camille Fabre ({j(0)})"] and main.ETAT["base"].recidives(pid) == []
 
 
-def test_premier_sejour_annule_au_bouton_gazette_a_zero(monter):
+def test_premier_sejour_annule_au_bouton_fiche_supprimee(monter):
+    """0.31.4 : au bouton « Séjour annulé » aussi, plus aucun séjour : la fiche et sa Gazette partent."""
     c = monter()
     b = main.ETAT["base"]
     pid = c.post("/api/personnes", json={"nom": "Camille Fabre", "naissance": "1988-07-07"}).json()["id"]
@@ -102,7 +103,7 @@ def test_premier_sejour_annule_au_bouton_gazette_a_zero(monter):
     b.maj_livret(pid, mot="Un mot écrit.", etat="a_relire")
     sid = c.get("/api/livrets").json()["sejours"][0]["id"]
     c.delete(f"/api/sejours/{sid}")
-    assert b.livret(pid)["etat"] == "a_preparer" and b.livret(pid)["mot"] == ""
+    assert b.personne(pid) is None and b.livret(pid) is None
 
 
 # ---------------------------------------------------------------- ménage au démarrage
